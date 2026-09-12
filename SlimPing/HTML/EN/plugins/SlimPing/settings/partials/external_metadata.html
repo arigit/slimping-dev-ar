@@ -1,0 +1,73 @@
+<div class="settings-accordion" data-accordion-id="external-metadata">
+    <div class="settings-accordion-header" aria-expanded="false" role="button" tabindex="0"
+        aria-controls="accordion-content-external-metadata">
+        <div class="settings-accordion-title">External Metadata</div>
+        <div class="settings-accordion-icon"></div>
+    </div>
+    <div id="accordion-content-external-metadata" class="settings-accordion-content">
+
+        <p class="m-0 mb-10 fs-12 text-secondary">
+            SlimPing integrates with the Music &amp; Artist Info plugin for lyrics and
+            artist biographies. To protect upstream services from excessive requests,
+            external lookups are gated by a concurrency cap and a per-minute rate limit.
+            This plugin is designed for small-scale personal use with a modest number of
+            active Subsonic clients, not as a large-scale streaming proxy. Defaults are
+            tuned accordingly.
+        </p>
+
+        [% WRAPPER setting title="Artist Image Enrichment"
+        desc="Serve local artist images from the Music &amp; Artist Info plugin via the OpenSubsonic API endpoints getArtistInfo/getArtistInfo2. Auto enables automatically when MAI is installed with an Artist Image Folder configured. Off keeps the default cover-art behaviour. On force-enables (falls back gracefully if MAI is unavailable)." %]
+        <select class="sp-feature-toggle-select" name="pref_feature_mai_integration"
+            data-pref="feature_mai_integration">
+            <option value="auto" [% 'selected' IF feature_mai_integration == 'auto' %]>
+                Auto - enable if MAI is configured correctly</option>
+            <option value="on" [% 'selected' IF feature_mai_integration == 'on' %]>
+                On - force artist image enrichment</option>
+            <option value="off" [% 'selected' IF feature_mai_integration == 'off' %]>
+                Off - use cover art only</option>
+        </select>
+        [% END %]
+
+        [% WRAPPER setting title="Lyrics &amp; Biography Fetching"
+        desc="On Demand fetches only when a lyrics or artistInfo endpoint is called. For items not yet cached the first request triggers the external fetch but returns empty; some clients may not show lyrics until a second request. Off serves embedded lyrics only with empty biographies. Requires the Music &amp; Artist Info plugin." %]
+        <select class="sp-feature-toggle-select" name="pref_feature_mai_text"
+            data-pref="feature_mai_text">
+            <option value="on_demand" [% 'selected' IF feature_mai_text == 'on_demand' %]>
+                On Demand - only fetch when requested</option>
+            <option value="off" [% 'selected' IF feature_mai_text == 'off' %]>
+                Off - embedded lyrics only, empty bios</option>
+        </select>
+        [% END %]
+
+        [% WRAPPER setting title="External Request Concurrency Cap"
+        desc="Maximum number of external MAI requests (lyrics and biographies that need to go online) allowed in-flight at once. When the cap is reached, additional external lookups are skipped and retried on the next client request. Local cache hits are never throttled. Range 5&ndash;50, default 20." %]
+        <div class="form-row">
+            <label for="mai_external_cap">Maximum in-flight:</label>
+            <input type="number" id="mai_external_cap" class="sp-feature-toggle stdedit form-input-small"
+                name="pref_mai_external_cap"
+                data-pref="mai_external_cap"
+                value="[% mai_external_cap %]"
+                min="5" max="50" step="1">
+        </div>
+        [% END %]
+
+        [% WRAPPER setting title="Request Rate Limit"
+        desc="Maximum number of external MAI requests allowed per minute, across all users. When the limit is reached, further external lookups are queued and processed at the rate-limit cadence, ensuring upstream providers (Wikipedia, LRCLib, Genius) are never flooded. Range 1&ndash;60, default 10." %]
+        <div class="form-row">
+            <label for="mai_request_rate">Requests per minute:</label>
+            <input type="number" id="mai_request_rate" class="sp-feature-toggle stdedit form-input-small"
+                name="pref_mai_request_rate"
+                data-pref="mai_request_rate"
+                value="[% mai_request_rate %]"
+                min="1" max="60" step="1">
+        </div>
+
+        <div class="mt-15">
+            <button type="button" class="stdclick btn-primary"
+                onclick="return saveFeatures();">Save Metadata Settings</button>
+            <span id="sp-metadata-result" class="sp-save-result"></span>
+        </div>
+        [% END %]
+
+    </div>
+</div>

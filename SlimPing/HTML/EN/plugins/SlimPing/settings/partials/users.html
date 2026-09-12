@@ -1,0 +1,231 @@
+<div class="settings-accordion" data-accordion-id="users">
+    <div class="settings-accordion-header" aria-expanded="true" role="button" tabindex="0"
+        aria-controls="accordion-content-users">
+        <div class="settings-accordion-title">Users &amp; API Keys</div>
+        <div class="settings-accordion-icon"></div>
+    </div>
+    <div id="accordion-content-users" class="settings-accordion-content">
+
+        <p class="m-0 mb-10 fs-12 text-secondary">
+            Manage SlimPing API users, roles, and API keys.
+        </p>
+
+        [% WRAPPER setting title="Users"
+        desc="Manage SlimPing API users, roles, and API keys" %]
+
+        [% IF slimping_users.size %]
+        <table class="stdt">
+            <tr>
+                <th>Username</th>
+                <th>Alias</th>
+                <th>Enabled</th>
+                <th>Admin</th>
+                <th>Jukebox Player</th>
+                <th>Radio Folder</th>
+                <th>Scrobble</th>
+                <th>Playcount<br>Sync</th>
+                [% IF dpl4_available %]
+                <th>Dyn. Playlists</th>
+                [% END %]
+                <th>Password</th>
+                <th>API Keys</th>
+                <th>Last Login</th>
+                <th></th>
+            </tr>
+            [% FOREACH user IN slimping_users %]
+            [% SET safe_name = user.username | uri %]
+            [% USE date %]
+            <tr>
+                <td>[% user.username | html %]</td>
+                <td>
+                    <input type="text" class="stdedit sp-alias-input"
+                        data-username="[% user.username | html %]"
+                        value="[% user.alias | html %]"
+                        placeholder="(none)"
+                        size="14"
+                        style="min-width:110px">
+                </td>
+                <td>
+                    <input type="checkbox" class="sp-enabled-toggle"
+                        [% 'checked' IF user.enabled %]
+                        onchange="setEnabled('[% user.username | html %]', this.checked)">
+                </td>
+                <td>
+                    <input type="checkbox" class="sp-admin-toggle"
+                        [% 'checked' IF user.admin %]
+                        onchange="setAdmin('[% user.username | html %]', this.checked)">
+                </td>
+                <td>
+                    <select class="stdedit sp-jukebox-select"
+                        data-username="[% user.username | html %]"
+                        data-current="[% user.jukebox_player | html %]"
+                        onchange="setJukeboxPlayer(this)"
+                        style="min-width:180px">
+                        <option value="">None (jukebox disabled)</option>
+                        [% IF user.jukebox_player %]
+                        <option value="[% user.jukebox_player | html %]" selected>
+                            [% user.jukebox_player | html %]</option>
+                        [% END %]
+                    </select>
+                </td>
+                <td>
+                    <select class="stdedit sp-radio-folder-select"
+                        data-username="[% user.username | html %]"
+                        data-current="[% user.radioFolder | html %]"
+                        onchange="SlimPingSettings.setUserRadioFolder(this)"
+                        style="min-width:160px">
+                        <option value="">Default (Use Plugin Setting)</option>
+                        [% IF user.radioFolder %]
+                        <option value="[% user.radioFolder | html %]" selected>
+                            [% user.radioFolder | html %]</option>
+                        [% END %]
+                    </select>
+                </td>
+                <td>
+                    <input type="checkbox" class="sp-scrobble-toggle"
+                        [% 'checked' IF user.scrobble_enabled %]
+                        onchange="SlimPingSettings.setScrobbleEnabled('[% user.username | html %]', this.checked)">
+                </td>
+                <td>
+                    <input type="checkbox" class="sp-playcount-sync-toggle"
+                        [% 'checked' IF user.playcount_sync_enabled %]
+                        onchange="SlimPingSettings.setPlaycountSyncEnabled('[% user.username | html %]', this.checked)">
+                </td>
+                [% IF dpl4_available %]
+                <td>
+                    <input type="checkbox" class="sp-dpl-access-toggle"
+                        [% 'checked' IF user.dpl_access %]
+                        onchange="SlimPingSettings.setDplAccess('[% user.username | html %]', this.checked)">
+                </td>
+                [% END %]
+                <td>
+                    <button type="button" class="stdclick btn-primary"
+                        onclick="return changePassword('[% user.username | html %]');">Change</button>
+                </td>
+                <td>
+                    [% user.api_keys.size %] key(s)
+                    <button type="button" class="stdclick btn-primary"
+                        onclick="return toggleApiKeys('[% safe_name %]');">Manage</button>
+                </td>
+                <td style="white-space:nowrap">
+                    [% IF user.last_login %]
+                    [% date.format(user.last_login, '%Y-%m-%d %H:%M') %]
+                    [% ELSE %]
+                    <span class="text-secondary">never</span>
+                    [% END %]
+                </td>
+                <td>
+                    <button type="button" class="stdclick btn-danger"
+                        onclick="return deleteUser('[% user.username | html %]');"
+                        title="Delete user and all associated data">Delete</button>
+                </td>
+            </tr>
+            <tr class="sp-apikey-panel" id="sp-apikey-panel-[% safe_name %]" style="display:none">
+                <td colspan="10" style="padding:12px 16px;background:var(--bg-panel, #f5f5f5)">
+                    <div style="margin-bottom:8px">
+                        <strong>API Keys for [% user.username | html %]</strong>
+                    </div>
+                    [% IF user.api_keys.size %]
+                    <table class="stdt" style="margin:0;width:100%">
+                        <tr>
+                            <th>Prefix</th>
+                            <th>Label</th>
+                            <th>Created</th>
+                            <th>Last Used</th>
+                            <th></th>
+                        </tr>
+                        [% FOREACH key IN user.api_keys %]
+                        <tr>
+                            <td style="font-family:monospace">
+                                [% key.prefix | html %]</td>
+                            <td>[% key.label | html %]</td>
+                            <td style="white-space:nowrap">
+                                [% IF key.created_at %]
+                                [% date.format(key.created_at, '%Y-%m-%d') %]
+                                [% ELSE %]
+                                <span class="text-secondary">unknown</span>
+                                [% END %]
+                            </td>
+                            <td style="white-space:nowrap">
+                                [% IF key.last_used_at %]
+                                [% date.format(key.last_used_at, '%Y-%m-%d %H:%M') %]
+                                [% ELSE %]
+                                <span class="text-secondary">never</span>
+                                [% END %]
+                            </td>
+                            <td>
+                                <button type="button" class="stdclick"
+                                    onclick="return revokeApiKey('[% user.username | html %]', '[% key.id | html %]');"
+                                    style="color:var(--status-error)">Revoke</button>
+                            </td>
+                        </tr>
+                        [% END %]
+                    </table>
+                    [% ELSE %]
+                    <p class="text-secondary m-0 mb-10">
+                        No API keys for this user.
+                    </p>
+                    [% END %]
+                    <div style="margin-top:10px">
+                        <button type="button" class="stdclick btn-primary"
+                            onclick="return addApiKey('[% safe_name %]');">Add API Key</button>
+                        <div class="sp-apikey-result" id="sp-apikey-[% safe_name %]"
+                            style="display:none;margin-top:8px">
+                            <div class="sp-apikey-display">
+                                <input type="text" class="stdedit sp-apikey-input"
+                                    id="sp-apikey-val-[% safe_name %]"
+                                    readonly spellcheck="false" autocomplete="off" size="42">
+                                <button type="button" class="stdclick btn-primary"
+                                    onclick="return copyKey('[% safe_name %]');">Copy</button>
+                            </div>
+                            <span class="sp-apikey-label"
+                                id="sp-apikey-lbl-[% safe_name %]"></span>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+            [% END %]
+        </table>
+        [% ELSE %]
+        <div class="info-panel info-panel-muted">
+            <p class="m-0">No users configured yet. Create one below.</p>
+        </div>
+        [% END %]
+
+        [% END %]
+
+        [% WRAPPER setting title="Create User"
+        desc="Add a new Subsonic API user" %]
+        <table class="stdt-form">
+            <tr>
+                <td>Username</td>
+                <td>
+                    <input class="stdedit" type="text" id="sp_username"
+                        placeholder="Username" size="30">
+                </td>
+            </tr>
+            <tr>
+                <td>Password</td>
+                <td>
+                    <input class="stdedit" type="password" id="sp_password"
+                        placeholder="Password" size="30">
+                </td>
+            </tr>
+            <tr>
+                <td>Administrator</td>
+                <td>
+                    <input type="checkbox" id="sp_admin"> Grant full admin access
+                </td>
+            </tr>
+            <tr>
+                <td></td>
+                <td>
+                    <button type="button" class="stdclick btn-primary"
+                        onclick="return createUser();">Create User</button>
+                </td>
+            </tr>
+        </table>
+        [% END %]
+
+    </div>
+</div>

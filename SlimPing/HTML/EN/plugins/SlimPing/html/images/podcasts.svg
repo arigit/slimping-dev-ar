@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="80" height="80" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <linearGradient id="podcastsGradRounded" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#667eea"/>
+            <stop offset="100%" style="stop-color:#764ba2"/>
+        </linearGradient>
+        <style>
+            .bg { fill: url(#podcastsGradRounded); }
+            .podcast-body { fill: #ffffff; opacity: 0.9; }
+            .podcast-inner { fill: #43e97b; opacity: 0.9; }
+            .podcast-stand { fill: #ffffff; opacity: 0.9; }
+            .podcast-base { fill: #ffffff; opacity: 0.9; }
+            .wave1 { stroke: #ffffff; fill: none; }
+            .wave2 { stroke: #ffffff; fill: none; }
+            .wave3 { stroke: #ffffff; fill: none; }
+            .wave4 { stroke: #ffffff; fill: none; }
+            .wave5 { stroke: #ffffff; fill: none; }
+            .wave6 { stroke: #ffffff; fill: none; }
+            .play-bg { fill: #38f9d7; opacity: 0.9; }
+            .play { fill: #ffffff; }
+            .play-line { fill: #ffffff; }
+            .play-accent { fill: #43e97b; }
+        </style>
+    </defs>
+    <rect width="80" height="80" rx="12" ry="12" class="bg"/>
+    <rect x="36" y="20" width="8" height="20" rx="4" class="podcast-body"/>
+    <rect x="38" y="22" width="4" height="16" rx="2" class="podcast-inner"/>
+    <rect x="39" y="40" width="2" height="15" class="podcast-stand"/>
+    <rect x="32" y="53" width="16" height="3" rx="1.5" class="podcast-base"/>
+    <path d="M25 30 Q22 35 25 40" class="wave1" stroke-width="3" opacity="0.8"/>
+    <path d="M55 30 Q58 35 55 40" class="wave2" stroke-width="3" opacity="0.8"/>
+    <path d="M20 25 Q15 35 20 45" class="wave3" stroke-width="2.5" opacity="0.6"/>
+    <path d="M60 25 Q65 35 60 45" class="wave4" stroke-width="2.5" opacity="0.6"/>
+    <path d="M16 20 Q10 35 16 50" class="wave5" stroke-width="2" opacity="0.4"/>
+    <path d="M64 20 Q70 35 64 50" class="wave6" stroke-width="2" opacity="0.4"/>
+    <circle cx="50" cy="25" r="6" class="play-bg"/>
+    <circle cx="50" cy="25" r="3" class="play"/>
+    <rect x="47" y="22" width="6" height="2" rx="1" class="play-line"/>
+    <rect x="48" y="26" width="4" height="1.5" rx="0.5" class="play-accent"/>
+</svg>

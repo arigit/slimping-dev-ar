@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="80" height="80" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <linearGradient id="nowplayingGradRounded" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#667eea"/>
+            <stop offset="100%" style="stop-color:#764ba2"/>
+        </linearGradient>
+        <style>
+            .bg { fill: url(#nowplayingGradRounded); }
+            .page-top { fill: #ffffff; opacity: 0.9; }
+            .page-bottom { fill: #fed6e3; opacity: 0.8; }
+            .text1 { fill: #333333; opacity: 0.6; }
+            .text2 { fill: #333333; opacity: 0.5; }
+            .text3 { fill: #333333; opacity: 0.6; }
+            .text4 { fill: #333333; opacity: 0.5; }
+            .wave1 { fill: #20b2aa; }
+            .wave2 { fill: #20b2aa; }
+            .wave3 { fill: #20b2aa; }
+            .wave4 { fill: #20b2aa; }
+            .wave5 { fill: #20b2aa; }
+        </style>
+    </defs>
+    <rect width="80" height="80" rx="12" ry="12" class="bg"/>
+    <path d="M20 25 Q40 20 60 25 L60 55 Q40 50 20 55 Z" class="page-top"/>
+    <path d="M20 25 Q40 30 60 25 L60 55 Q40 60 20 55 Z" class="page-bottom"/>
+    <rect x="25" y="35" width="10" height="1.5" rx="0.5" class="text1"/>
+    <rect x="25" y="39" width="8" height="1.5" rx="0.5" class="text2"/>
+    <rect x="45" y="33" width="10" height="1.5" rx="0.5" class="text3"/>
+    <rect x="45" y="37" width="8" height="1.5" rx="0.5" class="text4"/>
+    <rect x="32" y="48" width="2" height="8" rx="1" class="wave1"/>
+    <rect x="36" y="45" width="2" height="14" rx="1" class="wave2"/>
+    <rect x="40" y="42" width="2" height="20" rx="1" class="wave3"/>
+    <rect x="44" y="46" width="2" height="12" rx="1" class="wave4"/>
+    <rect x="48" y="49" width="2" height="6" rx="1" class="wave5"/>
+</svg>

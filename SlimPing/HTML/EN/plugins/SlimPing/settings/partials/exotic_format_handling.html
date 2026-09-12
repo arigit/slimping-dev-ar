@@ -1,0 +1,76 @@
+<div class="settings-accordion" data-accordion-id="exotic-format-handling">
+    <div class="settings-accordion-header" aria-expanded="false" role="button" tabindex="0"
+        aria-controls="accordion-content-exotic-format-handling">
+        <div class="settings-accordion-title">Exotic Format Handling</div>
+        <div class="settings-accordion-icon"></div>
+    </div>
+    <div id="accordion-content-exotic-format-handling" class="settings-accordion-content">
+
+        <p class="m-0 mb-10 fs-12 text-secondary">
+            Controls how SlimPing delivers exotic audio formats (DSD, high-res PCM) that
+            cannot be played natively by any Subsonic client. These formats are always
+            transcoded. The setting below chooses the target format when the client
+            requests the 'original' quality.
+        </p>
+
+        <p class="m-0 mb-10 fs-12 text-secondary">
+            Clients that explicitly request MP3 or a bitrate limit always receive MP3
+            regardless of this setting. This only affects requests where the client asks
+            for the source format (format=raw/auto) or makes no format request.
+        </p>
+
+        [% WRAPPER setting title="Exotic Format Delivery"
+        desc="When a client requests the original format of an exotic audio file (DSD, high-res PCM), deliver as:" %]
+        <select class="stdedit sp-feature-toggle-select" name="pref_exotic_target"
+            data-pref="exotic_target" style="min-width:220px">
+            <option value="flac" [% 'selected' IF exotic_target == 'flac' %]>
+                FLAC - lossless, preserves most audio quality
+            </option>
+            <option value="mp3" [% 'selected' IF exotic_target == 'mp3' %]>
+                MP3 - maximum compatibility, lower bandwidth
+            </option>
+        </select>
+        [% END %]
+
+        [% WRAPPER setting title="FLAC Sample Rate"
+        desc="Output sample rate when delivering exotic formats as FLAC. All rates are integer divisors of DSD source rates or the PCM rate. Higher rates preserve more detail but produce larger files and not all Subsonic clients may be able to play the audio. Does not affect MP3 output." %]
+        <select class="stdedit sp-feature-toggle-select" name="pref_exotic_target_rate"
+            data-pref="exotic_target_rate" style="min-width:220px">
+            <option value="44100" [% 'selected' IF exotic_target_rate == 44100 %]>
+                44.1 kHz - CD quality (~37 MB / 5 min)
+            </option>
+            <option value="88200" [% 'selected' IF exotic_target_rate == 88200 %]>
+                88.2 kHz - High resolution (~78 MB / 5 min)
+            </option>
+            <option value="176400" [% 'selected' IF exotic_target_rate == 176400 %]>
+                176.4 kHz - Maximum fidelity (~211 MB / 5 min)
+            </option>
+        </select>
+
+        [% IF exotic_target == 'flac' && !cache_disk_enabled %]
+        <div class="info-panel info-panel-warning mt-15">
+            <p>
+                <strong>DSD-to-FLAC transcoding is CPU-intensive.</strong>
+                Enabling the persistent disk cache in Data and Cache Management is
+                strongly recommended. Each transcode will be stored and reused, avoiding
+                repeated decoding of the same tracks.
+            </p>
+        </div>
+        [% END %]
+
+        <p class="m-0 mt-10 fs-11 text-secondary">
+            <strong>Note:</strong> DSD transcoding requires the DSDPlayer plugin
+            (provides the dsdplay decoder). FLAC output at the selected sample rate,
+            24-bit stereo for DSD sources. Transcodes are cached on disk for repeat
+            plays when the disk cache is enabled.
+        </p>
+
+        <div class="mt-15">
+            <button type="button" class="stdclick btn-primary"
+                onclick="return saveFeatures();">Save Exotic Format Settings</button>
+            <span id="sp-exotic-result" class="sp-save-result"></span>
+        </div>
+        [% END %]
+
+    </div>
+</div>

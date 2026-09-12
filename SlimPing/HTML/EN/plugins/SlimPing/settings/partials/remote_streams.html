@@ -1,0 +1,85 @@
+<div class="settings-accordion" data-accordion-id="remote-streams">
+    <div class="settings-accordion-header" aria-expanded="true" role="button" tabindex="0"
+        aria-controls="accordion-content-remote-streams">
+        <div class="settings-accordion-title">Remote Audio Streams</div>
+        <div class="settings-accordion-icon"></div>
+    </div>
+    <div id="accordion-content-remote-streams" class="settings-accordion-content">
+
+        <p class="m-0 mb-10 fs-12 text-secondary">
+            Lyrion supports remote library tracks, songs and albums linked to third party
+            services (Spotify, TIDAL, Qobuz etc.) where protocol-handler plugins fetch
+            and decode content on demand. Lyrion also supports rich Internet Radio streams.
+            SlimPing throttles and controls requests for remote tracks and URL streams
+            to prevent issues and abuse. This may include limiting requests, returning
+            errors on overuse, and restricting clients that make too many requests in
+            quick succession.
+        </p>
+
+        <p class="m-0 mb-10 fs-12 text-secondary">
+            SlimPing delivers remote streams by fetching and proxying them through the
+            LMS server, which allows clients to play them regardless of network
+            restrictions or CORS issues. However, this can increase load on the server
+            and may cause playback issues if the upstream service is slow or unreliable.
+        </p>
+
+        <p class="m-0 mb-10 fs-12 text-secondary">
+            Remote streams are ALWAYS delivered to OpenSubsonic clients in MP3 format
+            regardless of their original source format.
+        </p>
+
+        [% WRAPPER setting title="Proxy Remote Streams"
+        desc="When enabled, remote audio streams are proxied through the LMS server so clients can play them regardless of network restrictions. Disabling removes the ability for clients to play ANY remote streams, including Internet Radio and 3rd party services." %]
+        <label class="sp-radio-label">
+            <input type="checkbox" id="toggle_proxy_remote" class="sp-feature-toggle"
+                name="pref_proxy_remote_streams"
+                data-pref="proxy_remote_streams"
+                [% 'checked' IF proxy_remote_streams %]>
+            Proxy remote streams through LMS
+        </label>
+        [% END %]
+
+        [% WRAPPER setting title="Remote Stream Concurrency Cap"
+        desc="Maximum number of concurrent remote audio streams allowed through the SlimPing pipeline. When the cap is reached, additional remote stream requests receive an error response. Protects upstream services from being overwhelmed by clients that pre-buffer multiple tracks simultaneously." %]
+        <div class="form-row">
+            <label for="remote_stream_cap">Max concurrent:</label>
+            <input type="number" id="remote_stream_cap" class="sp-feature-toggle stdedit form-input-small"
+                name="pref_remote_stream_cap"
+                data-pref="remote_stream_cap"
+                value="[% remote_stream_cap %]"
+                min="1" max="50" step="1">
+        </div>
+        [% END %]
+
+        [% WRAPPER setting title="Remote Stream Rate Limit"
+        desc="Maximum number of remote stream requests a single client may initiate within the configured sliding time window. Clients that exceed this limit receive an error response and must wait before retrying. Prevents a single client from flooding the server with rapid-fire requests when pre-buffering or caching." %]
+        <div class="form-row">
+            <label for="remote_stream_rate_limit">Max requests per window:</label>
+            <input type="number" id="remote_stream_rate_limit" class="sp-feature-toggle stdedit form-input-small"
+                name="pref_remote_stream_rate_limit"
+                data-pref="remote_stream_rate_limit"
+                value="[% remote_stream_rate_limit %]"
+                min="1" max="20" step="1">
+        </div>
+        [% END %]
+
+        [% WRAPPER setting title="Remote Stream Rate Window"
+        desc="Sliding time window (in seconds) for the remote stream rate limit. Requests are counted within this window; when the window expires old requests are forgotten. Shorter windows are stricter." %]
+        <div class="form-row">
+            <label for="remote_stream_rate_window">Window (seconds):</label>
+            <input type="number" id="remote_stream_rate_window" class="sp-feature-toggle stdedit form-input-small"
+                name="pref_remote_stream_rate_window"
+                data-pref="remote_stream_rate_window"
+                value="[% remote_stream_rate_window %]"
+                min="5" max="120" step="1">
+        </div>
+
+        <div class="mt-15">
+            <button type="button" class="stdclick btn-primary"
+                onclick="return saveFeatures();">Save Remote Stream Settings</button>
+            <span id="sp-remote-streams-result" class="sp-save-result"></span>
+        </div>
+        [% END %]
+
+    </div>
+</div>

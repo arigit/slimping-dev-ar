@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<extensions>
+	<details>
+		<title lang="EN">SlimPing Repository</title>
+	</details>
+	<plugins>
+		<plugin name="SlimPing" version="0.7.0085-dev" minTarget="8.5" maxTarget="*">
+			<title lang="EN">SlimPing</title>
+			<desc lang="EN">SlimPing - OpenSubsonic REST API server for Lyrion Music Server</desc>
+			<url>https://raw.githubusercontent.com/arigit/slimping-dev-ar/main/SlimPing-0.7.0085-dev.zip</url>
+			<link>https://slimping.distant-earth.com/</link>
+			<icon>https://raw.githubusercontent.com/arigit/slimping-dev-ar/main/SlimPing/HTML/EN/plugins/SlimPing/html/images/icon_svg.png</icon>
+			<creator>DJWillis</creator>
+			<email>lms@distant-earth.com</email>
+			<sha>2c9ef07e22b85fd88cc0e9f5f70a19bf1d4ca241</sha>
+		</plugin>
+	</plugins>
+</extensions>

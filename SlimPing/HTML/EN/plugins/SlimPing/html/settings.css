@@ -1,0 +1,1200 @@
+/* SlimPing Settings CSS - Consolidated styles for settings page */
+/* Theme-aware CSS custom properties for Material skin compatibility */
+
+:root {
+    /* Text colors - work with both light and dark themes */
+    --text-primary: #333;
+    --text-secondary: #666;
+    --text-muted: #888;
+
+    /* Background colors */
+    --background-secondary: #f9f9f9;
+    --background-code: #f8f9fa;
+    --background-card: #ffffff;
+
+    /* Border colors */
+    --border-color: #ddd;
+    --border-color-light: #eee;
+    --border-radius: 6px;
+
+    /* Status message colors */
+    --info-background: #e8f4f8;
+    --info-border: #bee5eb;
+    --info-background-light: #f0f8ff;
+    --info-border-light: #b0d4f1;
+
+    --warning-background: #fff3cd;
+    --warning-border: #ffeaa7;
+
+    --success-background: #e6f7e6;
+    --success-border: #99cc99;
+
+    --error-background: #ffe6e6;
+    --error-border: #ff9999;
+    --error-text: #721c24;
+    --success-text: #155724;
+    --info-text: #0c5460;
+    --warning-text: #856404;
+
+    /* Tip panel colors */
+    --tip-background: #f0f7ff;
+    --tip-border: #b8daff;
+
+    /* Progress bar colors */
+    --progress-bg: #ddd;
+    --progress-fill: #4caf50;
+
+    /* Primary accent (used for active states and highlights) */
+    --primary-color: #4caf50;
+
+    /* Link colors */
+    --link-color: #0066cc;
+
+    /* Status indicator colors (for inline text status) */
+    --status-success: #28a745;
+    --status-error: #dc3545;
+    --status-warning: #fd7e14;
+
+    /* Button hover state colours */
+    --btn-primary-hover: #1e7e34;
+    --btn-danger-hover: #c82333;
+    --btn-warning-hover: #e0a800;
+
+    /* Code block colors */
+    --code-background: #ffffff;
+    --code-text: #333;
+
+    /* Spacing scale */
+    --spacing-xs: 4px;
+    --spacing-sm: 8px;
+    --spacing-md: 12px;
+    --spacing-lg: 16px;
+    --spacing-xl: 20px;
+    --spacing-2xl: 24px;
+    --spacing-3xl: 32px;
+}
+
+/* Material skin dark theme support */
+body.material-dark,
+body.dark,
+body.theme-dark,
+[data-theme="dark"],
+html[data-theme="dark"],
+.dark-mode,
+.theme--dark, /* Material UI specific selector */
+html .theme--dark { /* Higher specificity for Material UI */
+    --text-primary: #e0e0e0;
+    --text-secondary: #b0b0b0;
+    --text-muted: #909090;
+
+    --background-secondary: #2a2a2a;
+    --background-code: #1e1e1e;
+    --background-card: #1e1e1e;
+
+    --border-color: #444;
+    --border-color-light: #555;
+
+    /* Status message colors for dark theme */
+    --info-background: #1a3a4a;
+    --info-border: #2a5a6a;
+    --info-background-light: #1a2a3a;
+    --info-border-light: #2a4a5a;
+
+    --warning-background: #3a3020;
+    --warning-border: #5a5030;
+
+    --success-background: #1a3a1a;
+    --success-border: #2a5a2a;
+
+    --error-background: #3a1a1a;
+    --error-border: #5a2a2a;
+    --error-text: #f8d7da;
+    --success-text: #d4edda;
+    --info-text: #d1ecf1;
+    --warning-text: #fff3cd;
+
+    /* Progress bar colors for dark theme */
+    --progress-bg: #444;
+    --progress-fill: #66bb6a;
+
+    /* Link colors for dark theme */
+    --link-color: #4da6ff;
+
+    /* Status indicator colors for dark theme (brighter for visibility) */
+    --status-success: #5cb85c;
+    --status-error: #f56565;
+    --status-warning: #ffa726;
+
+    /* Code block colors for dark theme */
+    --code-background: #1e1e1e;
+    --code-text: #e0e0e0;
+
+    /* Tip panel colors for dark theme */
+    --tip-background: #1a2a3a;
+    --tip-border: #2a4a5a;
+
+    /* Primary accent for dark theme */
+    --primary-color: #66bb6a;
+
+    /* Button hover state colours for dark theme */
+    --btn-primary-hover: #2d9e45;
+    --btn-danger-hover: #f55555;
+    --btn-warning-hover: #ffc300;
+
+    /* Ensure accordion and card components use dark theme variables */
+    .settings-accordion-header {
+        background: var(--background-secondary);
+        border-color: var(--border-color);
+    }
+    .settings-accordion-content {
+        background: var(--background-card);
+        border-color: var(--border-color);
+    }
+}
+
+/* ===== LAYOUT & STRUCTURE ===== */
+.settings-section-header {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: var(--spacing-xl);
+}
+
+.settings-section-header-icon {
+    width: 64px;
+    height: 64px;
+    margin-right: var(--spacing-lg);
+    border-radius: 8px;
+}
+
+.settings-section-header-sm {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: var(--spacing-lg);
+}
+
+.settings-section-header-sm-icon {
+    width: 48px;
+    height: 48px;
+    margin-right: var(--spacing-md);
+    border-radius: 8px;
+}
+
+/* ===== CARD-BASED LAYOUT ===== */
+.settings-card {
+    background: var(--background-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    margin-bottom: var(--spacing-xl);
+    overflow: hidden;
+}
+
+.settings-card-title {
+    margin: 0;
+    padding: var(--spacing-lg) var(--spacing-xl);
+    background: var(--background-secondary);
+    border-bottom: 1px solid var(--border-color);
+    font-size: 16px;
+    font-weight: bold;
+    color: var(--text-primary);
+}
+
+.settings-card-content {
+    padding: var(--spacing-xl);
+}
+
+.settings-card-help {
+    padding: var(--spacing-lg) var(--spacing-xl);
+    background: var(--info-background-light);
+    border-top: 1px solid var(--info-border-light);
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.settings-card-actions {
+    padding: var(--spacing-lg) var(--spacing-xl);
+    background: var(--background-secondary);
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    gap: var(--spacing-md);
+}
+
+/* ===== FORM ELEMENTS & COMPONENTS ===== */
+.info-box {
+    padding: var(--spacing-md);
+    background: var(--info-background);
+    border: 1px solid var(--info-border);
+    border-radius: var(--border-radius);
+}
+
+.code-block {
+    font-family: 'Courier New', Consolas, monospace;
+    font-size: 11px;
+    background: var(--background-code);
+    padding: var(--spacing-md);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    white-space: pre-line;
+    line-height: 1.4;
+}
+
+.result-message {
+    margin-top: var(--spacing-lg);
+    padding: var(--spacing-md);
+    border-radius: var(--border-radius);
+}
+
+.result-success {
+    background: var(--success-background);
+    border: 1px solid var(--success-border);
+    color: #155724;
+}
+
+.result-error {
+    background: var(--error-background);
+    border: 1px solid var(--error-border);
+    color: #721c24;
+}
+
+/* ===== BUTTON ENHANCEMENTS ===== */
+/* Shared base — overrides LMS input[type="submit"] base styles via !important */
+.btn-primary,
+.btn-danger,
+.btn-warning,
+.btn-info {
+    padding: var(--spacing-sm) var(--spacing-lg) !important;
+    text-align: center !important;
+    font-weight: bold;
+    min-height: 44px;
+    min-width: 44px;
+    cursor: pointer;
+    border: none;
+    border-radius: var(--border-radius);
+    line-height: normal;
+    color: white;
+}
+
+.btn-primary {
+    background-color: var(--status-success, #28a745);
+}
+
+.btn-danger {
+    background-color: var(--status-error, #d32f2f);
+}
+
+.btn-warning {
+    background-color: var(--status-warning, #f57c00);
+}
+
+.btn-info {
+    background-color: #007bff;
+    text-decoration: none;
+    display: inline-block;
+}
+
+.btn-info:hover,
+.btn-info:focus {
+    background-color: #0056b3;
+    color: white;
+    text-decoration: none;
+}
+
+/* Server URL button container - controlled by JavaScript */
+#server_url_buttons {
+    display: none;
+}
+
+/* ===== UTILITY CLASSES ===== */
+
+/* Margin utilities */
+.m-0 { margin: 0 !important; }
+.mt-0 { margin-top: 0 !important; }
+.mb-0 { margin-bottom: 0 !important; }
+.mb-5 { margin-bottom: var(--spacing-xs) !important; }
+.mb-8 { margin-bottom: 8px !important; }
+.mb-10 { margin-bottom: 10px !important; }
+.mb-15 { margin-bottom: 15px !important; }
+.mb-20 { margin-bottom: var(--spacing-lg) !important; }
+.mt-15 { margin-top: 15px !important; }
+.mt-20 { margin-top: var(--spacing-lg) !important; }
+.ml-10 { margin-left: var(--spacing-sm) !important; }
+
+/* Padding utilities */
+.p-0 { padding: 0 !important; }
+.p-12 { padding: var(--spacing-md) !important; }
+.p-15 { padding: var(--spacing-md) !important; }
+.p-20 { padding: var(--spacing-lg) !important; }
+
+/* Font utilities */
+.fs-11 { font-size: 11px !important; }
+.fs-12 { font-size: 12px !important; }
+.fs-13 { font-size: 13px !important; }
+.fs-14 { font-size: 14px !important; }
+.fw-bold { font-weight: bold !important; }
+.fw-normal { font-weight: normal !important; }
+.ff-mono { font-family: 'Courier New', Consolas, monospace !important; }
+
+/* Color utilities */
+.text-primary { color: var(--text-primary, #333) !important; }
+.text-secondary { color: var(--text-secondary, #666) !important; }
+.text-muted { color: var(--text-muted, #888) !important; }
+.text-link { color: var(--link-color, #0066cc) !important; }
+.text-success { color: var(--status-success, #28a745) !important; }
+.text-error { color: var(--status-error, #dc3545) !important; }
+
+/* Background utilities */
+.bg-secondary { background: var(--background-secondary, #f9f9f9) !important; }
+.bg-code { background: var(--background-code, #f8f9fa) !important; }
+.bg-info { background: var(--info-background, #e8f4f8) !important; }
+.bg-info-light { background: var(--info-background-light, #f0f8ff) !important; }
+.bg-warning { background: var(--warning-background, #fff3cd) !important; }
+.bg-success { background: var(--success-background, #e6f7e6) !important; }
+.bg-error { background: var(--error-background, #ffe6e6) !important; }
+
+/* Border utilities */
+.border { border: 1px solid var(--border-color, #ddd) !important; }
+.border-info { border: 1px solid var(--info-border, #bee5eb) !important; }
+.border-info-light { border: 1px solid var(--info-border-light, #b0d4f1) !important; }
+.border-warning { border: 1px solid var(--warning-border, #ffeaa7) !important; }
+.border-success { border: 1px solid var(--success-border, #99cc99) !important; }
+.border-error { border: 1px solid var(--error-border, #ff9999) !important; }
+.border-radius { border-radius: var(--border-radius) !important; }
+
+/* Display utilities */
+.d-flex { display: flex !important; }
+.d-block { display: block !important; }
+.d-none { display: none !important; }
+.align-items-center { align-items: center !important; }
+.justify-content-between { justify-content: space-between !important; }
+.flex-wrap { flex-wrap: wrap !important; }
+
+/* Spacing utilities */
+.gap-5 { gap: var(--spacing-xs) !important; }
+.gap-10 { gap: var(--spacing-sm) !important; }
+.gap-15 { gap: var(--spacing-md) !important; }
+
+/* Border & background utilities */
+.border-panel {
+    border: 1px solid var(--border-color, #ddd) !important;
+    border-radius: var(--border-radius) !important;
+    background: var(--background-code, #f8f9fa) !important;
+    padding: var(--spacing-md) !important;
+}
+
+.code-block-base {
+    font-family: 'Courier New', Consolas, monospace !important;
+    font-size: 11px !important;
+    white-space: pre-line !important;
+    line-height: 1.4 !important;
+}
+
+/* Combined utilities for common patterns */
+.flex-center {
+    display: flex !important;
+    align-items: center !important;
+}
+
+.text-small-secondary {
+    font-size: 11px !important;
+    color: var(--text-secondary, #666) !important;
+}
+
+.margin-block {
+    margin-bottom: var(--spacing-md) !important;
+}
+
+/* Extended utility classes */
+.mt-5 { margin-top: 5px !important; }
+.mt-8 { margin-top: 8px !important; }
+.mt-10 { margin-top: 10px !important; }
+.mt-15 { margin-top: 15px !important; }
+.mt-20 { margin-top: 20px !important; }
+.ml-5 { margin-left: 5px !important; }
+.ml-8 { margin-left: 8px !important; }
+.ml-10 { margin-left: 10px !important; }
+.ml-15 { margin-left: 15px !important; }
+.ml-20 { margin-left: 20px !important; }
+.mt-0 { margin-top: 0 !important; }
+.mr-0 { margin-right: 0 !important; }
+.mb-0 { margin-bottom: 0 !important; }
+.mb-12 { margin-bottom: 12px !important; }
+.ml-0 { margin-left: 0 !important; }
+.mr-5 { margin-right: 5px !important; }
+.mr-10 { margin-right: 10px !important; }
+.mr-20 { margin-right: 20px !important; }
+.mx-10 { margin-left: 10px !important; margin-right: 10px !important; }
+.mx-20 { margin-left: 20px !important; margin-right: 20px !important; }
+.pl-10 { padding-left: 10px !important; }
+.pl-20 { padding-left: 20px !important; }
+.pr-10 { padding-right: 10px !important; }
+.pr-20 { padding-right: 20px !important; }
+.pt-10 { padding-top: 10px !important; }
+.pt-12 { padding-top: 12px !important; }
+.p-5 { padding: 5px !important; }
+.p-8 { padding: 8px !important; }
+.p-10 { padding: 10px !important; }
+.p-12 { padding: 12px !important; }
+.p-15 { padding: 15px !important; }
+.p-20 { padding: 20px !important; }
+.px-5 { padding-left: 5px !important; padding-right: 5px !important; }
+.px-10 { padding-left: 10px !important; padding-right: 10px !important; }
+.py-5 { padding-top: 5px !important; padding-bottom: 5px !important; }
+.py-10 { padding-top: 10px !important; padding-bottom: 10px !important; }
+.min-w-200 { min-width: 200px !important; }
+.min-w-300 { min-width: 300px !important; }
+.min-w-400 { min-width: 400px !important; }
+.min-w-500 { min-width: 500px !important; }
+.w-80 { width: 80px !important; }
+.flex-1 { flex: 1 !important; }
+.flex-auto { flex: auto !important; }
+.font-mono { font-family: 'Courier New', Consolas, monospace !important; }
+.overflow-auto { overflow: auto !important; }
+.overflow-y-auto { overflow-y: auto !important; }
+.max-h-400 { max-height: 400px !important; }
+
+/* Responsive grid */
+.grid-auto-fit {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)) !important;
+    gap: var(--spacing-sm) !important;
+}
+
+/* ===== TABBED INTERFACE ===== */
+.settings-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: var(--spacing-xl);
+}
+
+.settings-tab {
+    padding: var(--spacing-sm) var(--spacing-lg);
+    background: transparent;
+    border: none;
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--text-secondary);
+    transition: all 0.2s ease;
+}
+
+.settings-tab:hover {
+    color: var(--text-primary);
+}
+
+.settings-tab.active {
+    color: var(--text-primary);
+    border-bottom-color: var(--link-color);
+    font-weight: bold;
+}
+
+.settings-tab-content {
+    display: none;
+}
+
+.settings-tab-content.active {
+    display: block;
+}
+
+/* ===== ACCORDION ===== */
+.settings-accordion {
+    margin-bottom: var(--spacing-sm);
+}
+
+.settings-accordion-header {
+    padding: var(--spacing-md) var(--spacing-lg);
+    background: var(--background-secondary);
+    border: 1px solid var(--border-color);
+    border-left: 3px solid transparent;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    min-height: 44px;
+    transition: background 0.15s ease, border-left-color 0.15s ease;
+}
+
+.settings-accordion-header:hover {
+    background: var(--background-code);
+}
+
+.settings-accordion-header:focus {
+    outline: 2px solid var(--link-color);
+    outline-offset: 2px;
+}
+
+/* Active accent stripe — visible when section is expanded */
+.settings-accordion-header[aria-expanded="true"] {
+    border-left-color: var(--link-color);
+}
+
+.settings-accordion-title {
+    font-weight: bold;
+    font-size: 14px;
+    color: var(--text-primary);
+}
+
+.settings-accordion-icon {
+    transition: transform 0.3s ease;
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 8px solid var(--text-primary);
+    margin: 0 4px;
+    font-size: 0;
+    color: var(--text-primary);
+}
+
+.settings-accordion-header[aria-expanded="true"] .settings-accordion-icon {
+    transform: rotate(180deg);
+}
+
+.settings-accordion-content {
+    padding: var(--spacing-lg);
+    border: 1px solid var(--border-color);
+    border-top: none;
+    border-radius: 0 0 var(--border-radius) var(--border-radius);
+    background: var(--background-card);
+}
+
+/* Enhanced accordion styles for Material UI compatibility */
+.theme--dark .settings-accordion-header,
+html .theme--dark .settings-accordion-header {
+    background: var(--background-secondary);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+.theme--dark .settings-accordion-content,
+html .theme--dark .settings-accordion-content {
+    background: var(--background-card);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+/* Ensure utility classes work properly with Material UI dark theme */
+.theme--dark .text-primary,
+html .theme--dark .text-primary {
+    color: var(--text-primary) !important;
+}
+
+.theme--dark .text-secondary,
+html .theme--dark .text-secondary {
+    color: var(--text-secondary) !important;
+}
+
+.theme--dark .text-muted,
+html .theme--dark .text-muted {
+    color: var(--text-muted) !important;
+}
+
+.theme--dark .bg-secondary,
+html .theme--dark .bg-secondary {
+    background: var(--background-secondary) !important;
+}
+
+.theme--dark .bg-code,
+html .theme--dark .bg-code {
+    background: var(--background-code) !important;
+}
+
+.theme--dark .border,
+html .theme--dark .border {
+    border-color: var(--border-color) !important;
+}
+
+.theme--dark .border-info,
+html .theme--dark .border-info {
+    border-color: var(--info-border) !important;
+}
+
+.theme--dark .border-info-light,
+html .theme--dark .border-info-light {
+    border-color: var(--info-border-light) !important;
+}
+
+.theme--dark .border-warning,
+html .theme--dark .border-warning {
+    border-color: var(--warning-border) !important;
+}
+
+.theme--dark .border-success,
+html .theme--dark .border-success {
+    border-color: var(--success-border) !important;
+}
+
+.theme--dark .border-error,
+html .theme--dark .border-error {
+    border-color: var(--error-border) !important;
+}
+
+.theme--dark .text-success,
+html .theme--dark .text-success {
+    color: var(--status-success) !important;
+}
+
+.theme--dark .text-error,
+html .theme--dark .text-error {
+    color: var(--status-error) !important;
+}
+
+.theme--dark .text-link,
+html .theme--dark .text-link {
+    color: var(--link-color) !important;
+}
+
+/* Enhanced info panels and button styles for Material UI compatibility */
+.theme--dark .mt-0,
+html .theme--dark .mt-0 {
+    color: var(--text-primary) !important;
+}
+
+.theme--dark .fs-11,
+html .theme--dark .fs-11 {
+    color: var(--text-secondary) !important;
+}
+
+.theme--dark .fs-12,
+html .theme--dark .fs-12 {
+    color: var(--text-secondary) !important;
+}
+
+.theme--dark .text-small-secondary,
+html .theme--dark .text-small-secondary {
+    color: var(--text-secondary) !important;
+}
+
+/* Specific handling for info boxes and text sections */
+.theme--dark .settings-section-header > div > p,
+.theme--dark .settings-section-header-sm > div > p,
+html .theme--dark .settings-section-header > div > p,
+html .theme--dark .settings-section-header-sm > div > p {
+    color: var(--text-primary) !important;
+}
+
+/* Button text colors to override blue links on green backgrounds */
+.theme--dark .stdclick,
+html .theme--dark .stdclick {
+    color: var(--text-primary) !important;
+}
+
+.theme--dark .stdclick.btn-primary,
+html .theme--dark .stdclick.btn-primary {
+    color: white !important;
+}
+
+.theme--dark .stdclick.btn-warning,
+html .theme--dark .stdclick.btn-warning {
+    color: white !important;
+}
+
+.theme--dark .stdclick.btn-danger,
+html .theme--dark .stdclick.btn-danger {
+    color: white !important;
+}
+
+/* Link colors in text content */
+.theme--dark a,
+html .theme--dark a {
+    color: var(--link-color) !important;
+}
+
+.theme--dark .text-link,
+html .theme--dark .text-link {
+    color: var(--link-color) !important;
+}
+
+/* Tip panel dark mode */
+.theme--dark .info-panel-tip,
+html .theme--dark .info-panel-tip {
+    background: var(--tip-background) !important;
+    border-color: var(--tip-border) !important;
+}
+
+/* Ensure code blocks and similar elements have proper dark mode support */
+.theme--dark .code-block,
+html .theme--dark .code-block {
+    background: var(--background-code) !important;
+    border-color: var(--border-color) !important;
+    color: var(--code-text) !important;
+}
+
+.theme--dark .border-panel,
+html .theme--dark .border-panel {
+    background: var(--background-code) !important;
+    border-color: var(--border-color) !important;
+}
+
+/* ===== INFO PANELS ===== */
+.info-panel {
+    padding: var(--spacing-md);
+    border-radius: var(--border-radius);
+    border-width: 1px;
+    border-style: solid;
+}
+
+.info-panel p {
+    margin: 0;
+}
+
+.info-panel-info,
+.info-panel p-info {
+    background: var(--info-background);
+    border-color: var(--info-border);
+}
+
+.info-panel-warning,
+.info-panel p-warning {
+    background: var(--warning-background);
+    border-color: var(--warning-border);
+}
+
+.info-panel-error,
+.info-panel p-error {
+    background: var(--error-background);
+    border-color: var(--error-border);
+}
+
+.info-panel-success,
+.info-panel p-success {
+    background: var(--success-background);
+    border-color: var(--success-border);
+}
+
+.info-panel-muted {
+    background: var(--background-secondary);
+    border-color: var(--border-color-light);
+}
+
+.info-panel-tip {
+    background: var(--tip-background, #f0f7ff);
+    border-color: var(--tip-border, #b8daff);
+}
+
+/* ===== BUTTON HOVER/FOCUS STATES ===== */
+.btn-primary:hover,
+.btn-primary:focus {
+    background-color: var(--btn-primary-hover);
+    color: white;
+}
+
+.btn-danger:hover,
+.btn-danger:focus {
+    background-color: var(--btn-danger-hover);
+    color: white;
+}
+
+.btn-warning:hover,
+.btn-warning:focus {
+    background-color: var(--btn-warning-hover);
+    color: white;
+}
+
+/* ===== DETAILS/SUMMARY COMPONENT ===== */
+/* Used in diagnostics for collapsible log level reference */
+.settings-details {
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: var(--spacing-xs);
+}
+
+.settings-details summary {
+    cursor: pointer;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    user-select: none;
+    font-size: 12px;
+    font-weight: bold;
+    color: var(--text-secondary);
+}
+
+.settings-details summary:hover {
+    color: var(--link-color);
+}
+
+.settings-details[open] summary {
+    margin-bottom: var(--spacing-sm);
+    border-bottom: 1px solid var(--border-color-light);
+    padding-bottom: var(--spacing-sm);
+}
+
+/* ===== CURSOR UTILITY ===== */
+.cursor-pointer { cursor: pointer; }
+
+/* ===== ACCESSIBILITY ===== */
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* ===== RESPONSIVE DESIGN ===== */
+@media (max-width: 768px) {
+    .settings-section-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .settings-section-header-icon,
+    .settings-section-header-sm-icon {
+        margin-right: 0;
+        margin-bottom: var(--spacing-md);
+    }
+
+    .settings-tabs {
+        flex-wrap: wrap;
+    }
+
+    .settings-tab {
+        flex: 1 0 auto;
+        text-align: center;
+    }
+
+    .grid-auto-fit {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+/* ============================================
+   Form Row Utilities - Settings Consistency
+   ============================================ */
+
+.form-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.form-row label {
+    min-width: 180px;
+    font-weight: normal;
+    color: var(--text-primary);
+}
+
+.form-row-input {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.form-input-small {
+    width: 80px;
+}
+
+.form-input-medium {
+    width: 150px;
+}
+
+.form-input-large {
+    width: 300px;
+}
+
+.form-unit {
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+/* ============================================
+   Button Group Utilities
+   ============================================ */
+
+.button-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.button-group input[type="submit"],
+.button-group input[type="button"],
+.button-group button {
+    padding: 8px 16px;
+}
+
+/* ============================================
+   Checkbox Row Utilities
+   ============================================ */
+
+.checkbox-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 12px;
+}
+
+.checkbox-row input[type="checkbox"] {
+    margin-right: 8px;
+}
+
+.checkbox-description {
+    margin-left: 24px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+/* ============================================
+   API Key Display
+   ============================================ */
+
+.sp-apikey-result {
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: var(--warning-background);
+    border: 1px solid var(--warning-border);
+    border-radius: var(--border-radius);
+}
+
+.sp-apikey-display {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sp-apikey-input {
+    font-family: 'Courier New', Consolas, monospace !important;
+    font-size: 12px !important;
+    flex: 1;
+    min-width: 260px;
+}
+
+.sp-apikey-label {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--warning-text);
+}
+
+/* ============================================
+   User Roles Panel
+   ============================================ */
+
+.sp-roles-panel {
+    padding: 10px 14px;
+    background: var(--background-secondary);
+    border-top: 1px solid var(--border-color-light);
+}
+
+.sp-roles-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.sp-roles-group {
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 8px 12px;
+    min-width: 180px;
+}
+
+.sp-roles-group legend {
+    font-size: 12px;
+    font-weight: bold;
+    padding: 0 4px;
+    color: var(--text-secondary);
+}
+
+.sp-roles-group label {
+    display: block;
+    font-size: 13px;
+    margin: 4px 0;
+    cursor: pointer;
+}
+
+.sp-roles-group input[type="checkbox"] {
+    margin-right: 6px;
+}
+
+.sp-roles-actions {
+    margin-top: 4px;
+}
+
+/* ============================================
+   Exposure Controls
+   ============================================ */
+
+.sp-exposure-mode {
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 12px 16px;
+    margin: 0 0 8px 0;
+}
+
+.sp-exposure-legend {
+    font-size: 12px;
+    font-weight: bold;
+    padding: 0 6px;
+    color: var(--text-secondary);
+}
+
+.sp-radio-label {
+    display: block;
+    padding: 6px 0 6px 4px;
+    cursor: pointer;
+}
+
+.sp-radio-label strong {
+    display: inline-block;
+    margin-left: 4px;
+}
+
+.sp-radio-desc {
+    display: block;
+    margin-left: 22px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.sp-libraries-group {
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 10px 14px;
+}
+
+.sp-libraries-group legend {
+    font-size: 12px;
+    font-weight: bold;
+    padding: 0 4px;
+    color: var(--text-secondary);
+}
+
+.sp-library-label {
+    display: block;
+    font-size: 13px;
+    margin: 4px 0;
+    cursor: pointer;
+}
+
+.sp-library-label input[type="checkbox"] {
+    margin-right: 6px;
+}
+
+.sp-save-result {
+    margin-left: 12px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.sp-save-ok {
+    color: var(--status-success);
+}
+
+/* ============================================
+   Data Tables (within accordion content)
+   ============================================ */
+
+.settings-accordion-content table.stdt {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: var(--spacing-md);
+}
+
+.settings-accordion-content table.stdt th {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 2px solid var(--border-color);
+    font-size: 13px;
+    font-weight: bold;
+    color: var(--text-primary);
+    background: var(--background-secondary);
+}
+
+.settings-accordion-content table.stdt td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border-color-light);
+    font-size: 13px;
+    color: var(--text-primary);
+    vertical-align: middle;
+}
+
+.settings-accordion-content table.stdt tr:last-child td {
+    border-bottom: none;
+}
+
+.settings-accordion-content table.stdt tr:hover td {
+    background: var(--background-secondary);
+}
+
+/* Compact form table (Create User, etc.) */
+.settings-accordion-content table.stdt-form {
+    border-collapse: collapse;
+}
+
+.settings-accordion-content table.stdt-form td {
+    padding: 6px 8px;
+    border: none;
+    vertical-align: middle;
+}
+
+.settings-accordion-content table.stdt-form td:first-child {
+    font-weight: bold;
+    text-align: right;
+    padding-right: 12px;
+    min-width: 120px;
+    color: var(--text-primary);
+}
+
+/* Inline fields — horizontal row of label+input groups */
+.sp-inline-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-end;
+}
+
+.sp-inline-fields label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.sp-inline-fields label input,
+.sp-inline-fields label select {
+    margin-top: 2px;
+}
+
+/* Info banner — distinct warning-style callout for policy/legal notices */
+.sp-info-banner {
+    padding: 12px 16px;
+    background: var(--warning-background);
+    border: 1px solid var(--warning-border);
+    border-radius: var(--border-radius);
+    font-size: 13px;
+    color: var(--text-primary);
+    line-height: 1.5;
+}
+
+/* Inline button spacing within table cells */
+.settings-accordion-content table td .stdclick,
+.settings-accordion-content table td .btn-primary,
+.settings-accordion-content table td .btn-warning,
+.settings-accordion-content table td .btn-danger,
+.settings-accordion-content table td .btn-info {
+    margin-right: 6px;
+    margin-bottom: 4px;
+}
+
+/* Delete user button */
+.sp-delete-btn {
+    background-color: var(--status-error, #d32f2f) !important;
+    color: white !important;
+    border: none !important;
+    padding: 4px 12px !important;
+    font-size: 12px !important;
+    font-weight: bold !important;
+}
+
+.sp-delete-btn:hover,
+.sp-delete-btn:focus {
+    background-color: var(--btn-danger-hover, #c82333) !important;
+    color: white !important;
+}

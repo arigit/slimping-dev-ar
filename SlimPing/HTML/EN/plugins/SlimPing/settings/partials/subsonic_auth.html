@@ -1,0 +1,59 @@
+<div class="settings-accordion" data-accordion-id="subsonic-auth-settings">
+    <div class="settings-accordion-header" aria-expanded="true" role="button" tabindex="0"
+        aria-controls="accordion-content-subsonic-auth">
+        <div class="settings-accordion-title">OpenSubsonic Client Authentication</div>
+        <div class="settings-accordion-icon"></div>
+    </div>
+    <div id="accordion-content-subsonic-auth" class="settings-accordion-content">
+
+        <p class="m-0 mb-10 fs-12 text-secondary">
+            Controls which authentication schemes Subsonic clients (DSub, play:Sub,
+            Symfonium, Tempo, Substreamer, etc.) may use to reach <code>/rest/</code>.
+            Each scheme is independent &mdash; defaults are <strong>API key +
+            token+salt</strong>, which is what most modern clients expect.
+        </p>
+
+        [% IF slimping_allow_plain_password %]
+        <div class="info-panel info-panel-error mb-15">
+            <strong>Plain password auth is enabled.</strong> Credentials travel
+            essentially in the clear over the wire. Only enable this if a legacy
+            client truly cannot do token+salt or API-key auth, and only on a
+            network you fully trust.
+        </div>
+        [% END %]
+
+        [% WRAPPER setting title="Auth Scheme: API Key"
+        desc="Always available. The strongest scheme &mdash; credentials do not depend on stored plaintext passwords. Pass via the URL query parameter (?k=&lt;key&gt;) or the Authorization: Bearer header. Issue keys per-user in the Users accordion above. Ecosystem support is patchy as of 2026; check your client." %]
+        <div class="text-secondary fs-12">Always on (cannot be disabled).</div>
+        [% END %]
+
+        [% WRAPPER setting title="Auth Scheme: Token+Salt"
+        desc="The Subsonic-standard scheme since v1.13 (md5(password+salt) on the wire, plaintext password stored server-side). What most popular clients actually use. Recommended on by default; only turn off if you are running an API-key-only deployment." %]
+        <label class="sp-radio-label">
+            <input type="checkbox" id="lan_mode" name="lan_mode"
+                [% 'checked' IF slimping_lan_mode %]>
+            Accept token+salt auth (<code>t=</code> + <code>s=</code>)
+        </label>
+        <div class="mt-15">
+            <button type="button" class="stdclick btn-primary"
+                onclick="return saveLanMode();">Save</button>
+            <span id="sp-lan-mode-result" class="sp-save-result"></span>
+        </div>
+        [% END %]
+
+        [% WRAPPER setting title="Auth Scheme: Plain Password"
+        desc="Legacy. Credentials travel essentially in the clear over the wire (the enc:hex variant is encoding, not encryption). Off by default. Only enable for old clients that cannot do token+salt &mdash; and prefer not to enable it at all if you can avoid it." %]
+        <label class="sp-radio-label">
+            <input type="checkbox" id="allow_plain_password" name="allow_plain_password"
+                [% 'checked' IF slimping_allow_plain_password %]>
+            Accept plain-password auth (<code>p=</code>)
+        </label>
+        <div class="mt-15">
+            <button type="button" class="stdclick btn-primary"
+                onclick="return saveAllowPlainPassword();">Save</button>
+            <span id="sp-allow-plain-result" class="sp-save-result"></span>
+        </div>
+        [% END %]
+
+    </div>
+</div>

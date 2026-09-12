@@ -1,0 +1,201 @@
+<div class="settings-accordion" data-accordion-id="data-management">
+    <div class="settings-accordion-header" aria-expanded="false" role="button" tabindex="0"
+        aria-controls="accordion-content-data-management">
+        <div class="settings-accordion-title">Data and Cache Management</div>
+        <div class="settings-accordion-icon"></div>
+    </div>
+    <div id="accordion-content-data-management" class="settings-accordion-content">
+
+        <p class="m-0 mb-10 fs-12 text-secondary">
+            Database statistics and maintenance operations. All flush and delete actions are
+            audited in the server log.
+        </p>
+
+        [% WRAPPER setting title="Database Statistics"
+        desc="Live record counts and on-disk SlimPing database size" %]
+        <div id="sp-db-stats">
+            <p class="text-secondary">Loading statistics...</p>
+        </div>
+        <div class="mt-10">
+            <button type="button" class="stdclick btn-primary"
+                onclick="return SlimPingSettings.refreshDbStats();">Refresh Statistics</button>
+            <span id="sp-db-stats-result" class="sp-save-result"></span>
+        </div>
+        [% END %]
+
+        [% WRAPPER setting title="Flush Non-Auth Stores"
+        desc="Remove all records from a specific data store. User accounts and API keys are preserved." %]
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <button type="button" class="stdclick btn-danger"
+                onclick="return SlimPingSettings.flushStore('star');">Flush All Stars</button>
+            <button type="button" class="stdclick btn-danger"
+                onclick="return SlimPingSettings.flushStore('rating');">Flush All Ratings</button>
+            <button type="button" class="stdclick btn-danger"
+                onclick="return SlimPingSettings.flushStore('bookmark');">Flush All Bookmarks</button>
+            <button type="button" class="stdclick btn-danger"
+                onclick="return SlimPingSettings.flushStore('session');">Flush All Sessions</button>
+        </div>
+        <div id="sp-flush-result" class="sp-save-result mt-10"></div>
+        [% END %]
+
+        [% WRAPPER setting title="Virtual Player Cleanup"
+        desc="Remove disconnected SlimPing virtual players from the LMS client list. Virtual players are created for every stream request and normally self-clean when clients disconnect, but edge cases (network resets, plugin reloads) can leave stale entries that accumulate over time. Restarting the plugin or LMS also clears all stale SlimPing players." %]
+        <button type="button" class="stdclick btn-warning"
+            onclick="return SlimPingSettings.cleanupVirtualPlayers();">Cleanup Stale Virtual Players</button>
+        <span id="sp-cleanup-vp-result" class="sp-save-result ml-10"></span>
+        [% END %]
+
+        [% WRAPPER setting title="Cleanup Orphaned Track Data"
+        desc="Earlier plugin versions (<0.7.0047) could create orphaned tracks and playback records in the LMS database when serving audio via the 'Exotic' path. These appear as &quot;No Album&quot; / &quot;No Artist&quot; entries and fake albums in Recently Played. This operation finds and removes only SlimPing-created orphan data. Your real library data is never touched." %]
+        <div class="info-panel info-panel-warning mb-15">
+            <p class="m-0">
+                <strong>Warning:</strong> Earlier plugin versions (<0.7.0047) 
+                could create orphaned tracks and playback records in the Lyrion
+                database when serving audio via the 'Exotic' path. These appear 
+                as &quot;No Album&quot; / &quot;No Artist&quot; entries and fake 
+                albums in Recently Played. This operation finds and removes only 
+                SlimPing-created orphan data. Your real library data is never touched.
+                <strong>Only ever run this if you are seeing orphaned tracks in your
+                 library or recently played list.</strong>
+            </p>
+            <p class="m-0">
+                <strong>Two-step:</strong> First click counts the orphaned rows
+                without deleting anything. Review the count, then confirm to
+                execute the cleanup.
+            </p>
+        </div>
+        <button type="button" class="stdclick btn-warning"
+            onclick="return SlimPingSettings.cleanupOrphanedTracks();">Find Orphaned Tracks / Cleanup</button>
+        <span id="sp-cleanup-orphans-result" class="sp-save-result ml-10"></span>
+        [% END %]
+
+        [% WRAPPER setting title="Reset Database"
+        desc="Delete every row from every table. The migration sentinel is also cleared so a fresh migration will run on next plugin load, re-populating users from the legacy prefs if they still exist." %]
+        <div class="info-panel info-panel-warning mb-15">
+            <p class="m-0">
+                <strong>Warning:</strong> This permanently deletes all users, API keys,
+                stars, ratings, bookmarks, sessions, and shares. If you have not saved
+                your user credentials separately you will be locked out. The action is
+                audited in the server log. Proceed only if you understand the consequences.
+            </p>
+        </div>
+        <button type="button" class="stdclick btn-danger"
+            onclick="return SlimPingSettings.resetDatabase();">Reset Entire Database</button>
+        <div id="sp-reset-result" class="sp-save-result ml-10"></div>
+        [% END %]
+
+        <hr class="mt-20 mb-20">
+
+        [% WRAPPER setting title="Transcode Cache Configuration"
+        desc="Caches transcoded/re-encoded MP3 audio in memory so subsequent plays of the same track at the same bitrate skip the transcode pipeline entirely. The optional disk tier provides persistent backing for larger caches." %]
+
+        [% WRAPPER setting title="RAM Cache"
+        desc="In-memory cache always active — checked before every stream request. Complete entries serve at network speed with no transcode. Eviction is LRU &mdash; oldest complete entries are removed first when either cap is reached." %]
+        <div class="mb-10" style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
+            <div>
+                <label for="cache_ram_max_mb" class="fs-12">Max Size (MB)</label>
+                <input type="number" id="cache_ram_max_mb" class="stdedit sp-feature-toggle"
+                    name="pref_cache_ram_max_mb"
+                    data-pref="cache_ram_max_mb"
+                    value="[% cache_ram_max_mb %]"
+                    style="width:100px" min="5" max="500" step="5">
+            </div>
+            <div>
+                <label for="cache_ram_max_tracks" class="fs-12">Max Tracks</label>
+                <input type="number" id="cache_ram_max_tracks" class="stdedit sp-feature-toggle"
+                    name="pref_cache_ram_max_tracks"
+                    data-pref="cache_ram_max_tracks"
+                    value="[% cache_ram_max_tracks %]"
+                    style="width:70px" min="1" max="50">
+            </div>
+        </div>
+        <div class="settingNote fs-11">
+            Default: 100 MB, 10 tracks. One in-flight entry may temporarily exceed the cap.
+            Eviction stops at 80% of cap. Size changes require a
+            <strong>plugin restart</strong> to take effect.
+        </div>
+        [% END %]
+
+        [% WRAPPER setting title="Disk Backing Store"
+        desc="Optional persistent storage under the LMS cache directory. Files are stored as paired AUDIO/JSON entries. Disabled by default - enable only if your server has reliable read/write filesystem access, but strongly recommended for production use if you can support it." %]
+        <div class="mb-10">
+            <label class="sp-radio-label">
+                <input type="checkbox" class="sp-feature-toggle"
+                    name="pref_cache_disk_enabled"
+                    data-pref="cache_disk_enabled"
+                    [% 'checked' IF cache_disk_enabled %]>
+                Enable disk-backed transcode cache
+            </label>
+        </div>
+        <div class="mb-10" style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
+            <div>
+                <label for="cache_disk_max_mb" class="fs-12">Max Size (MB)</label>
+                <input type="number" id="cache_disk_max_mb" class="stdedit sp-feature-toggle"
+                    name="pref_cache_disk_max_mb"
+                    data-pref="cache_disk_max_mb"
+                    value="[% cache_disk_max_mb %]"
+                    style="width:100px" min="50" max="10240">
+            </div>
+            <div>
+                <label for="cache_disk_path" class="fs-12">Custom Path (optional)</label>
+                <input type="text" id="cache_disk_path" class="stdedit sp-feature-toggle"
+                    name="pref_cache_disk_path"
+                    data-pref="cache_disk_path"
+                    value="[% cache_disk_path %]"
+                    style="width:280px" placeholder="Leave empty for default">
+            </div>
+        </div>
+        <div class="settingNote fs-11">
+            Default: 2048 MB (2 GB). Oldest entries evicted first. Leave path empty for
+            the default LMS cache location.
+        </div>
+        <div class="settingNote fs-11 mt-5" style="background:var(--color-warning-bg, #fff8e1);border-left:3px solid var(--color-warning, #f9a825);padding:6px 10px;">
+            <strong>Note:</strong> Disk cache state changes require a
+            <strong>plugin restart</strong> to take effect. The current runtime
+            state does not update automatically when this setting is toggled.
+            <br>
+            Configured state (next restart):
+            <strong>[% IF cache_disk_enabled %]Enabled[% ELSE %]Disabled[% END %]</strong>
+            -
+            Current runtime state:
+            <strong>[% IF cache_disk_active %]Active[% ELSE %]Inactive[% END %]</strong>
+        </div>
+        [% END %]
+
+        <div class="mt-15 mb-20">
+            <button type="button" class="stdclick btn-primary"
+                onclick="return saveFeatures();">Save Cache Configuration</button>
+            <span id="sp-cache-config-result" class="sp-save-result"></span>
+        </div>
+        <div class="mb-10">
+            <button type="button" class="stdclick btn-danger"
+                onclick="return SlimPingSettings.restartServer();">Restart LMS Server Now (force cache changes)</button>
+            <span id="sp-restart-result" class="sp-save-result ml-10"></span>
+        </div>
+        [% END %]
+
+        [% WRAPPER setting title="Cache Status"
+        desc="Current transcode cache usage. Refresh to see live statistics." %]
+        <div id="sp-cache-stats">
+            <p class="text-secondary">Loading statistics...</p>
+        </div>
+        <div class="mt-10">
+            <button type="button" class="stdclick btn-primary"
+                onclick="return SlimPingSettings.refreshCacheStats();">Refresh Statistics</button>
+            <span id="sp-cache-stats-result" class="sp-save-result"></span>
+        </div>
+        <div class="mt-10">
+            <button type="button" class="stdclick btn-danger"
+                onclick="return SlimPingSettings.flushCache();">Flush Transcode Cache</button>
+            <span id="sp-flush-cache-result" class="sp-save-result ml-10"></span>
+        </div>
+        <div class="settingNote fs-11">
+            The disk cache survives plugin and LMS restarts. If you replace audio files
+            outside of LMS (e.g. re-encoding, remastering), use this button to flush
+            stale cached transcodes. Normal library scans do not clear the cache
+            automatically.
+        </div>
+        [% END %]
+
+    </div>
+</div>

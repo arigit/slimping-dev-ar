@@ -1,0 +1,28 @@
+[% PROCESS settings/header.html %]
+
+<link rel="stylesheet" href="/plugins/SlimPing/html/settings.css">
+<script>window.SlimPingAdminKey = [% slimping_admin_apikey_js OR '""' %];</script>
+<script src="/plugins/SlimPing/html/settings.js?v=[% plugin_version | uri %]" defer></script>
+
+[% title = "PLUGIN_SLIMPING" %]
+
+[% PROCESS plugins/SlimPing/settings/partials/about_slimping.html %]
+[% PROCESS plugins/SlimPing/settings/partials/prerequisites.html %]
+[% PROCESS plugins/SlimPing/settings/partials/server.html %]
+[% PROCESS plugins/SlimPing/settings/partials/users.html %]
+[% PROCESS plugins/SlimPing/settings/partials/features.html %]
+[% PROCESS plugins/SlimPing/settings/partials/dynamic_playlists.html %]
+[% PROCESS plugins/SlimPing/settings/partials/remote_streams.html %]
+[% PROCESS plugins/SlimPing/settings/partials/external_metadata.html %]
+[% PROCESS plugins/SlimPing/settings/partials/scrobbling.html %]
+[% PROCESS plugins/SlimPing/settings/partials/playback_recording.html %]
+[% PROCESS plugins/SlimPing/settings/partials/opensubsonic_extensions.html %]
+[% PROCESS plugins/SlimPing/settings/partials/sharing.html %]
+[% PROCESS plugins/SlimPing/settings/partials/exotic_format_handling.html %]
+[% PROCESS plugins/SlimPing/settings/partials/client_quirks.html %]
+[% PROCESS plugins/SlimPing/settings/partials/admin_access.html %]
+[% PROCESS plugins/SlimPing/settings/partials/subsonic_auth.html %]
+[% PROCESS plugins/SlimPing/settings/partials/data_management.html %]
+[% PROCESS plugins/SlimPing/settings/partials/advanced_settings.html %]
+
+[% PROCESS settings/footer.html %]

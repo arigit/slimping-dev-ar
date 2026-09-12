@@ -1,0 +1,46 @@
+<div class="settings-accordion" data-accordion-id="client-quirks">
+    <div class="settings-accordion-header" aria-expanded="false" role="button" tabindex="0"
+        aria-controls="accordion-content-client-quirks">
+        <div class="settings-accordion-title">Client Quirks</div>
+        <div class="settings-accordion-icon"></div>
+    </div>
+    <div id="accordion-content-client-quirks" class="settings-accordion-content">
+
+        <p class="m-0 mb-10 fs-12 text-secondary">
+            Workarounds for known client quirks. Each quirk targets a specific client
+            and changes server behaviour to sidestep issues. You need only enable the
+            quirks your clients need. Each one deviates from the OpenSubsonic spec in
+            some way.
+        </p>
+
+        [% WRAPPER setting title="Enable Client Quirks"
+        desc="Master switch for all client-specific workarounds. When off, no quirk processing occurs &mdash; zero overhead." %]
+        <label class="sp-radio-label">
+            <input type="checkbox" id="toggle_client_quirks" class="sp-feature-toggle"
+                name="pref_client_quirks_enabled"
+                data-pref="client_quirks_enabled"
+                [% 'checked' IF client_quirks_enabled %]>
+            Enable client-specific workarounds
+        </label>
+        [% END %]
+
+        [% WRAPPER setting title="Substreamer &mdash; Artwork ID Hyphens"
+        desc="Replaces hyphens with underscores in coverArt IDs. Workaround for Substreamer's artwork URL parser rejecting IDs containing hyphens. "
+            _ "<a href='https://github.com/ghenry22/substreamer/issues/144' target='_blank' rel='noopener'>Upstream issue</a>." %]
+        <label class="sp-radio-label [% UNLESS client_quirks_enabled %]disabled[% END %]">
+            <input type="checkbox" id="toggle_quirk_substreamer_artwork"
+                class="sp-feature-toggle sp-quirk-toggle"
+                name="pref_quirk_substreamer_artwork"
+                data-pref="quirk_substreamer_artwork"
+                [% 'checked' IF quirk_substreamer_artwork %]
+                [% UNLESS client_quirks_enabled %]disabled[% END %]>
+            Replace hyphens in coverArt IDs for Substreamer
+        </label>
+        [% END %]
+
+        <div class="mt-15">
+            <span id="sp-quirks-result" class="sp-save-result"></span>
+        </div>
+
+    </div>
+</div>

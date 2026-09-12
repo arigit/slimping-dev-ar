@@ -1,0 +1,186 @@
+<div class="settings-accordion" data-accordion-id="prerequisites">
+    <div class="settings-accordion-header" aria-expanded="false" role="button" tabindex="0"
+        aria-controls="accordion-content-prerequisites">
+        <div class="settings-accordion-title">System Prerequisites &amp; Streaming Services</div>
+        <div class="settings-accordion-icon"></div>
+    </div>
+    <div id="accordion-content-prerequisites" class="settings-accordion-content">
+
+        <p class="m-0 mb-10 fs-12 text-secondary">
+            SlimPing relies on Lyrion's use of external helper binaries for audio
+            transcoding. When a client requests a format the source file is not already
+            in (e.g. FLAC to MP3, OGG to MP3, or a lower bitrate than the original),
+            LMS chains these helpers together to decode and re-encode the audio on the
+            fly. If a required helper is missing, those conversions will fail silently
+            and the client will receive no audio. Remote tracks and Internet Radio
+            streams are always transcoded and depend on the critical helpers below.
+        </p>
+
+        [% critical_failures = 0 %]
+        [% optional_warnings = 0 %]
+
+        [% FOR bin IN slimping_prereqs %]
+        [% IF bin.status == 'error' %]
+        [% critical_failures = critical_failures + 1 %]
+        [% ELSIF bin.status == 'warning' %]
+        [% optional_warnings = optional_warnings + 1 %]
+        [% END %]
+
+        [% IF bin.critical %]
+        [% desc_suffix = 'This helper is <strong>required</strong>. Without it, common transcoding paths will fail.' %]
+        [% ELSE %]
+        [% desc_suffix = 'This helper is optional. It is only needed when your library contains this source format.' %]
+        [% END %]
+
+        [% SWITCH bin.name %]
+        [% CASE 'lame' %]
+        [% bin_desc = "LAME is the MP3 encoder. Every stream SlimPing delivers to a client is output as MP3, so LAME is needed for any track that is not already in MP3 format at an acceptable bitrate. It is also essential for remote track proxying: Internet Radio streams, podcasts, and shared streams are always re-encoded through LAME regardless of their source format. $desc_suffix" %]
+        [% CASE 'flac' %]
+        [% bin_desc = "FLAC is the reference FLAC decoder. It is used to decode FLAC source files before piping them to LAME for MP3 encoding. This is the most common transcoding chain and will fail without FLAC. $desc_suffix" %]
+        [% CASE 'sox' %]
+        [% bin_desc = "SoX (Sound eXchange) is a general-purpose audio converter. LMS uses it to decode OGG Vorbis, Opus, and other formats, and to resample audio when the sample rate does not match the target. $desc_suffix" %]
+        [% CASE 'faad' %]
+        [% bin_desc = "FAAD2 decodes AAC audio (MP4, M4A, AAC containers). LMS uses it to read AAC source files and pipe the raw PCM to LAME for MP3 encoding. $desc_suffix" %]
+        [% CASE 'mppdec' %]
+        [% bin_desc = "Musepack Decoder handles Musepack (MPC) files. This is a rare format; if your library contains no MPC files this helper is not needed. $desc_suffix" %]
+        [% CASE 'mac' %]
+        [% bin_desc = "Monkey's Audio (MAC) decoder handles APE files. This is a rare lossless format; if your library contains no APE files this helper is not needed. $desc_suffix" %]
+        [% CASE 'wvunpack' %]
+        [% bin_desc = "WavPack decoder handles WV files. This is a rare hybrid lossless/lossy format; if your library contains no WV files this helper is not needed. $desc_suffix" %]
+        [% CASE 'dsdplay' %]
+        [% bin_desc = "DSDPlayer provides the DSD decoder (dsdplay) for DSF and DFF files. DSD audio is always transcoded to MP3 for OpenSubsonic clients. Mobile devices and desktop Subsonic apps cannot normally decode native DSD. Use native LMS players with suitable DACs if you need direct DSD playback. Without this helper, DSD transcoding will fail and those tracks will be unavailable. $desc_suffix" %]
+        [% CASE 'ffmpeg' %]
+        [% bin_desc = "FFmpeg decodes Windows Media Audio (WMA, WMA Lossless, WMA Pro) to PCM for MP3 re-encoding. Without it, WMA tracks will not play through OpenSubsonic clients. If your library contains no WMA files this helper is not needed. $desc_suffix" %]
+        [% CASE %]
+        [% bin_desc = desc_suffix %]
+        [% END %]
+
+        [% WRAPPER setting title=bin.label desc=bin_desc %]
+        [% IF bin.status == 'ok' %]
+        <span class="text-success fw-bold">Found</span>
+        <span class="fs-11 text-muted ml-10">at [% bin.path | html %]</span>
+        [% ELSIF bin.status == 'error' %]
+        <span class="text-error fw-bold">Missing</span>
+        <span class="fs-11 text-muted ml-10">
+            Install the <code>[% bin.name | html %]</code> package on the LMS
+            host and restart the server
+        </span>
+        [% ELSIF bin.status == 'info' %]
+        [% IF bin.found %]
+        <span class="text-muted fw-bold">Available</span>
+        <span class="fs-11 text-muted ml-10">at [% bin.path | html %]</span>
+        [% ELSE %]
+        <span class="text-muted fw-bold">Not found</span>
+        [% END %]
+        [% ELSE %]
+        <span class="text-muted fw-bold">Not found</span>
+        <span class="fs-11 text-muted ml-10">
+            Install the <code>[% bin.name | html %]</code> package if your
+            library contains this format
+        </span>
+        [% END %]
+        [% END %]
+
+        [% END %]
+
+        [% WRAPPER setting title="Prerequisites Check Result"
+        desc="Summary of the prerequisite check above. Re-check after installing missing packages on the LMS host." %]
+        [% IF critical_failures > 0 %]
+        <div class="info-panel info-panel-error mt-15">
+            <p>
+                <strong>[% critical_failures %] critical
+                [% IF critical_failures == 1 %]helper is[% ELSE %]helpers are[% END %]
+                missing.</strong>
+                Audio transcoding will not work correctly. Please install the required
+                packages on the LMS host and restart the server, then use the button
+                below to re-check.
+            </p>
+        </div>
+        [% ELSIF optional_warnings > 0 %]
+        <div class="info-panel info-panel-warning mt-15">
+            <p>
+                <strong>[% optional_warnings %] optional
+                [% IF optional_warnings == 1 %]helper is[% ELSE %]helpers are[% END %]
+                not installed.</strong>
+                Transcoding from these source formats will not work. This is only a
+                problem if your library contains tracks in these formats. All critical
+                helpers are present so common conversions (FLAC, OGG, Opus to MP3)
+                should work.
+            </p>
+        </div>
+        [% ELSE %]
+        <div class="info-panel info-panel-success mt-15">
+            <p>
+                <strong>All prerequisites are satisfied.</strong> Every known
+                transcoding helper is available. Format conversion should work for all
+                supported source formats.
+            </p>
+        </div>
+        [% END %]
+
+        <div class="mt-15">
+            <button type="button" class="stdclick btn-info"
+                onclick="location.reload(); return false;">Re-check Prerequisites</button>
+            <span class="fs-11 text-muted ml-10">
+                Re-checks with a full page reload. Install missing packages on the LMS
+                host and restart LMS first.
+            </span>
+        </div>
+        [% END %]
+
+        [% WRAPPER setting title="Streaming Service Plugins"
+        desc="Lyrion plugins that SlimPing directly integrates with or queries. Quality and bitrate settings are managed in each plugin's own settings page; the values shown here are read-only. Remote tracks are always delivered as MP3 regardless of source format." %]
+
+        <table class="stdt" style="margin:0;width:auto;max-width:750px">
+            <tr>
+                <th>Plugin</th>
+                <th>Version</th>
+                <th>Used For</th>
+                <th>Quality / Bitrate</th>
+            </tr>
+            [% FOR svc IN slimping_streaming_services %]
+            <tr>
+                <td>
+                    [% IF svc.installed %]
+                    [% svc.label %]
+                    [% ELSE %]
+                    <span class="text-muted">[% svc.label %]</span>
+                    [% END %]
+                </td>
+                <td>
+                    [% IF svc.installed %]
+                    [% svc.version | html %]
+                    [% ELSE %]
+                    &mdash;
+                    [% END %]
+                </td>
+                <td>
+                    [% IF svc.installed %]
+                    [% svc.role_label %]
+                    [% ELSE %]
+                    <span class="text-muted">[% svc.role_label %]</span>
+                    [% END %]
+                </td>
+                <td>
+                    [% IF svc.installed && svc.quality_label %]
+                    [% svc.quality_label | html %]
+                    [% ELSIF svc.installed %]
+                    <span class="text-muted">&mdash;</span>
+                    [% ELSE %]
+                    &mdash;
+                    [% END %]
+                </td>
+            </tr>
+            [% END %]
+        </table>
+
+        <p class="m-0 mt-10 fs-11 text-secondary">
+            Any audio streaming plugin installed in Lyrion that creates remote library
+            items or playable Favourites links should work with SlimPing automatically.
+            Plugins not listed above will be processed using SlimPing's default
+            transcoding rules.
+        </p>
+        [% END %]
+
+    </div>
+</div>

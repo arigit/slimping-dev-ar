@@ -1,0 +1,70 @@
+<div class="settings-accordion" data-accordion-id="scrobbling">
+    <div class="settings-accordion-header" aria-expanded="true" role="button" tabindex="0"
+        aria-controls="accordion-content-scrobbling">
+        <div class="settings-accordion-title">Scrobbling</div>
+        <div class="settings-accordion-icon"></div>
+    </div>
+    <div id="accordion-content-scrobbling" class="settings-accordion-content">
+
+        <p class="m-0 mb-10 fs-12 text-secondary">
+            Feed completed plays from Subsonic clients into LMS's AudioScrobbler plugin
+            (Last.fm / ListenBrainz). Requires the AudioScrobbler plugin to be installed
+            and a gateway player to be selected. Scrobbling can be toggled per user in
+            the Users section.
+        </p>
+
+        [% WRAPPER setting title="Gateway Player"
+        desc="The LMS player whose AudioScrobbler account will be used to submit scrobbles. Only players with AudioScrobbler enabled are shown. All SlimPing scrobbles flow through this player." %]
+        [% IF scrobble_gateway_stale %]
+        <div class="sp-warning-banner" style="margin-bottom:10px;padding:8px 12px;background:var(--status-warning-bg, #fff3cd);border:1px solid var(--status-warning-border, #ffc107);border-radius:4px;color:var(--status-warning-text, #664d03);font-size:13px;">
+            The saved gateway player &ldquo;[% scrobble_gateway_player_name | html %]&rdquo;
+            no longer has an AudioScrobbler account configured. Scrobbling is paused
+            until a valid player is selected below.
+        </div>
+        [% END %]
+        <select class="stdedit sp-scrobble-gateway-select"
+            name="pref_scrobble_gateway_player"
+            data-pref="scrobble_gateway_player"
+            onchange="SlimPingSettings.saveScrobbleGateway(this.value)"
+            style="min-width:220px">
+            <option value="">Disabled (no gateway player)</option>
+            [% FOREACH p IN slimping_scrobble_players %]
+            <option value="[% p.id | html %]" [% 'selected' IF p.id == scrobble_gateway_player %]>
+                [% p.name | html %] ([% p.model | html %])
+            </option>
+            [% END %]
+            [% IF scrobble_gateway_stale %]
+            <option value="[% scrobble_gateway_player | html %]" selected disabled>
+                [% scrobble_gateway_player_name | html %] (no AudioScrobbler account)
+            </option>
+            [% END %]
+        </select>
+        [% IF !slimping_scrobble_players.size && !scrobble_gateway_stale %]
+        <p class="mt-5 fs-12 text-secondary">
+            No players with AudioScrobbler enabled are currently connected.
+        </p>
+        [% END %]
+        [% END %]
+
+        [% WRAPPER setting title="Scrobble Source Type"
+        desc="The source type reported to Last.fm. Use P for local library playback (default), R for radio, or E for external/recommendation." %]
+        <select class="stdedit sp-scrobble-source-select"
+            name="pref_scrobble_source_type"
+            data-pref="scrobble_source_type"
+            onchange="SlimPingSettings.saveScrobbleSource(this.value)"
+            style="min-width:120px">
+            <option value="P" [% 'selected' IF scrobble_source_type == 'P' %]>
+                P - Chosen by the user</option>
+            <option value="R" [% 'selected' IF scrobble_source_type == 'R' %]>
+                R - Non-personal broadcast</option>
+            <option value="E" [% 'selected' IF scrobble_source_type == 'E' %]>
+                E - Personal recommendation</option>
+        </select>
+        [% END %]
+
+        <div class="mt-15">
+            <span id="sp-scrobble-result" class="sp-save-result"></span>
+        </div>
+
+    </div>
+</div>

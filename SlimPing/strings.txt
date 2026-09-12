@@ -1,0 +1,11 @@
+PLUGIN_SLIMPING
+	EN	SlimPing
+
+PLUGIN_SLIMPING_DESC
+	EN	SlimPing - OpenSubsonic REST API server for Lyrion Music Server
+
+PLUGIN_SLIMPING_SETTINGS
+	EN	SlimPing Settings
+
+PLUGIN_SLIMPING_SETTINGS_DESC
+	EN	Configure your SlimPing OpenSubsonic server settings

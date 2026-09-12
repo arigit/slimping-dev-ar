@@ -1,0 +1,23 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <linearGradient id="narratorGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#667eea"/>
+            <stop offset="100%" style="stop-color:#764ba2"/>
+        </linearGradient>
+        <style>
+            .bg { fill: url(#narratorGrad); }
+            .head { fill: white; }
+            .body { fill: white; }
+            .speech-bubble1 { fill: #4facfe; opacity: 0.8; }
+            .speech-bubble2 { fill: #00f2fe; opacity: 0.7; }
+            .speech-dot { fill: white; }
+        </style>
+    </defs>
+    <rect width="100" height="100" rx="22" class="bg"/>
+    <circle cx="50" cy="35" r="15" class="head"/>
+    <path d="M35 55 C35 70, 45 80, 50 80 C55 80, 65 70, 65 55 Z" class="body"/>
+    <path d="M65 45 Q75 40, 75 50 Q80 50, 80 55 Q70 55, 70 50 Q65 50, 65 45 Z" class="speech-bubble1"/>
+    <path d="M70 35 Q80 30, 80 40 Q85 40, 85 45 Q75 45, 75 40 Q70 40, 70 35 Z" class="speech-bubble2"/>
+    <circle cx="70" cy="52" r="2" class="speech-dot"/>
+    <circle cx="75" cy="42" r="2" class="speech-dot"/>
+</svg>

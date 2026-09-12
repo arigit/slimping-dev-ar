@@ -1,0 +1,85 @@
+<div class="settings-accordion" data-accordion-id="admin-access-settings">
+    <div class="settings-accordion-header" aria-expanded="true" role="button" tabindex="0"
+        aria-controls="accordion-content-admin-access">
+        <div class="settings-accordion-title">Admin Access</div>
+        <div class="settings-accordion-icon"></div>
+    </div>
+    <div id="accordion-content-admin-access" class="settings-accordion-content">
+
+        <p class="m-0 mb-10 fs-12 text-secondary">
+            Controls who can reach this settings page and the JSON admin endpoints.
+            Cross-site request forgery protection (Origin / Content-Type checks on mutating
+            requests) is always on, regardless of mode.
+        </p>
+
+        [% WRAPPER setting title="Access Mode"
+        desc="Choose how strictly settings access is gated by source IP." %]
+        <fieldset class="sp-exposure-mode">
+            <legend class="sp-exposure-legend">Mode</legend>
+
+            <label class="sp-radio-label">
+                <input type="radio" name="admin_access" value="lan_open"
+                    class="sp-admin-access-radio"
+                    [% 'checked' IF slimping_admin_access == 'lan_open' %]>
+                <strong>LAN Open</strong> <span class="sp-radio-desc">(default)</span>
+                <span class="sp-radio-desc">
+                    Loopback and private LAN sources (RFC1918, link-local, IPv6 ULA,
+                    Tailscale CGNAT) get in without credentials. Public IPs must
+                    authenticate. Suitable for the typical home-LAN deployment.
+                </span>
+            </label>
+
+            <label class="sp-radio-label">
+                <input type="radio" name="admin_access" value="loopback_open"
+                    class="sp-admin-access-radio"
+                    [% 'checked' IF slimping_admin_access == 'loopback_open' %]>
+                <strong>Loopback Open</strong>
+                <span class="sp-radio-desc">
+                    Only requests from the LMS host itself (127.0.0.1, ::1) skip
+                    authentication. LAN clients must authenticate. Use when you do not
+                    trust your LAN.
+                </span>
+            </label>
+
+            <label class="sp-radio-label">
+                <input type="radio" name="admin_access" value="auth_required"
+                    class="sp-admin-access-radio"
+                    [% 'checked' IF slimping_admin_access == 'auth_required' %]>
+                <strong>Authentication Required</strong>
+                <span class="sp-radio-desc">
+                    Every request must authenticate. Recommended for any deployment that
+                    exposes LMS to the internet (port-forward, public reverse proxy, etc).
+                </span>
+            </label>
+        </fieldset>
+
+        <div class="mt-15">
+            <button type="button" class="stdclick btn-primary"
+                onclick="return saveAdminAccess();">Save Access Mode</button>
+            <span id="sp-admin-access-result" class="sp-save-result"></span>
+        </div>
+        [% END %]
+
+        [% WRAPPER setting title="Auth Rate Limiter"
+        desc="The /rest/ auth path tracks failed login attempts per public source IP and locks out further attempts for a cooldown window. Private LAN sources (loopback, RFC1918, link-local, IPv6 ULA, Tailscale CGNAT) are exempt and never rate-limited. Use this button if you have locked yourself out during testing." %]
+        <button type="button" class="stdclick btn-primary"
+            onclick="return resetRateLimits();">Reset rate-limit state</button>
+        <span id="sp-ratelimit-result" class="sp-save-result"></span>
+        [% END %]
+
+        [% WRAPPER setting title="Trust X-Forwarded-For"
+        desc="Enable this when LMS sits behind a reverse proxy you control. The leftmost X-Forwarded-For entry is then used for source-IP trust decisions, so private-LAN browsers stay trusted even when the proxy itself runs on loopback. Leave off when LMS is reached directly &mdash; otherwise an attacker can spoof the source IP via header injection." %]
+        <label class="sp-radio-label">
+            <input type="checkbox" id="trust_xff" name="trust_xff"
+                [% 'checked' IF slimping_trust_xff %]>
+            Honour <code>X-Forwarded-For</code> header
+        </label>
+        <div class="mt-15">
+            <button type="button" class="stdclick btn-primary"
+                onclick="return saveTrustXff();">Save Trust Setting</button>
+            <span id="sp-trust-xff-result" class="sp-save-result"></span>
+        </div>
+        [% END %]
+
+    </div>
+</div>

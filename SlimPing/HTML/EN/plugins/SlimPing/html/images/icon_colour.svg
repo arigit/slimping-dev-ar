@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Background -->
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#667eea"/>
+      <stop offset="100%" stop-color="#764ba2"/>
+    </linearGradient>
+
+    <!-- Submarine body -->
+    <linearGradient id="sub" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#f4f6ff"/>
+      <stop offset="100%" stop-color="#dfe3ff"/>
+    </linearGradient>
+
+    <!-- Soft glow -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="0.6"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="24" height="24" rx="4" fill="url(#bg)"/>
+
+  <!-- Audio bars -->
+  <g opacity="0.25" fill="#ffffff">
+    <rect x="4" y="5" width="1" height="2" rx="0.5"/>
+    <rect x="6" y="4" width="1" height="4" rx="0.5"/>
+    <rect x="8" y="3" width="1" height="6" rx="0.5"/>
+    <rect x="10" y="4.5" width="1" height="3" rx="0.5"/>
+    <rect x="12" y="3.5" width="1" height="5" rx="0.5"/>
+    <rect x="14" y="4.5" width="1" height="3" rx="0.5"/>
+    <rect x="16" y="3" width="1" height="6" rx="0.5"/>
+    <rect x="18" y="4" width="1" height="4" rx="0.5"/>
+  </g>
+
+  <!-- Sonar waves -->
+  <g stroke="#ffffff" fill="none" stroke-linecap="round" filter="url(#glow)">
+    <path d="M9 9 A3 3 0 0 1 15 9" stroke-width="0.7" opacity="0.7"/>
+    <path d="M7.5 8 A4.5 4.5 0 0 1 16.5 8" stroke-width="0.5" opacity="0.4"/>
+  </g>
+
+  <!-- Submarine -->
+  <g>
+    <!-- Hull -->
+    <rect x="5" y="13" width="14" height="5" rx="2.5" fill="url(#sub)"/>
+
+    <!-- Nose highlight -->
+    <path d="M17.5 14.2 Q19 15.5 17.5 16.8" stroke="#ffffff" stroke-width="0.8" opacity="0.4" fill="none"/>
+
+    <!-- Conning tower -->
+    <rect x="10" y="10.5" width="4" height="2.5" rx="0.8" fill="url(#sub)"/>
+
+    <!-- Periscope -->
+    <path d="M12 9 v2 h1.5" stroke="#ffffff" stroke-width="0.8" stroke-linecap="round" fill="none"/>
+
+    <!-- Portholes -->
+    <circle cx="9" cy="15.5" r="0.7" fill="#667eea"/>
+    <circle cx="12" cy="15.5" r="0.7" fill="#667eea"/>
+    <circle cx="15" cy="15.5" r="0.7" fill="#667eea"/>
+
+    <!-- Tail fin -->
+    <path d="M5 14.5 L3.8 13.5 L3.8 17.5 L5 16.5 Z" fill="url(#sub)" opacity="0.9"/>
+
+    <!-- Propeller -->
+    <rect x="3.2" y="14.2" width="0.5" height="2.6" rx="0.25" fill="#ffffff" opacity="0.7"/>
+  </g>
+</svg>

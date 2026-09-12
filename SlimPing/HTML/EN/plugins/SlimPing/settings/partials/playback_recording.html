@@ -1,0 +1,67 @@
+<div class="settings-accordion" data-accordion-id="playback-recording">
+    <div class="settings-accordion-header" aria-expanded="true" role="button" tabindex="0"
+        aria-controls="accordion-content-playback-recording">
+        <div class="settings-accordion-title">Playback Recording</div>
+        <div class="settings-accordion-icon"></div>
+    </div>
+    <div id="accordion-content-playback-recording" class="settings-accordion-content">
+
+        <p class="m-0 mb-10 fs-12 text-secondary">
+            When enabled for a user, completed plays from OpenSubsonic clients are
+            recorded in the Lyrion Music Server library exactly as if the track had
+            been played by a local player. This powers Recently Played, per-track
+            and per-album play counts, Top Songs, and album rankings. Disable per
+            user if you only want external scrobbling (Last.fm / ListenBrainz)
+            without local Lyrion statistics.
+        </p>
+
+        <div class="info-panel info-panel-muted mb-15">
+            <p class="m-0 fs-12 text-secondary">
+                <strong>What gets recorded:</strong><br>
+                &bull; <strong>Play count</strong> &mdash; increments the track's play
+                count in the Lyrion library, visible in <code>getSong</code>,
+                <code>getAlbum</code>, <code>getTopSongs</code>, and album ranking
+                queries (<code>getAlbumList</code> type=frequent).<br>
+                &bull; <strong>Last played timestamp</strong> &mdash; the track
+                appears in Lyrion Recently Played (web UI, Material Skin, APC plugin)
+                and album queries sorted by most-recently-played
+                (<code>getAlbumList</code> type=recent).<br><br>
+                <strong>What is NOT affected by this toggle:</strong><br>
+                &bull; <strong>External scrobbling</strong> &mdash; Last.fm and
+                ListenBrainz submissions are controlled separately by the
+                "Scrobbling" setting above.<br>
+                &bull; <strong>Now Playing</strong> &mdash; the current track display
+                in Subsonic clients is always updated regardless of this setting.<br>
+                &bull; <strong>Lyrion native playback</strong> &mdash; tracks played
+                through Lyrion's own players always record statistics; this toggle
+                only affects plays reported by OpenSubsonic clients via
+                <code>scrobble.view</code> or <code>reportPlayback.view</code>.
+            </p>
+        </div>
+
+        [% IF slimping_users.size %]
+        <table class="stdt" style="max-width:500px">
+            <tr>
+                <th>Username</th>
+                <th style="width:60px">Log Playback to Lyrion</th>
+            </tr>
+            [% FOREACH user IN slimping_users %]
+            <tr>
+                <td>[% user.username | html %]</td>
+                <td style="text-align:center">
+                    <input type="checkbox" class="sp-playback-logging-toggle"
+                        title="When enabled, plays from OpenSubsonic clients increment play counts and appear in Recently Played"
+                        [% 'checked' IF user.log_playback_to_lms %]
+                        onchange="SlimPingSettings.setPlaybackLogging('[% user.username | html %]', this.checked)">
+                </td>
+            </tr>
+            [% END %]
+        </table>
+        [% ELSE %]
+        <div class="info-panel info-panel-muted">
+            <p class="m-0">No users configured.</p>
+        </div>
+        [% END %]
+
+    </div>
+</div>

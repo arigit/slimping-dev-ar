@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <linearGradient id="discoverGradRounded" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#f43f5e"/>
+            <stop offset="100%" style="stop-color:#e11d48"/>
+        </linearGradient>
+        <style>
+            .bg { fill: url(#discoverGradRounded); }
+            .outer-circle { fill: #ffffff; opacity: 0.9; }
+            .inner-disc { fill: #fecaca; opacity: 0.8; }
+            .marker { fill: #374151; opacity: 0.9; }
+            .needle { fill: #dc2626; opacity: 0.9; }
+            .pivot { fill: #374151; opacity: 0.9; }
+            .ring { stroke: #ffffff; fill: none; }
+        </style>
+    </defs>
+    <!-- Background rounded rectangle -->
+    <rect width="24" height="24" rx="3.6" ry="3.6" class="bg"/>
+
+    <!-- Compass outer circle -->
+    <circle cx="12" cy="12" r="8.4" class="outer-circle"/>
+
+    <!-- Compass inner disc -->
+    <circle cx="12" cy="12" r="6.6" class="inner-disc"/>
+
+    <!-- Cardinal direction markers (small rectangles) -->
+    <!-- North -->
+    <rect x="11.4" y="4.2" width="1.2" height="2.4" rx="0.3" class="marker"/>
+    <!-- East -->
+    <rect x="17.4" y="11.4" width="2.4" height="1.2" rx="0.3" class="marker"/>
+    <!-- South -->
+    <rect x="11.4" y="17.4" width="1.2" height="2.4" rx="0.3" class="marker"/>
+    <!-- West -->
+    <rect x="4.2" y="11.4" width="2.4" height="1.2" rx="0.3" class="marker"/>
+
+    <!-- Compass needle (pointing north) -->
+    <path d="M12 5.4 L13.2 9.6 L10.8 9.6 Z" class="needle"/>
+
+    <!-- Center pivot -->
+    <circle cx="12" cy="12" r="1.2" class="pivot"/>
+
+    <!-- Inner ring -->
+    <circle cx="12" cy="12" r="4.8" class="ring" stroke-width="0.6" opacity="0.7"/>
+</svg>

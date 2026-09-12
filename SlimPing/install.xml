@@ -1,0 +1,20 @@
+<?xml version='1.0' encoding='utf-8'?>
+<extension>
+	<id>eb674be0-4f08-44f0-8fbd-89911950145e</id>
+	<name>PLUGIN_SLIMPING</name>
+	<module>Plugins::SlimPing::Plugin</module>
+	<version>0.7.0085-dev</version>
+	<description>PLUGIN_SLIMPING_DESC</description>
+	<creator>DJWillis</creator>
+	<email>lms@distant-earth.com</email>
+	<homepageURL>https://slimping.distant-earth.com/</homepageURL>
+	<icon>plugins/SlimPing/html/images/icon_svg.png</icon>
+	<defaultState>enabled</defaultState>
+	<category>tools</category>
+	<targetApplication>
+		<id>Lyrion Music Server</id>
+		<minVersion>8.5</minVersion>
+		<maxVersion>*</maxVersion>
+	</targetApplication>
+	<optionsURL>plugins/SlimPing/settings/slimping_settings.html</optionsURL>
+</extension>

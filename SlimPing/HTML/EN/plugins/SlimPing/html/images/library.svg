@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="80" height="80" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <linearGradient id="libraryBuildingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#667eea"/>
+            <stop offset="100%" style="stop-color:#764ba2"/>
+        </linearGradient>
+        <style>
+            .bg { fill: url(#libraryBuildingGrad); }
+            .building-base { fill: #ffffff; opacity: 0.95; }
+            .roof { fill: #ffffff; opacity: 0.9; }
+            .column { fill: #ffffff; opacity: 0.85; }
+            .cap1 { fill: #ffffff; opacity: 0.95; }
+            .cap2 { fill: #ffffff; opacity: 0.95; }
+            .cap3 { fill: #ffffff; opacity: 0.95; }
+            .cap4 { fill: #ffffff; opacity: 0.95; }
+        </style>
+    </defs>
+    <!-- Background rounded rectangle -->
+    <rect width="80" height="80" rx="12" ry="12" class="bg"/>
+
+    <!-- Library building base -->
+    <rect x="12" y="55" width="56" height="15" rx="1" class="building-base"/>
+
+    <!-- Classical pediment (triangular roof) -->
+    <path d="M 10 30 L 40 12 L 70 30 Z" class="roof"/>
+
+    <!-- Columns -->
+    <rect x="18" y="30" width="6" height="25" rx="1" class="column"/>
+    <rect x="30" y="30" width="6" height="25" rx="1" class="column"/>
+    <rect x="42" y="30" width="6" height="25" rx="1" class="column"/>
+    <rect x="54" y="30" width="6" height="25" rx="1" class="column"/>
+
+    <!-- Column capitals -->
+    <rect x="16" y="28" width="10" height="3" rx="0.5" class="cap1"/>
+    <rect x="28" y="28" width="10" height="3" rx="0.5" class="cap2"/>
+    <rect x="40" y="28" width="10" height="3" rx="0.5" class="cap3"/>
+    <rect x="52" y="28" width="10" height="3" rx="0.5" class="cap4"/>
+</svg>

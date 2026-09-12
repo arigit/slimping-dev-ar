@@ -1,0 +1,158 @@
+<div class="settings-accordion" data-accordion-id="sharing-settings">
+    <div class="settings-accordion-header" aria-expanded="true" role="button" tabindex="0"
+        aria-controls="accordion-content-sharing">
+        <div class="settings-accordion-title">Sharing Settings</div>
+        <div class="settings-accordion-icon"></div>
+    </div>
+    <div id="accordion-content-sharing" class="settings-accordion-content">
+
+        <div class="sp-info-banner mb-15">
+            <strong>Shares are a personal sharing tool, not a broadcast service.</strong><br>
+            Each share URL is intended for a small, known audience - friends, family,
+            or collaborators. Shares carry hard limits on concurrent listeners
+            (default 5) and unique recipients (default 20) to prevent unintentional
+            wide redistribution. A share that exceeds these limits is automatically
+            revoked.<br><br>
+            <strong>Respect copyright.</strong> Shares are for content you have the
+            right to distribute. They must not be used to operate an unlicensed
+            internet radio station, to publicly redistribute copyrighted material, or
+            to circumvent access controls on streamed content. As the server operator,
+            you are responsible for how shares are used.
+        </div>
+
+        <p class="m-0 mb-10 fs-12 text-secondary">
+            Share tracks, albums and playlists via time-limited, unauthenticated URLs.
+            Recipients stream capped-bitrate MP3 through a virtual player - no
+            SlimPing credentials are needed. Active guardrails:
+        </p>
+        <ul class="fs-12 text-secondary mb-10" style="list-style-type: disc; padding-left: 20px;">
+            <li>Max <strong>[% share_max_listeners %]</strong> concurrent listeners per share</li>
+            <li>Auto-revoked after <strong>[% share_max_unique_ips %]</strong> unique IPs</li>
+            <li>Share and radio audio capped at <strong>[% share_max_bitrate %] kbps MP3</strong></li>
+            <li>TTL clamped to <strong>[% share_min_ttl %]-[% share_max_ttl %] hours</strong></li>
+            <li>Max <strong>[% share_user_cap %]</strong> active shares per user</li>
+        </ul>
+
+        [% WRAPPER setting title="Enable Sharing"
+        desc="When enabled, users with the Share role can create time-limited share URLs. Disabling removes all share endpoints from the API." %]
+        <label class="sp-radio-label">
+            <input type="checkbox" id="toggle_sharing" class="sp-feature-toggle"
+                name="pref_feature_sharing"
+                data-pref="feature_sharing"
+                [% 'checked' IF feature_sharing %]>
+            Enable sharing endpoints
+        </label>
+        [% END %]
+
+        [% WRAPPER setting title="Share Time-to-Live"
+        desc="Controls how long share URLs remain valid. Default applies when the user does not specify. Min and max enforce bounds on per-share TTL requests." %]
+        <div class="sp-inline-fields">
+            <label>Min TTL (hours)
+                <input type="number" id="share_min_ttl" class="stdedit"
+                    name="pref_share_min_ttl"
+                    value="[% share_min_ttl %]" min="1" max="168" size="4">
+            </label>
+            <label>Default TTL (hours)
+                <input type="number" id="share_default_ttl" class="stdedit"
+                    name="pref_share_default_ttl"
+                    value="[% share_default_ttl %]" min="1" max="168" size="4">
+            </label>
+            <label>Max TTL (hours)
+                <input type="number" id="share_max_ttl" class="stdedit"
+                    name="pref_share_max_ttl"
+                    value="[% share_max_ttl %]" min="1" max="168" size="4">
+            </label>
+        </div>
+        <p class="fs-11 text-secondary mt-5">All values in hours. Max 168 hours = 7 days.</p>
+        [% END %]
+
+        [% WRAPPER setting title="Share AND Internet Radio Stream Bitrate Limit"
+        desc="Maximum bitrate ceiling for share and internet radio overlay streams. Applies to shareStream and radioStream endpoints. All content is transcoded to MP3 at this bitrate or below. Keeps forwarded-stream bandwidth predictable and prevents sharing or restreaming lossless files." %]
+        <select id="share_max_bitrate" class="sp-feature-toggle-select"
+            name="pref_share_max_bitrate" data-pref="share_max_bitrate">
+            <option value="96" [% 'selected' IF share_max_bitrate == 96 %]>96 kbps</option>
+            <option value="128" [% 'selected' IF share_max_bitrate == 128 %]>128 kbps</option>
+            <option value="160" [% 'selected' IF share_max_bitrate == 160 %]>160 kbps</option>
+            <option value="192" [% 'selected' IF share_max_bitrate == 192 %]>192 kbps</option>
+            <option value="256" [% 'selected' IF share_max_bitrate == 256 %]>256 kbps</option>
+            <option value="320" [% 'selected' IF share_max_bitrate == 320 %]>320 kbps</option>
+        </select>
+        [% END %]
+
+        [% WRAPPER setting title="Capacity Limits"
+        desc="Prevent resource exhaustion by capping the number of shares." %]
+        <div class="sp-inline-fields">
+            <label>Max shares per user
+                <input type="number" id="share_user_cap" class="stdedit"
+                    name="pref_share_user_cap"
+                    value="[% share_user_cap %]" min="1" max="500" size="3">
+            </label>
+            <label>Max shares total
+                <input type="number" id="share_global_cap" class="stdedit"
+                    name="pref_share_global_cap"
+                    value="[% share_global_cap %]" min="1" max="2000" size="4">
+            </label>
+        </div>
+        [% END %]
+
+        [% WRAPPER setting title="Listener Limits"
+        desc="Shares are not a broadcast service. These caps prevent a share URL from being used as a public radio station. A share exceeding the unique IP limit is automatically revoked." %]
+        <div class="sp-inline-fields">
+            <label>Max concurrent listeners
+                <input type="number" id="share_max_listeners" class="stdedit"
+                    name="pref_share_max_listeners"
+                    value="[% share_max_listeners %]" min="1" max="20" size="2">
+            </label>
+            <label>Max unique IPs (lifetime)
+                <input type="number" id="share_max_unique_ips" class="stdedit"
+                    name="pref_share_max_unique_ips"
+                    value="[% share_max_unique_ips %]" min="1" max="200" size="3">
+            </label>
+        </div>
+        <p class="fs-11 text-secondary mt-5">
+            "Max unique IPs" is an approximate guard. IP counters reset on server restart.
+        </p>
+
+        <div class="mt-15">
+            <button type="button" class="stdclick btn-primary"
+                onclick="return SlimPingSettings.saveSharingSettings();">Save Sharing Settings</button>
+            <span id="sp-sharing-settings-result" class="sp-save-result"></span>
+        </div>
+        [% END %]
+
+        [% WRAPPER setting title="Active Shares"
+        desc="View and revoke all shares. Revoked share URLs stop working immediately for new connections." %]
+
+        <div id="sp-share-list-container">
+            <table id="sp-share-table" class="stdt" style="display:none;">
+                <thead>
+                    <tr>
+                        <th>Description</th>
+                        <th>Creator</th>
+                        <th>Created</th>
+                        <th>Expires</th>
+                        <th>Visits</th>
+                        <th>Last Visit</th>
+                        <th>Link</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="sp-share-tbody"></tbody>
+            </table>
+            <p id="sp-no-shares" class="text-secondary" style="display:none;">
+                No shares found.
+            </p>
+        </div>
+
+        <div class="mt-15">
+            <button type="button" id="sp-revoke-all-btn" class="stdclick btn-danger"
+                onclick="return SlimPingSettings.revokeAllShares();"
+                style="display:none;">
+                Revoke All Shares
+            </button>
+            <span id="sp-shares-result" class="sp-save-result"></span>
+        </div>
+        [% END %]
+
+    </div>
+</div>

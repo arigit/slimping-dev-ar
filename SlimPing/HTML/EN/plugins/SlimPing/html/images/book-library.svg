@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="80" height="80" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <linearGradient id="genreRibbonsGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#667eea"/>
+            <stop offset="100%" style="stop-color:#764ba2"/>
+        </linearGradient>
+        <clipPath id="clipRounded">
+            <rect width="80" height="80" rx="12" ry="12"/>
+        </clipPath>
+        <style>
+            .bg { fill: url(#genreRibbonsGrad); }
+            .book { fill: #ffffff; }
+            .ribbon1 { fill: #4facfe; }
+            .ribbon2 { fill: #00f2fe; }
+            .ribbon3 { fill: #4facfe; opacity: 0.8; }
+            .spine { fill: #ffffff; opacity: 0.7; }
+        </style>
+    </defs>
+
+    <!-- Clip everything to rounded rectangle to guarantee transparent corners -->
+    <g clip-path="url(#clipRounded)">
+        <rect width="80" height="80" class="bg"/>
+
+        <!-- Open book silhouette to indicate literature -->
+        <path d="M20 30 Q32 24 40 28 Q48 24 60 30 L60 58 Q48 52 40 56 Q32 52 20 58 Z" class="book"/>
+
+        <!-- Three bookmark ribbons to convey 'genre' labelling/tagging -->
+        <path d="M28 30 L32 30 L32 50 L30 46 L28 50 Z" class="ribbon1"/>
+        <path d="M38 28 L42 28 L42 52 L40 48 L38 52 Z" class="ribbon2"/>
+        <path d="M48 30 L52 30 L52 50 L50 46 L48 50 Z" class="ribbon3"/>
+
+        <!-- Book spines to add subtle structure on pages -->
+        <rect x="39.5" y="28" width="1" height="28" class="spine"/>
+    </g>
+</svg>

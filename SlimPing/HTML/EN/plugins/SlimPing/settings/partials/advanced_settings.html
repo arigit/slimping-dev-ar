@@ -1,0 +1,170 @@
+<div class="settings-accordion" data-accordion-id="advanced-settings">
+    <div class="settings-accordion-header" aria-expanded="false" role="button" tabindex="0"
+        aria-controls="accordion-content-advanced-settings">
+        <div class="settings-accordion-title">Advanced Settings</div>
+        <div class="settings-accordion-icon"></div>
+    </div>
+    <div id="accordion-content-advanced-settings" class="settings-accordion-content">
+
+        <p class="m-0 mb-10 fs-12 text-secondary">
+            The settings below should only be changed if you have a specific reason to do so.
+        </p>
+
+        [% WRAPPER setting title="Menu &amp; App Visibility"
+        desc="Controls what appears when you open SlimPing from the LMS Apps menu" %]
+        <select class="stdedit" name="pref_menu_mode" id="pref_menu_mode">
+            <option value="usage" [% IF menu_mode == 'usage' %]selected[% END %]>
+                Usage (Now Playing, Bookmarks, Stars)</option>
+            <option value="user_details" [% IF menu_mode == 'user_details' %]selected[% END %]>
+                User Details (Usage + user info &amp; API keys)</option>
+            <option value="admin" [% IF menu_mode == 'admin' %]selected[% END %]>
+                Admin (User Details + all users overview)</option>
+            <option value="off" [% IF menu_mode == 'off' %]selected[% END %]>
+                Off (hide menu)</option>
+        </select>
+        [% END %]
+
+        [% WRAPPER setting title="Internet Radio Folder"
+        desc="Favourites folder to expose as internet radio stations to Subsonic clients. Leave on Root to expose all playable favourites from the root level. This is the default for all users; individual users can override this in the Users accordion." %]
+        <select class="stdedit sp-radio-folder-select" id="radio_folder_select" style="min-width:250px"
+            data-current="[% slimping_radio_folder | html %]">
+            <option value="">Root (no folder)</option>
+        </select>
+        <input type="hidden" name="radio_folder" id="radio_folder"
+            value="[% slimping_radio_folder | html %]">
+        <div class="mt-10">
+            <label class="sp-radio-label">
+                <input type="checkbox" id="radio_folder_recurse"
+                    [% 'checked' IF radio_folder_recurse %]>
+                Include playable items from subfolders (flattened)
+            </label>
+        </div>
+        <div class="mt-15">
+            <button type="button" class="stdclick btn-primary"
+                onclick="return SlimPingSettings.saveRadioFolder();">Save Radio Folder</button>
+            <span id="sp-radio-folder-result" class="sp-save-result"></span>
+        </div>
+        [% END %]
+
+        [% WRAPPER setting title="Search Result Caps"
+        desc="Server-side limits on search results per section. Set to 0 (default) for no cap. When set, client-requested counts are silently clamped to these values. Search supports client-driven pagination (offset/count params) but not all clients use it." %]
+        <div class="form-row">
+            <label for="cap_max_album">Max Albums:</label>
+            <input type="number" id="cap_max_album" class="sp-feature-toggle stdedit form-input-small"
+                name="pref_maxAlbumCount"
+                data-pref="maxAlbumCount" value="[% slimping_max_album_count %]"
+                min="0" max="10000" step="50">
+        </div>
+        <div class="form-row">
+            <label for="cap_max_artist">Max Artists:</label>
+            <input type="number" id="cap_max_artist" class="sp-feature-toggle stdedit form-input-small"
+                name="pref_maxArtistCount"
+                data-pref="maxArtistCount" value="[% slimping_max_artist_count %]"
+                min="0" max="10000" step="50">
+        </div>
+        <div class="form-row">
+            <label for="cap_max_song">Max Songs:</label>
+            <input type="number" id="cap_max_song" class="sp-feature-toggle stdedit form-input-small"
+                name="pref_maxSongCount"
+                data-pref="maxSongCount" value="[% slimping_max_song_count %]"
+                min="0" max="10000" step="50">
+        </div>
+        <div class="mt-15">
+            <button type="button" class="stdclick btn-primary"
+                onclick="return saveFeatures();">Save Result Caps</button>
+            <span id="sp-advanced-result" class="sp-save-result"></span>
+        </div>
+        [% END %]
+
+        [% WRAPPER setting title="Store Caps"
+        desc="Per-user and global caps on stars, bookmarks, and other stored items. When a user reaches the per-user cap the oldest item is silently evicted. When the global cap is reached new items are refused. Set to 0 for no cap." %]
+        <div class="form-row">
+            <label for="cap_star_user">Stars per user:</label>
+            <input type="number" id="cap_star_user" class="sp-feature-toggle stdedit form-input-small"
+                name="pref_star_user_cap"
+                data-pref="star_user_cap" value="[% star_user_cap %]"
+                min="0" max="100000" step="500">
+        </div>
+        <div class="form-row">
+            <label for="cap_star_global">Stars global:</label>
+            <input type="number" id="cap_star_global" class="sp-feature-toggle stdedit form-input-small"
+                name="pref_star_global_cap"
+                data-pref="star_global_cap" value="[% star_global_cap %]"
+                min="0" max="1000000" step="5000">
+        </div>
+        <div class="form-row">
+            <label for="cap_bookmark_user">Bookmarks per user:</label>
+            <input type="number" id="cap_bookmark_user" class="sp-feature-toggle stdedit form-input-small"
+                name="pref_bookmark_user_cap"
+                data-pref="bookmark_user_cap" value="[% bookmark_user_cap %]"
+                min="0" max="50000" step="100">
+        </div>
+        <div class="form-row">
+            <label for="cap_bookmark_global">Bookmarks global:</label>
+            <input type="number" id="cap_bookmark_global" class="sp-feature-toggle stdedit form-input-small"
+                name="pref_bookmark_global_cap"
+                data-pref="bookmark_global_cap" value="[% bookmark_global_cap %]"
+                min="0" max="500000" step="1000">
+        </div>
+        <div class="mt-15">
+            <button type="button" class="stdclick btn-primary"
+                onclick="return saveFeatures();">Save Store Caps</button>
+            <span id="sp-store-caps-result" class="sp-save-result"></span>
+        </div>
+        [% END %]
+
+        [% WRAPPER setting title="Session &amp; Token TTL"
+        desc="Time-to-live for idle sessions and internet radio stream tokens. Session TTL controls how long inactive sessions are kept before cleanup. Radio token TTL controls how long a generated stream URL remains valid (default 90 days)." %]
+        <div class="form-row">
+            <label for="pref_session_ttl_days">Session TTL (days):</label>
+            <input type="number" id="pref_session_ttl_days" class="sp-feature-toggle stdedit form-input-small"
+                name="pref_session_ttl_days"
+                data-pref="session_ttl_days" value="[% session_ttl_days %]"
+                min="1" max="365" step="1">
+        </div>
+        <div class="form-row">
+            <label for="pref_radio_token_ttl">Radio token TTL (seconds):</label>
+            <input type="number" id="pref_radio_token_ttl" class="sp-feature-toggle stdedit form-input-small"
+                name="pref_radio_token_ttl"
+                data-pref="radio_token_ttl" value="[% radio_token_ttl %]"
+                min="3600" max="31536000" step="86400">
+        </div>
+        <div class="mt-15">
+            <button type="button" class="stdclick btn-primary"
+                onclick="return saveFeatures();">Save TTL Settings</button>
+            <span id="sp-ttl-result" class="sp-save-result"></span>
+        </div>
+        [% END %]
+
+        [% WRAPPER setting title="OpenSubsonic Data Enrichment"
+        desc="Controls how much LMS metadata is exposed through the OpenSubsonic API. Richer data helps clients display more information but requires additional database lookups per request." %]
+
+        [% WRAPPER setting title="Genre Count Per Entity"
+        desc="Maximum number of genres to return per track or album in API responses. Set to 1 for the legacy single-genre behaviour." %]
+        <select class="sp-feature-toggle-select" name="pref_genre_count_per_entity"
+            data-pref="genre_count_per_entity">
+            [% FOR n IN [1, 2, 3, 5, 10] %]
+            <option value="[% n %]"
+                [% IF genre_count_per_entity == n OR (!genre_count_per_entity AND n == 3) %]selected[% END %]>
+                [% n %]</option>
+            [% END %]
+        </select>
+        [% END %]
+
+        [% WRAPPER setting title="Exposed Contributor Roles"
+        desc="Comma-separated list of LMS contributor roles to include in API responses. Default includes all built-in LMS roles. User-defined roles (PRODUCER, REMIXER, LYRICIST, etc.) can be added by name." %]
+        <input type="text" class="sp-feature-toggle" name="pref_exposed_contributor_roles"
+            data-pref="exposed_contributor_roles"
+            value="[% exposed_contributor_roles OR 'ARTIST,COMPOSER,CONDUCTOR,BAND,ALBUMARTIST,TRACKARTIST' | html %]"
+            style="width:100%;max-width:500px">
+        [% END %]
+
+        <div class="mt-15">
+            <button type="button" class="stdclick btn-primary"
+                onclick="return saveFeatures();">Save Enrichment Settings</button>
+            <span id="sp-enrichment-result" class="sp-save-result"></span>
+        </div>
+        [% END %]
+
+    </div>
+</div>

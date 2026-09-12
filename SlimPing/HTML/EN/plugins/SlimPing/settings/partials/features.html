@@ -1,0 +1,68 @@
+<div class="settings-accordion" data-accordion-id="feature-toggles">
+    <div class="settings-accordion-header" aria-expanded="true" role="button" tabindex="0"
+        aria-controls="accordion-content-features">
+        <div class="settings-accordion-title">Feature Toggles</div>
+        <div class="settings-accordion-icon"></div>
+    </div>
+    <div id="accordion-content-features" class="settings-accordion-content">
+
+        <p class="m-0 mb-10 fs-12 text-secondary">
+            Enable or disable SlimPing features. Disabling a feature removes it from
+            the API entirely (endpoints return unsupported) and clients will see it as
+            unimplemented. These complement per-user role permissions. Roles control
+            <em>who</em> can use a feature; these toggles control <em>whether</em> it
+            exists.
+        </p>
+
+        [% WRAPPER setting title="Internet Radio"
+        desc="Expose LMS favourites as Internet Radio stations via getInternetRadioStations." %]
+        <label class="sp-radio-label">
+            <input type="checkbox" id="toggle_internet_radio" class="sp-feature-toggle"
+                name="pref_feature_internet_radio"
+                data-pref="feature_internet_radio"
+                [% 'checked' IF feature_internet_radio %]>
+            Enable Internet Radio endpoints
+        </label>
+        [% END %]
+
+        [% WRAPPER setting title="Podcasts"
+        desc="Expose LMS podcasts via getPodcasts and getNewestPodcasts. Currently stubbed." %]
+        <label class="sp-radio-label">
+            <input type="checkbox" id="toggle_podcasts" class="sp-feature-toggle"
+                name="pref_feature_podcasts"
+                data-pref="feature_podcasts"
+                [% 'checked' IF feature_podcasts %]>
+            Enable Podcast endpoints (Currently stubbed)
+        </label>
+        [% END %]
+
+        [% WRAPPER setting title="Lyrion Favourites"
+        desc="When enabled, favourites saved in Lyrion's own Favourites list appear as read-only favourites for ALL SlimPing users. They cannot be removed from a Subsonic client: to remove an item, delete it from Lyrion's Favourites. Applies to tracks, albums and artists. Disable to keep SlimPing favourites completely separate from Lyrion." %]
+        <label class="sp-radio-label">
+            <input type="checkbox" id="toggle_lms_favourites_bridge" class="sp-feature-toggle"
+                name="pref_lms_favourites_bridge"
+                data-pref="lms_favourites_bridge"
+                [% 'checked' IF lms_favourites_bridge %]>
+            Surface Lyrion favourites as read-only favourites
+        </label>
+        [% END %]
+
+        [% WRAPPER setting title="Similar Song Depth"
+        desc="Controls the richness of similar-song recommendations. Basic uses genre overlap only (fastest). Enhanced adds artists who appear on the same albums (compilations, collaborations). Full adds collaboration-graph walking and play-count weighting for deeper discovery." %]
+        <select class="sp-feature-toggle-select" name="pref_feature_similar_depth"
+            data-pref="feature_similar_depth">
+            <option value="basic" [% 'selected' IF feature_similar_depth == 'basic' %]>
+                Basic - genre overlap only</option>
+            <option value="enhanced" [% 'selected' IF feature_similar_depth == 'enhanced' %]>
+                Enhanced - genre + shared albums</option>
+            <option value="full" [% 'selected' IF feature_similar_depth == 'full' %]>
+                Full - enhanced + graph walk + popularity</option>
+        </select>
+        [% END %]
+
+        <div class="mt-15">
+            <span id="sp-features-result" class="sp-save-result"></span>
+        </div>
+
+    </div>
+</div>

@@ -1,0 +1,7 @@
+# Runtime SQLite DB is created at startup by Schema.pm -- never ship or track it
+SlimPing/Schema/slimping.db
+
+# OS / editor cruft
+.DS_Store
+*~
+.*.swp

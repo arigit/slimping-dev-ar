@@ -1,0 +1,152 @@
+<div class="settings-accordion" data-accordion-id="dynamic-playlists">
+    <div class="settings-accordion-header" aria-expanded="false" role="button" tabindex="0"
+        aria-controls="accordion-content-dynamic-playlists">
+        <div class="settings-accordion-title">Dynamic Playlists</div>
+        <div class="settings-accordion-icon"></div>
+    </div>
+    <div id="accordion-content-dynamic-playlists" class="settings-accordion-content">
+
+        [% IF dpl4_available %]
+            <div class="sp-status-badge sp-status-ok mb-10">
+                Dynamic Playlists plugin detected &mdash;
+                [% IF dpl_eligible_count > 0 %]
+                    [% dpl_eligible_count %] playlist[% IF dpl_eligible_count != 1 %]s[% END %] eligible
+                    ([% dpl_source_counts.default || 0 %] favourited, [% dpl_source_counts.favourite || 0 %] from LMS Favourites)
+                [% ELSE %]
+                    no eligible playlists yet
+                [% END %]
+            </div>
+
+            <p class="m-0 mb-10 fs-12 text-secondary">
+                When enabled, Dynamic Playlists that you have favourited in the
+                Dynamic Playlists plugin are exposed as read-only 'smart' playlists
+                to OpenSubsonic clients.  Tracks are regenerated periodically and
+                deduplicated across sessions with SlimPing keeping track of this.
+            </p>
+
+            <p class="m-0 mb-10 fs-12 text-secondary">
+                Only Dynamic Playlists that can be populated with default or no runtime parameters, and are not set for context menu access, are exposed.
+                If you have no eligible playlists, enable and favourite some in the Dynamic Playlists plugin to experiment with, then click Refresh below.
+            </p>            
+
+            [% WRAPPER setting title="Enable Dynamic Playlist Exposure"
+            desc="Expose favourited DynamicPlaylists as read-only OpenSubsonic playlists" %]
+            <select class="sp-dpl-feature-toggle" name="pref_dpl_feature_enabled"
+                id="pref_dpl_feature_enabled" data-pref="dpl_feature_enabled">
+                <option value="0" [% IF !dpl_feature_enabled %]selected[% END %]>Disabled</option>
+                <option value="1" [% IF dpl_feature_enabled %]selected[% END %]>Enabled</option>
+            </select>
+            [% END %]
+
+            [%# Eligible playlists and refresh are always visible when DPL4 is
+                detected, regardless of the feature toggle, so users can see what
+                WOULD be exposed before enabling the feature. %]
+            [% IF dpl_eligible_count > 0 %]
+                [% WRAPPER setting title="Exposed Playlists"
+                desc="These dynamic playlists will appear as read-only 'smart' playlists in OpenSubsonic clients once the feature is enabled.  They are discovered from two sources:" %]
+
+                [% SET fav_count = dpl_source_counts.default || 0 %]
+                [% SET opml_count = dpl_source_counts.favourite || 0 %]
+                [% SET other_count = dpl_eligible_count - fav_count - opml_count %]
+
+                [% IF fav_count > 0 %]
+                <p class="m-0 mb-5 fs-12"><strong>Favourited in Dynamic Playlists ([% fav_count %]):</strong></p>
+                <p class="m-0 mb-5 fs-12 text-secondary">Playlists you have marked as favourites inside the Dynamic Playlists plugin.  These only appear if the playlist needs no runtime parameters.</p>
+                <ul class="sp-dpl-list mb-10">
+                    [% FOREACH pl IN dpl_eligible_names %]
+                        [% IF pl.source == 'default' %]
+                        <li>[% pl.name | html %]</li>
+                        [% END %]
+                    [% END %]
+                </ul>
+                [% END %]
+
+                [% IF opml_count > 0 %]
+                <p class="m-0 mb-5 fs-12"><strong>Saved as LMS Favourites ([% opml_count %]):</strong></p>
+                <p class="m-0 mb-5 fs-12 text-secondary">Dynamic Playlists saved to your Lyrion Favourites folder.  These can have pre-configured parameters (e.g. a specific genre or year) set when you saved the favourite.</p>
+                <ul class="sp-dpl-list mb-10">
+                    [% FOREACH pl IN dpl_eligible_names %]
+                        [% IF pl.source == 'favourite' %]
+                        <li>[% pl.name | html %]</li>
+                        [% END %]
+                    [% END %]
+                </ul>
+                [% END %]
+
+                [% IF other_count > 0 %]
+                <p class="m-0 mb-5 fs-12"><strong>Other sources ([% other_count %]):</strong></p>
+                <ul class="sp-dpl-list mb-10">
+                    [% FOREACH pl IN dpl_eligible_names %]
+                        [% IF pl.source != 'default' && pl.source != 'favourite' %]
+                        <li>[% pl.name | html %]</li>
+                        [% END %]
+                    [% END %]
+                </ul>
+                [% END %]
+                [% END %]
+            [% ELSE %]
+                <p class="m-0 mb-10 fs-12 text-secondary">
+                    No eligible playlists found.  Favourite some playlists in the
+                    Dynamic Playlists plugin or save them to your Lyrion Favourites,
+                    then click Refresh below.
+                </p>
+            [% END %]
+
+            [% WRAPPER setting title="Discovery Breakdown"
+            desc="What SlimPing found in the Dynamic Playlists plugin on its last scan, and why playlists were excluded.  A playlist must be favourited (starred) in Dynamic Playlists to be exposed here; alternatively, save it to your Lyrion Favourites with its input values baked in." %]
+            <table class="stdt" style="margin:0;width:auto;max-width:520px">
+                <tr><td>Playlists found in Dynamic Playlists</td><td>[% dpl_discovery_stats.raw || 0 %]</td></tr>
+                <tr><td>Excluded &mdash; disabled in Dynamic Playlists</td><td>[% dpl_discovery_stats.not_enabled || 0 %]</td></tr>
+                <tr><td>Excluded &mdash; not favourited (starred)</td><td>[% dpl_discovery_stats.not_favourited || 0 %]</td></tr>
+                <tr><td>Excluded &mdash; context-menu only</td><td>[% dpl_discovery_stats.contextmenu || 0 %]</td></tr>
+                <tr><td>Excluded &mdash; needs runtime input values</td><td>[% dpl_discovery_stats.has_params || 0 %]</td></tr>
+                <tr><td>Added from Lyrion Favourites</td><td>[% dpl_discovery_stats.opml || 0 %]</td></tr>
+                <tr><td><strong>Exposed to OpenSubsonic clients</strong></td><td><strong>[% dpl_discovery_stats.eligible || 0 %]</strong></td></tr>
+            </table>
+            [% END %]
+
+            [% WRAPPER setting title="Refresh Playlist Data"
+            desc="Re-read the list of eligible playlists from the DynamicPlaylists plugin." %]
+            <div class="mt-10">
+                <button type="button" class="stdclick btn-primary"
+                    onclick="return SlimPingSettings.refreshDplRegistry();">Refresh Playlist Registry</button>
+                <span id="sp-dpl-result" class="sp-save-result"></span>
+            </div>
+            [% END %]
+
+            <div id="sp-dpl-settings" [% IF !dpl_feature_enabled %]style="display:none"[% END %]>
+                [% WRAPPER setting title="Cache TTL (seconds)"
+                desc="How long the materialised track list is considered fresh.  After this time, the next getPlaylist request regenerates the track list from the DPL4 plugin." %]
+                <input type="number" id="pref_dpl_cache_ttl" class="form-input-small sp-dpl-cache-ttl"
+                    name="pref_dpl_cache_ttl" data-pref="dpl_cache_ttl"
+                    value="[% dpl_cache_ttl %]" min="60" max="3600" step="30">
+                [% END %]
+
+                [% WRAPPER setting title="Seed Size"
+                desc="Number of tracks per playlist generation.  The playlist does not refill as you play it -- a fresh track list is generated when the cache TTL expires and the client refetches.  Smaller values generate and load faster (good for mobile and Android Auto); larger values give a longer uninterrupted listen.  Defaults to 50." %]
+                <input type="number" id="pref_dpl_seed_size" class="form-input-small sp-dpl-seed-size"
+                    name="pref_dpl_seed_size" data-pref="dpl_seed_size"
+                    value="[% dpl_seed_size %]" min="20" max="500" step="10">
+                [% END %]
+
+                [% WRAPPER setting title="Flush SlimPing Cache"
+                desc="Remove all cached dynamic playlist track data and dedup history specific to SlimPing. This only affects SlimPing's internal cache. The DynamicPlaylists plugin data or cache is not modified in ANY way." %]
+                <div class="mt-10">
+                    <button type="button" class="stdclick btn-warning"
+                        onclick="return SlimPingSettings.resetDplCaches();">Flush Dynamic Playlist Caches</button>
+                    <span id="sp-dpl-flush-result" class="sp-save-result"></span>
+                </div>
+                [% END %]
+            </div>
+        [% ELSE %]
+            <div class="sp-status-badge sp-status-off mb-10">
+                DynamicPlaylists plugin not detected
+            </div>
+            <p class="m-0 mb-10 fs-12 text-secondary">
+                Install the <a href="https://github.com/AF-1/lms-dynamicplaylists" target="_blank">DynamicPlaylists</a>
+                plugin (version 4 or later) to enable dynamic playlist exposure in SlimPing.
+            </p>
+        [% END %]
+
+    </div>
+</div>

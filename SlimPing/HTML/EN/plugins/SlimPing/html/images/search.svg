@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="80" height="80" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <linearGradient id="searchGradRounded" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#667eea"/>
+            <stop offset="100%" style="stop-color:#764ba2"/>
+        </linearGradient>
+        <style>
+            .bg { fill: url(#searchGradRounded); }
+            .search-ring1 { stroke: #ffffff; fill: none; }
+            .search-ring2 { stroke: #ffffff; fill: none; }
+            .search-handle { stroke: #ffffff; fill: none; }
+            .page { fill: #ffffff; opacity: 0.8; }
+            .content { fill: #fa709a; opacity: 0.9; }
+            .text1 { fill: #ffffff; opacity: 0.7; }
+            .text2 { fill: #ffffff; opacity: 0.6; }
+            .text3 { fill: #ffffff; opacity: 0.5; }
+        </style>
+    </defs>
+    <rect width="80" height="80" rx="12" ry="12" class="bg"/>
+    <circle cx="35" cy="35" r="18" class="search-ring1" stroke-width="4"/>
+    <circle cx="35" cy="35" r="12" class="search-ring2" stroke-width="2"/>
+    <line x1="48" y1="48" x2="62" y2="62" class="search-handle" stroke-width="4" stroke-linecap="round"/>
+    <rect x="28" y="28" width="14" height="14" rx="2" class="page"/>
+    <rect x="30" y="30" width="10" height="10" rx="1" class="content"/>
+    <rect x="31" y="32" width="8" height="1.5" rx="0.5" class="text1"/>
+    <rect x="31" y="35" width="6" height="1.5" rx="0.5" class="text2"/>
+    <rect x="31" y="38" width="4" height="1.5" rx="0.5" class="text3"/>
+</svg>

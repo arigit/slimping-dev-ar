@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="80" height="80" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <linearGradient id="settingsGradRounded" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#667eea"/>
+            <stop offset="100%" style="stop-color:#764ba2"/>
+        </linearGradient>
+        <style>
+            .bg { fill: url(#settingsGradRounded); }
+            .gear-circle { stroke: #ffffff; fill: none; }
+            .gear-center { fill: #ffffff; opacity: 0.9; }
+            .gear-spoke1 { fill: #ffffff; opacity: 0.9; }
+            .gear-spoke2 { fill: #ffffff; opacity: 0.9; }
+            .gear-spoke3 { fill: #ffffff; opacity: 0.9; }
+            .gear-spoke4 { fill: #ffffff; opacity: 0.9; }
+            .gear-spoke5 { fill: #ffffff; opacity: 0.8; }
+            .gear-spoke6 { fill: #ffffff; opacity: 0.8; }
+            .gear-spoke7 { fill: #ffffff; opacity: 0.8; }
+            .gear-spoke8 { fill: #ffffff; opacity: 0.8; }
+            .settings-rect { fill: #764ba2; }
+            .settings-text1 { fill: #ffffff; opacity: 0.6; }
+            .settings-text2 { fill: #ffffff; opacity: 0.5; }
+        </style>
+    </defs>
+    <rect width="80" height="80" rx="12" ry="12" class="bg"/>
+    <circle cx="40" cy="40" r="20" class="gear-circle" stroke-width="3"/>
+    <circle cx="40" cy="40" r="8" class="gear-center"/>
+    <rect x="38" y="15" width="4" height="8" rx="2" class="gear-spoke1"/>
+    <rect x="38" y="57" width="4" height="8" rx="2" class="gear-spoke2"/>
+    <rect x="57" y="38" width="8" height="4" rx="2" class="gear-spoke3"/>
+    <rect x="15" y="38" width="8" height="4" rx="2" class="gear-spoke4"/>
+    <rect x="55" y="22" width="6" height="4" rx="2" class="gear-spoke5" transform="rotate(45 58 24)"/>
+    <rect x="19" y="54" width="6" height="4" rx="2" class="gear-spoke6" transform="rotate(45 22 56)"/>
+    <rect x="19" y="22" width="6" height="4" rx="2" class="gear-spoke7" transform="rotate(-45 22 24)"/>
+    <rect x="55" y="54" width="6" height="4" rx="2" class="gear-spoke8" transform="rotate(-45 58 56)"/>
+    <rect x="35" y="36" width="10" height="8" rx="1" class="settings-rect"/>
+    <rect x="36" y="37" width="8" height="2" rx="0.5" class="settings-text1"/>
+    <rect x="36" y="40" width="6" height="1.5" rx="0.5" class="settings-text2"/>
+</svg>

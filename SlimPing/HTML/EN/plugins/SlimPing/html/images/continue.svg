@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="80" height="80" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <linearGradient id="continueGradRounded" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#667eea"/>
+            <stop offset="100%" style="stop-color:#764ba2"/>
+        </linearGradient>
+        <style>
+            .bg { fill: url(#continueGradRounded); }
+            .page-top { fill: #ffffff; opacity: 0.9; }
+            .page-bottom { fill: #fef3c7; opacity: 0.8; }
+            .progress-bg { fill: #ffffff; opacity: 0.6; }
+            .progress { fill: #f59e0b; }
+            .play-button-bg { fill: #f97316; opacity: 0.9; }
+            .play-button { fill: #ffffff; }
+            .progress-bar { fill: #f59e0b; }
+            .time-bar { fill: #374151; }
+            .time-bar2 { fill: #374151; }
+            .time-bar3 { fill: #374151; }
+            .time-bar4 { fill: #374151; }
+            .play-needle { fill: #dc2626; }
+            .play-needle-top { fill: #dc2626; }
+        </style>
+    </defs>
+    <rect width="80" height="80" rx="12" ry="12" class="bg"/>
+    <path d="M15 25 Q40 20 65 25 L65 55 Q40 50 15 55 Z" class="page-top"/>
+    <path d="M15 25 Q40 30 65 25 L65 55 Q40 60 15 55 Z" class="page-bottom"/>
+    <rect x="20" y="60" width="40" height="4" rx="2" class="progress-bg"/>
+    <rect x="20" y="60" width="24" height="4" rx="2" class="progress-bar"/>
+    <rect x="42" y="58" width="4" height="8" rx="2" class="play-needle"/>
+    <path d="M44 63 L42 61 L46 61 Z" class="play-needle-top"/>
+    <rect x="20" y="30" width="16" height="1.5" rx="0.5" class="time-bar" opacity="0.6"/>
+    <rect x="20" y="34" width="14" height="1.5" rx="0.5" class="time-bar2" opacity="0.5"/>
+    <rect x="44" y="28" width="16" height="1.5" rx="0.5" class="time-bar3" opacity="0.6"/>
+    <rect x="44" y="32" width="12" height="1.5" rx="0.5" class="time-bar4" opacity="0.5"/>
+    <circle cx="68" cy="35" r="8" class="play-button-bg"/>
+    <path d="M65 32 l6 3 l-6 3 Z" class="play-button"/>
+</svg>

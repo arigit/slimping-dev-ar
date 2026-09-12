@@ -1,0 +1,135 @@
+<div class="settings-accordion" data-accordion-id="opensubsonic-extensions">
+    <div class="settings-accordion-header" aria-expanded="true" role="button" tabindex="0"
+        aria-controls="accordion-content-opensubsonic-extensions">
+        <div class="settings-accordion-title">OpenSubsonic Extensions</div>
+        <div class="settings-accordion-icon"></div>
+    </div>
+    <div id="accordion-content-opensubsonic-extensions" class="settings-accordion-content">
+
+        <p class="m-0 mb-10 fs-12 text-secondary">
+            OpenSubsonic extensions are optional API capabilities that clients
+            discover via <code>getOpenSubsonicExtensions</code>. Most extensions are
+            always available; a few can be toggled per user.
+        </p>
+
+        <table class="stdt">
+            <tr>
+                <th>Extension</th>
+                <th>Versions</th>
+                <th>Description</th>
+                <th>Status</th>
+            </tr>
+            <tr>
+                <td><code>apiKeyAuthentication</code></td>
+                <td>1</td>
+                <td>API key-based authentication via <code>?k=</code> or <code>Authorization: Bearer</code> header.</td>
+                <td><span class="text-secondary">Always on</span></td>
+            </tr>
+            <tr>
+                <td><code>formPost</code></td>
+                <td>1</td>
+                <td>Clients may POST parameters as <code>application/x-www-form-urlencoded</code> or <code>multipart/form-data</code> instead of query-string GET.</td>
+                <td><span class="text-secondary">Always on</span></td>
+            </tr>
+            <tr>
+                <td><code>jukeboxControl</code></td>
+                <td>1</td>
+                <td>Jukebox-mode playback control (play, stop, skip, volume). Requires a jukebox player to be assigned to the user.</td>
+                <td><span class="text-secondary">Always on</span></td>
+            </tr>
+            <tr>
+                <td><code>savePlayQueue</code></td>
+                <td>1</td>
+                <td>Persist the client's play queue on the server for cross-device resume.</td>
+                <td><span class="text-secondary">Always on</span></td>
+            </tr>
+            <tr>
+                <td><code>indexBasedQueue</code></td>
+                <td>1</td>
+                <td>Play queue tracks are referenced by index rather than by ID in <code>savePlayQueue</code> responses.</td>
+                <td><span class="text-secondary">Always on</span></td>
+            </tr>
+            <tr>
+                <td><code>songLyrics</code></td>
+                <td>1, 2</td>
+                <td>Structured (v1) and synchronised (v2) lyrics via <code>getLyrics</code>.</td>
+                <td><span class="text-secondary">Always on</span></td>
+            </tr>
+            <tr>
+                <td><code>songRating</code></td>
+                <td>1</td>
+                <td>Per-track user ratings (1-5) via <code>setRating</code> and <code>getRating</code>.</td>
+                <td><span class="text-secondary">Always on</span></td>
+            </tr>
+            <tr>
+                <td><code>star</code></td>
+                <td>1</td>
+                <td>Favourite tracks, albums, and artists via <code>star</code>/<code>unstar</code>.</td>
+                <td><span class="text-secondary">Always on</span></td>
+            </tr>
+            <tr>
+                <td><code>coverArtResize</code></td>
+                <td>1</td>
+                <td>Server-side cover art resizing via the <code>size</code> parameter on <code>getCoverArt</code>.</td>
+                <td><span class="text-secondary">Always on</span></td>
+            </tr>
+            <tr>
+                <td><code>playCount</code></td>
+                <td>1</td>
+                <td>Per-track play counts returned in <code>getAlbum</code>, <code>getSong</code>, and other API responses.</td>
+                <td><span class="text-secondary">Always on</span></td>
+            </tr>
+            <tr style="background:var(--bg-panel, #f8f9fa)">
+                <td><code>playbackReport</code></td>
+                <td>1</td>
+                <td>Clients may report detailed playback state (starting, playing, paused, stopped) and position via <code>reportPlayback.view</code>. This enables rich Now Playing displays and timeline tracking.</td>
+                <td><strong>Per-user toggle</strong></td>
+            </tr>
+            <tr>
+                <td><code>transcodeDecision</code></td>
+                <td>1</td>
+                <td>Client advertises preferred formats and bitrates; server returns the actual transcoding decision per stream.</td>
+                <td><span class="text-secondary">Always on</span></td>
+            </tr>
+            <tr>
+                <td><code>transcodeOffset</code></td>
+                <td>1</td>
+                <td>Support for seeking within transcoded streams via byte-range offsets.</td>
+                <td><span class="text-secondary">Always on</span></td>
+            </tr>
+            <tr>
+                <td><code>transcoding</code></td>
+                <td>1</td>
+                <td>Server-side audio transcoding (format and bitrate conversion).</td>
+                <td><span class="text-secondary">Always on</span></td>
+            </tr>
+        </table>
+
+        [% IF slimping_users.size %]
+        <h4 style="margin-top:20px">Per-User Toggle: playbackReport</h4>
+        <p class="fs-12 text-secondary mb-10">
+            The <code>playbackReport</code> extension allows clients to send detailed
+            playback state updates. When disabled for a user, the
+            <code>reportPlayback.view</code> endpoint returns error 50 for that user.
+        </p>
+        <table class="stdt" style="max-width:500px">
+            <tr>
+                <th>Username</th>
+                <th style="width:60px">Accept Playback Reports</th>
+            </tr>
+            [% FOREACH user IN slimping_users %]
+            <tr>
+                <td>[% user.username | html %]</td>
+                <td style="text-align:center">
+                    <input type="checkbox" class="sp-accept-playback-report-toggle"
+                        title="When enabled, the reportPlayback.view endpoint is available for this user"
+                        [% 'checked' IF user.accept_playback_report %]
+                        onchange="SlimPingSettings.setAcceptPlaybackReport('[% user.username | html %]', this.checked)">
+                </td>
+            </tr>
+            [% END %]
+        </table>
+        [% END %]
+
+    </div>
+</div>

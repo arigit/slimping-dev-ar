@@ -1,0 +1,86 @@
+<div class="settings-accordion" data-accordion-id="server-settings">
+    <div class="settings-accordion-header" aria-expanded="true" role="button" tabindex="0"
+        aria-controls="accordion-content-server-settings">
+        <div class="settings-accordion-title">Server Settings</div>
+        <div class="settings-accordion-icon"></div>
+    </div>
+    <div id="accordion-content-server-settings" class="settings-accordion-content">
+
+        <p class="m-0 mb-10 fs-12 text-secondary">
+            Configure the server name advertised to Subsonic clients and control which
+            LMS virtual libraries are exposed via the API.
+        </p>
+
+        [% WRAPPER setting title="Server Name"
+        desc="The name advertised to Subsonic clients when they connect" %]
+        <input class="stdedit" type="text" name="server_name" id="server_name"
+            value="[% slimping_server_name | html %]" size="40">
+        <div class="mt-15">
+            <input type="submit" value="Save Server Name" class="stdclick btn-primary">
+        </div>
+        [% END %]
+
+        [% WRAPPER setting title="Music Folder Exposure"
+        desc="Control which LMS virtual libraries are advertised to Subsonic clients" %]
+        <fieldset class="sp-exposure-mode">
+            <legend class="sp-exposure-legend">Exposure Mode</legend>
+
+            <label class="sp-radio-label">
+                <input type="radio" name="exposed_libraries_mode" value="all"
+                    class="sp-exposure-radio"
+                    [% 'checked' IF slimping_exposure_mode == 'all' %]>
+                <strong>All Libraries</strong>
+                <span class="sp-radio-desc">
+                    Advertise all virtual libraries plus "All Music"
+                </span>
+            </label>
+
+            <label class="sp-radio-label">
+                <input type="radio" name="exposed_libraries_mode" value="default_only"
+                    class="sp-exposure-radio"
+                    [% 'checked' IF slimping_exposure_mode == 'default_only' %]>
+                <strong>Default Only</strong>
+                <span class="sp-radio-desc">
+                    Only advertise "All Music"; hide all virtual libraries
+                </span>
+            </label>
+
+            <label class="sp-radio-label">
+                <input type="radio" name="exposed_libraries_mode" value="selected"
+                    class="sp-exposure-radio"
+                    [% 'checked' IF slimping_exposure_mode == 'selected' %]>
+                <strong>Selected Libraries</strong>
+                <span class="sp-radio-desc">
+                    Choose which libraries to advertise below
+                </span>
+            </label>
+        </fieldset>
+
+        <div id="sp-library-checklist"
+            style="display:[% slimping_exposure_mode == 'selected' ? 'block' : 'none' %]; margin-top: 12px;">
+            [% IF slimping_vlibraries.size %]
+            <fieldset class="sp-libraries-group">
+                <legend>Select Libraries to Expose</legend>
+                [% FOREACH lib IN slimping_vlibraries %]
+                <label class="sp-library-label">
+                    <input type="checkbox" class="sp-library-check"
+                        name="exposed_library_ids"
+                        value="[% lib.id %]" [% 'checked' IF lib.exposed %]>
+                    [% lib.name | html %]
+                </label>
+                [% END %]
+            </fieldset>
+            [% ELSE %]
+            <p class="text-secondary">No virtual libraries configured in LMS.</p>
+            [% END %]
+        </div>
+
+        <div class="mt-15">
+            <button type="button" class="stdclick btn-primary"
+                onclick="return saveExposure();">Save Exposure Settings</button>
+            <span id="sp-exposure-result" class="sp-save-result"></span>
+        </div>
+        [% END %]
+
+    </div>
+</div>

@@ -1,0 +1,41 @@
+[% WRAPPER setting title="About SlimPing" desc="" %]
+    <div class="settings-section-header">
+        <img src="/plugins/SlimPing/html/images/icon_svg.png" alt="SlimPing Plugin Icon"
+            class="settings-section-header-icon">
+        <div>
+            <p class="mt-0"><em>SlimPing is an LMS Plugin that exposes an OpenSubsonic REST API server,
+                    allowing any Subsonic-compatible client to browse and play your LMS library.</em></p>
+            <p><a href="https://slimping.distant-earth.com/" target="_blank" class="text-link">SlimPing Home Page</a>.</p>
+            <p class="mb-0"><em>SlimPing is free and open source under the GPLv3 licence and has been built with the help
+                    of LLMs and builds on the work of others in the LMS community.</em></p>
+        </div>
+    </div>
+
+    [% IF plugin_version || lms_version || subsonic_api_version %]
+        <div class="mb-15 p-15 bg-secondary border border-radius">
+            <div class="version-info">
+                <strong class="d-block mb-12 fs-13 text-primary">System Information</strong>
+
+                <div class="info-grid" style="display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; font-size: 12px;">
+                    [% IF plugin_version %]
+                        <div style="font-weight: 600; color: var(--text-secondary, #666);">SlimPing Version:</div>
+                        <div style="color: var(--text-primary, #333);">[% plugin_version %]</div>
+                    [% END %]
+
+                    [% IF lms_version %]
+                        <div style="font-weight: 600; color: var(--text-secondary, #666);">Lyrion Version:</div>
+                        <div style="color: var(--text-primary, #333);">[% lms_version %]</div>
+                    [% END %]
+
+                    [% IF subsonic_api_version %]
+                        <div style="font-weight: 600; color: var(--text-secondary, #666);">OpenSubsonic API Version:</div>
+                        <div style="color: var(--text-primary, #333);">[% subsonic_api_version %]</div>
+                    [% END %]
+                </div>
+            </div>
+        </div>
+    [% END %]
+
+    <p class="fs-11 text-secondary mb-0"><em>SlimPing is an independent project and is not affiliated with or endorsed by
+            the official OpenSubsonic or Lyrion Music Server projects.</em></p>
+[% END %]

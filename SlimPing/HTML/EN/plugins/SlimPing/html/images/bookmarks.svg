@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="80" height="80" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <linearGradient id="bookmarksGradRounded" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#667eea"/>
+            <stop offset="100%" style="stop-color:#764ba2"/>
+        </linearGradient>
+        <style>
+            .bg { fill: url(#bookmarksGradRounded); }
+            .page { fill: #ffffff; opacity: 0.9; }
+            .page-content { fill: #fcb69f; opacity: 0.8; }
+            .bookmark { fill: #ff6b6b; }
+            .bookmark-tip { fill: #ff6b6b; }
+            .text { fill: #ffffff; }
+            .text2 { fill: #ffffff; }
+            .text3 { fill: #ffffff; }
+            .fave { fill: #ff6b6b; }
+            .fave-center { fill: #ffffff; }
+        </style>
+    </defs>
+    <rect width="80" height="80" rx="12" ry="12" class="bg"/>
+    <rect x="25" y="15" width="30" height="50" rx="3" class="page"/>
+    <rect x="27" y="17" width="26" height="46" rx="2" class="page-content"/>
+    <rect x="45" y="10" width="8" height="30" rx="1" class="bookmark"/>
+    <path d="M49 35 L45 31 L53 31 Z" class="bookmark-tip"/>
+    <rect x="30" y="25" width="20" height="2" rx="1" class="text" opacity="0.7"/>
+    <rect x="30" y="30" width="16" height="2" rx="1" class="text2" opacity="0.6"/>
+    <rect x="30" y="35" width="12" height="2" rx="1" class="text3" opacity="0.5"/>
+    <circle cx="35" cy="50" r="3" class="fave"/>
+    <circle cx="35" cy="50" r="1.5" class="fave-center"/>
+</svg>
