@@ -192,6 +192,20 @@ sub initPlugin {
         $log->info('SlimPing: AudioScrobbler plugin not present (continuing without scrobbling)');
     }
 
+    # Probe whether the Alternative Play Count plugin is installed so
+    # completed plays can be reported through its external reportplayback
+    # dispatch (APC cannot otherwise see plays SlimPing serves to
+    # OpenSubsonic clients, since they never pass through a real player).
+    # Plugins cannot be installed or removed mid-session, so a single
+    # startup check is sufficient.
+    if (eval { require Plugins::AlternativePlayCount::Plugin; 1 }) {
+        require Plugins::SlimPing::Core::AlternatePlayCount;
+        Plugins::SlimPing::Core::AlternatePlayCount->setApcAvailable(1);
+        $log->info('SlimPing: Alternative Play Count plugin detected -- external play reporting available');
+    } else {
+        $log->info('SlimPing: Alternative Play Count plugin not present (continuing without it)');
+    }
+
     # Probe whether the DynamicPlaylists4 plugin is installed so the
     # DynamicPlaylistBridge can expose favourited DPL playlists as read-only
     # OpenSubsonic playlists.  Plugins cannot be installed or removed

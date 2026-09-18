@@ -22,7 +22,8 @@
 # Single entry point for all client-reported plays.  Called from
 # Playback.pm when a Subsonic client submits a scrobble or
 # reportPlayback.  Gates on per-user preferences and updates
-# both LMS play statistics and optional scrobbling services.
+# LMS play statistics plus optional scrobbling and Alternative Play
+# Count (APC) reporting services.
 #
 # Replaces PlaycountSync (tracks.playcount only) and PlayStatsRecorder
 # (tracks_persistent only) — both tables are now updated in one call.
@@ -32,6 +33,7 @@ package Plugins::SlimPing::Core::PlaybackReporter;
 use strict;
 use warnings;
 
+require Plugins::SlimPing::Core::AlternatePlayCount;
 require Plugins::SlimPing::Core::Container;
 require Plugins::SlimPing::Core::Logging;
 
@@ -88,9 +90,12 @@ sub report {
     my $mgr = Plugins::SlimPing::Core::Container->get('auth_manager');
     return 0 unless $mgr;
 
-    # Gate on per-user preference for Lyrion stats recording.
+    # Gate on per-user preference for Lyrion stats recording. APC is an
+    # alternate tracker of the same "track played" fact, so it rides the
+    # same gate as the LMS stats update rather than getting its own pref.
     if ( $mgr->isPlaybackLoggingEnabled($username) ) {
         _updateLmsStats($sq_id);
+        _dispatchApc($sq_id);
     }
 
     # Scrobbling: Scrobbler.pm applies its own per-user gate internally
@@ -156,6 +161,18 @@ sub _dispatchScrobble {
     eval { Plugins::SlimPing::Core::Scrobbler->submit( $username, $sq_id ); };
     if ($@) {
         $log->warn("SlimPing: PlaybackReporter scrobble dispatch failed for $sq_id: $@");
+    }
+}
+
+# Dispatch to the Alternative Play Count plugin's external reportplayback
+# API, if installed. AlternatePlayCount.pm applies its own availability
+# gate internally and is a no-op when the plugin is not present.
+sub _dispatchApc {
+    my ($sq_id) = @_;
+
+    eval { Plugins::SlimPing::Core::AlternatePlayCount->submit($sq_id); };
+    if ($@) {
+        $log->warn("SlimPing: PlaybackReporter APC dispatch failed for $sq_id: $@");
     }
 }
 
