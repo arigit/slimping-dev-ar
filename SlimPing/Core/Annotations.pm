@@ -31,6 +31,16 @@ sub isStarred {
 
 sub getRating {
     my ($class, $username, $sq_id) = @_;
+
+    require Plugins::SlimPing::Core::RatingsLight;
+    if (Plugins::SlimPing::Core::RatingsLight->available) {
+        require Plugins::SlimPing::Core::LibraryMapper;
+        my ($type) = eval { Plugins::SlimPing::Core::LibraryMapper->decodeId($sq_id) };
+        if (!$@ && ($type // '') eq 'track') {
+            return Plugins::SlimPing::Core::RatingsLight->fetchOne($sq_id);
+        }
+    }
+
     return _ratingStore()->getRating($username, $sq_id);
 }
 
@@ -81,7 +91,30 @@ sub getStarredBatch {
 sub getRatingBatch {
     my ($class, $username, $sq_ids) = @_;
     return {} unless $username && $sq_ids && ref $sq_ids eq 'ARRAY' && @$sq_ids;
-    return _ratingStore()->getRatingBatch($username, $sq_ids);
+
+    require Plugins::SlimPing::Core::RatingsLight;
+    return _ratingStore()->getRatingBatch($username, $sq_ids)
+        unless Plugins::SlimPing::Core::RatingsLight->available;
+
+    # Ratings Light only knows about tracks -- split the batch so album/
+    # artist ids still fall through to SlimPing's own per-user store.
+    require Plugins::SlimPing::Core::LibraryMapper;
+    my (@track_ids, @other_ids);
+    for my $sq_id (@$sq_ids) {
+        my ($type) = eval { Plugins::SlimPing::Core::LibraryMapper->decodeId($sq_id) };
+        if (!$@ && ($type // '') eq 'track') {
+            push @track_ids, $sq_id;
+        } else {
+            push @other_ids, $sq_id;
+        }
+    }
+
+    my %result = %{ Plugins::SlimPing::Core::RatingsLight->fetchBatch(\@track_ids) };
+    if (@other_ids) {
+        my $local = _ratingStore()->getRatingBatch($username, \@other_ids);
+        %result = (%result, %$local);
+    }
+    return \%result;
 }
 
 sub modifyStars {
@@ -91,7 +124,17 @@ sub modifyStars {
 
 sub setUserRating {
     my ($class, $user, $id, $rating) = @_;
-    return _ratingStore()->setRating($user, $id, $rating);
+    my $result = _ratingStore()->setRating($user, $id, $rating);
+
+    require Plugins::SlimPing::Core::RatingsLight;
+    if (Plugins::SlimPing::Core::RatingsLight->available) {
+        eval { Plugins::SlimPing::Core::RatingsLight->submit($id, $rating); };
+        if ($@) {
+            $log->warn("SlimPing: RatingsLight dispatch failed for $id: $@");
+        }
+    }
+
+    return $result;
 }
 
 1;

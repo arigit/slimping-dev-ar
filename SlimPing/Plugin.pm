@@ -206,6 +206,20 @@ sub initPlugin {
         $log->info('SlimPing: Alternative Play Count plugin not present (continuing without it)');
     }
 
+    # Probe whether the Ratings Light plugin is installed so track ratings
+    # set/read via the OpenSubsonic API can sync with it (RL cannot see
+    # ratings set by SlimPing's virtual clients, and SlimPing otherwise has
+    # no visibility into ratings set through RL's own UI/CLI/other clients).
+    # Plugins cannot be installed or removed mid-session, so a single
+    # startup check is sufficient.
+    if (eval { require Plugins::RatingsLight::Plugin; 1 }) {
+        require Plugins::SlimPing::Core::RatingsLight;
+        Plugins::SlimPing::Core::RatingsLight->setAvailable(1);
+        $log->info('SlimPing: Ratings Light plugin detected -- rating sync available');
+    } else {
+        $log->info('SlimPing: Ratings Light plugin not present (continuing without it)');
+    }
+
     # Probe whether the DynamicPlaylists4 plugin is installed so the
     # DynamicPlaylistBridge can expose favourited DPL playlists as read-only
     # OpenSubsonic playlists.  Plugins cannot be installed or removed
