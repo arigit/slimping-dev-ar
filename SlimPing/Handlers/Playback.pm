@@ -22,7 +22,10 @@
 # scrobble (core Subsonic) and reportPlayback (OpenSubsonic extension) both
 # converge on _recordPlayback which writes to SessionState.  scrobble carries
 # a submission flag (false = now playing, true = completed play) while
-# reportPlayback carries a state enum (playing/stopped/paused).
+# reportPlayback carries a state enum (playing/stopped/paused) plus a
+# position -- state=stopped only counts as a completed play once
+# _playedEnough clears the standard scrobble threshold, so stopping or
+# skipping a track early does not record a full play.
 # tokenInfo returns metadata about the API key used for the current request.
 #
 
@@ -43,6 +46,11 @@ require Plugins::SlimPing::Utils::Params;
 
 my $log   = Plugins::SlimPing::Core::Logging->getLogger();
 my $prefs = Plugins::SlimPing::Core::Logging->getPrefs();
+
+# Standard Last.fm/LMS scrobble threshold: a track counts as "played" once
+# playback passes half its length or this many seconds, whichever comes
+# first.
+use constant SCROBBLE_THRESHOLD_MAX_SECS => 240;
 
 # In-memory dedup: "$username:$sq_id" => epoch of last scrobble submission.
 # Prevents the same track being scrobbled multiple times within the configured
@@ -116,7 +124,8 @@ sub reportPlayback {
     my $position_secs = ($p->{positionMs} // 0) / 1000;
     my $state         = $p->{state} || 'playing';
     my $ignore_scrobble = ($p->{ignoreScrobble} || '') eq 'true';
-    my $is_submission   = ($state eq 'stopped' && !$ignore_scrobble);
+    my $is_submission   = ($state eq 'stopped' && !$ignore_scrobble
+        && _playedEnough($media_id, $position_secs));
 
     # Store timeline state for getNowPlaying (playbackReport extension).
     my $ss = Plugins::SlimPing::Core::Container->get('session_state');
@@ -131,6 +140,33 @@ sub reportPlayback {
     _recordPlayback($username, $media_id, $position_secs, $client, $is_submission);
 
     return {};
+}
+
+# A "stopped" report fires identically whether the track finished
+# naturally or the client stopped/skipped it 5 seconds in -- reportPlayback
+# just tells us playback ended, not how much of it played. Require reaching
+# the standard Last.fm/LMS scrobble threshold (half the track, capped at
+# SCROBBLE_THRESHOLD_MAX_SECS) before treating a stop as a completed play.
+# Conservative on missing data: no known position or duration -> not counted.
+sub _playedEnough {
+    my ($media_id, $position_secs) = @_;
+    return 0 unless $position_secs && $position_secs > 0;
+
+    my $mapper = Plugins::SlimPing::Core::Container->get('library_mapper');
+    my (undef, $raw_id) = eval { $mapper->decodeId($media_id) };
+    return 0 if $@ || !defined $raw_id;
+
+    require Slim::Schema;
+    my $track = Slim::Schema->find('Track', $raw_id);
+    return 0 unless $track;
+
+    my $duration = $track->secs || 0;
+    return 0 unless $duration > 0;
+
+    my $threshold = $duration / 2;
+    $threshold = SCROBBLE_THRESHOLD_MAX_SECS if $threshold > SCROBBLE_THRESHOLD_MAX_SECS;
+
+    return $position_secs >= $threshold;
 }
 
 # Shared helper -- both endpoints converge here
