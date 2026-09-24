@@ -38,18 +38,16 @@ my $log = Plugins::SlimPing::Core::Logging->getLogger();
 
 # --- Time and format helpers ---------------------------------------------------
 
-# Format a number of seconds for flac --skip / --until.
-# Uses MM:SS.SS for tracks under 60 minutes, H:MM:SS.SS for longer
-# tracks (classical works, live recordings, audiobooks).
+# Format a number of seconds for flac --skip / --until as MM:SS.SS.
+# flac only accepts minutes:seconds (or a bare sample count) -- past an
+# hour the minutes simply keep counting (62:53.61), since H:MM:SS.SS is
+# rejected as "invalid value for --skip". Rounds to hundredths first so
+# 59.996s becomes 1:00.00, not 0:60.00.
 sub formatFlacTime {
     my ($secs) = @_;
-    my $h      = int( $secs / 3600 );
-    my $m      = int( ( $secs % 3600 ) / 60 );
-    my $s      = $secs - $h * 3600 - $m * 60;
-    if ( $h > 0 ) {
-        return sprintf( '%d:%02d:%05.2f', $h, $m, $s );
-    }
-    return sprintf( '%d:%05.2f', $m, $s );
+    my $cs = sprintf( '%.0f', ( $secs // 0 ) * 100 );
+    my $m  = int( $cs / 6000 );
+    return sprintf( '%d:%05.2f', $m, ( $cs - $m * 6000 ) / 100 );
 }
 
 # Maps LMS file suffixes to human-readable format labels for debug logging.
