@@ -70,8 +70,8 @@ use constant SCROBBLE_THRESHOLD_MAX_SECS => 240;
 my %_apc_tracks;
 my $_apc_gen = 0;
 
-# "$username:$client" => { media_id, at } for the last track _apcTrack
-# reported as skipped. Clients that report the next track before sending
+# "$username:$client" => { media_id, at } for the last track reported on
+# moving on to the next one, or on its scrobble (_apcScrobbled). Clients that report the next track before sending
 # stopped for the previous one would otherwise have that late stopped
 # counted twice (and end the new track).
 my %_apc_skipped;
@@ -129,9 +129,11 @@ sub scrobble {
         # reportPlayback with ignoreScrobble=true and scrobbles completions
         # here) already report every ended track to APC with its real
         # percent -- a 100% from here would count finished tracks twice.
+        # The scrobble only settles a current track nothing else ended.
         my $skip_apc = exists $_apc_tracks{"$username:$client"};
 
         for my $id (@ids) {
+            _apcScrobbled("$username:$client", $id) if $skip_apc && $is_submission;
             _recordPlayback($username, $id, 0, $client, $is_submission,
                 skip_apc => $skip_apc);
         }
@@ -229,6 +231,9 @@ sub reportPlayback {
 #     and begins a new one. Other jumps back just continue the pass.
 #   - A pass that never got past position 0 was never listened to and is
 #     not reported (e.g. the track Symfonium resets to at the queue end).
+#   - A completed-play scrobble for the current track settles it once it
+#     reached APC's threshold: Symfonium may end a queue with no further
+#     reportPlayback, only the scrobble (see _apcScrobbled).
 #
 # A repeated stopped, or a late stopped for a track already reported as
 # skipped, is ignored so APC never sees the same play twice.
@@ -303,6 +308,30 @@ sub _apcTrack {
 
     $_apc_tracks{$key} = $track;
     return;
+}
+
+# A reportPlayback client scrobbled a completed play of the track it is
+# still on. Symfonium ends some queues with no further reportPlayback at
+# all -- the last track just finishes and gets scrobbled -- so this is the
+# only sign the pass is over. Settle it now if it reached APC's threshold.
+# A scrobble for a track already moved on from or settled, or for a fresh
+# pass still at the start (Symfonium resetting its last track to 0 at the
+# queue end, then scrobbling it), changes nothing.
+sub _apcScrobbled {
+    my ($key, $media_id) = @_;
+    return unless Plugins::SlimPing::Core::AlternatePlayCount->apcAvailable;
+
+    my $track = $_apc_tracks{$key};
+    return unless $track && $track->{media_id} eq $media_id && !$track->{done};
+    return unless _apcReachedThreshold($track);
+
+    $track->{gen} = ++$_apc_gen;
+    _apcSettle($track);
+
+    # Mid-queue, the client's stopped for this track can still arrive
+    # after it already reported the next one -- ignore it like any late
+    # stopped for a track that was already reported.
+    $_apc_skipped{$key} = { media_id => $media_id, at => Time::HiRes::time() };
 }
 
 # The client moved on to a different track: report the previous pass with
