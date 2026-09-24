@@ -54,6 +54,9 @@ my %_recent_plays;
 # $username - authenticated username (for per-user pref gates)
 # %params   - additional context from the API call
 #   submission - boolean: true = completed play, false = now-playing only
+#   skip_apc   - boolean: caller already reported this play to APC with
+#                the real percent played (reportPlayback path), so do not
+#                send a second, 100% event
 #
 # Returns 1 on success, 0 if no action was taken (now-playing ping,
 # missing params, preference gate closed, dedup hit).  Never throws.
@@ -95,13 +98,32 @@ sub report {
     # same gate as the LMS stats update rather than getting its own pref.
     if ( $mgr->isPlaybackLoggingEnabled($username) ) {
         _updateLmsStats($sq_id);
-        _dispatchApc($sq_id);
+        _dispatchApc($sq_id) unless $params{skip_apc};
     }
 
     # Scrobbling: Scrobbler.pm applies its own per-user gate internally
     # (isScrobbleEnabled) — we do not double-gate here.
     _dispatchScrobble( $sq_id, $username );
 
+    return 1;
+}
+
+# Report a playback-ended event (stop, skip or natural end) to Alternative
+# Play Count with how much of the track played. Deliberately separate from
+# report(): APC gets every ended track, however little played, and applies
+# its own play/skip rules -- report()'s completed-play gate does not apply.
+# Rides the same per-user log_playback_to_lms gate as report()'s APC call.
+sub reportApc {
+    my ( $class, $sq_id, $username, $percent ) = @_;
+
+    return 0 unless defined $sq_id && length $sq_id;
+    return 0 unless defined $username && length $username;
+    return 0 unless Plugins::SlimPing::Core::AlternatePlayCount->apcAvailable;
+
+    my $mgr = Plugins::SlimPing::Core::Container->get('auth_manager');
+    return 0 unless $mgr && $mgr->isPlaybackLoggingEnabled($username);
+
+    _dispatchApc( $sq_id, $percent );
     return 1;
 }
 
@@ -168,9 +190,9 @@ sub _dispatchScrobble {
 # API, if installed. AlternatePlayCount.pm applies its own availability
 # gate internally and is a no-op when the plugin is not present.
 sub _dispatchApc {
-    my ($sq_id) = @_;
+    my ( $sq_id, $percent ) = @_;
 
-    eval { Plugins::SlimPing::Core::AlternatePlayCount->submit($sq_id); };
+    eval { Plugins::SlimPing::Core::AlternatePlayCount->submit( $sq_id, $percent ); };
     if ($@) {
         $log->warn("SlimPing: PlaybackReporter APC dispatch failed for $sq_id: $@");
     }
