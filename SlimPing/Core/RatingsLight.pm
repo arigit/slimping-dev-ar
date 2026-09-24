@@ -35,12 +35,11 @@
 #
 # Writes still go through RL's own CLI dispatch rather than a raw UPDATE,
 # since RL owns rating-change notifications and its virtual-library/backup
-# bookkeeping for that column.  Since v?.?.? RL exposes a "noclient" variant
+# bookkeeping for that column.  Since v3.1.3 RL exposes a "noclient" variant
 # for exactly SlimPing's situation -- ratings set by an OpenSubsonic client
 # never pass through a real Slim::Player::Client:
 #
 #   ['ratingslight', 'setratingpercentnoclient', '_trackid', '_rating', '_incremental']
-#   ['ratingslight', 'getrating', '_trackid']
 #
 # Gated on RL being installed (startup probe flag). Track ratings only --
 # RL has no concept of album/artist ratings, so Annotations.pm falls back

@@ -34,9 +34,9 @@
 # percentplayed is an integer 0-100. APC records a play at or above its
 # playedthreshold_percent pref and a skip below it. SlimPing passes how
 # much of the track actually played; which events are sent at all follows
-# APC's own player tracking (see Handlers/Playback.pm _apcTrack). Signals
-# that carry no position (core scrobble submission=true, VirtualPlayer
-# EOS) mean the track finished and report 100.
+# APC's own player tracking (see Handlers/Playback.pm _apcTrack). The core
+# scrobble endpoint (submission=true) carries no position and means the
+# track finished, so it reports 100.
 #
 # Gated at two levels:
 #   1. AlternativePlayCount plugin installed (startup probe flag)

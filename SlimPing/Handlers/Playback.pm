@@ -41,6 +41,7 @@ require Digest::SHA;
 
 use Plugins::SlimPing::API::Router;
 use Plugins::SlimPing::Core::Logging;
+require Plugins::SlimPing::Core::AlternatePlayCount;
 require Plugins::SlimPing::Core::Container;
 require Plugins::SlimPing::Core::PlaybackReporter;
 require Plugins::SlimPing::Utils::Errors;
@@ -233,6 +234,7 @@ sub reportPlayback {
 # skipped, is ignored so APC never sees the same play twice.
 sub _apcTrack {
     my ($username, $client, $media_id, $state, $position_secs) = @_;
+    return unless Plugins::SlimPing::Core::AlternatePlayCount->apcAvailable;
 
     my $key  = "$username:$client";
     my $now  = Time::HiRes::time();

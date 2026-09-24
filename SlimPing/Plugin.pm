@@ -193,7 +193,7 @@ sub initPlugin {
     }
 
     # Probe whether the Alternative Play Count plugin is installed so
-    # completed plays can be reported through its external reportplayback
+    # plays and skips can be reported through its external reportplayback
     # dispatch (APC cannot otherwise see plays SlimPing serves to
     # OpenSubsonic clients, since they never pass through a real player).
     # Plugins cannot be installed or removed mid-session, so a single
