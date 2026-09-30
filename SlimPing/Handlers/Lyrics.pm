@@ -133,26 +133,23 @@ sub getLyricsBySongId {
 
     my $artist_name = $track->artist() ? $track->artist()->name() : '';
 
-    # Check embedded lyrics first -- fast, local, no external service risk.
-    # Only probe MAI when embedded lyrics are absent AND a throttle slot is
-    # available.  When MAI completes inline (disk cache, local files) the
-    # result is used immediately.  When MAI goes async the external fetch
-    # runs in the background and populates the cache for the next request.
-    my $lyrics_text = $track->lyrics();
+    # Local sources first -- embedded tags and sidecar lyric files are fast,
+    # need no throttle slot, and keep ELRC word timing that MAI strips.
+    my $lyrics_text = _chooseLocalLyrics( $track->lyrics(), sub { _readSidecarLyrics($track) } );
 
-    unless ( defined $lyrics_text && length $lyrics_text ) {
-        my $mai = _withMaiSlot( [ 'musicartistinfo', 'lyrics', "track_id:$raw_id" ], "lyrics_track:$raw_id" );
+    # Only probe MAI when no local lyrics exist AND a throttle slot is
+    # available.  When MAI completes inline (its disk cache) the result is
+    # used immediately.  When MAI goes async the external fetch runs in the
+    # background and populates the cache for the next request.
+    #
+    # timestamps:1 is required for synced lyrics: without it MAI strips every
+    # [mm:ss.xx] stamp before returning, even from a cached .lrc file.
+    unless ( _hasText($lyrics_text) ) {
+        my $mai = _withMaiSlot( [ 'musicartistinfo', 'lyrics', "track_id:$raw_id", 'timestamps:1' ],
+            "lyrics_track:$raw_id" );
         if ( $mai && $mai->{sync} ) {
             $lyrics_text = $mai->{result};
         }
-    }
-
-    # Check sidecar lyric files before falling back to MAI.  This avoids
-    # consuming a throttle slot when synced lyrics already exist on disk.
-    # MAI's own sidecar scan runs inside the throttle gate — reading here
-    # means zero MAI impact for users with local lyric files.
-    unless ( defined $lyrics_text && length $lyrics_text ) {
-        $lyrics_text = _readSidecarLyrics($track);
     }
 
     $lyrics_text //= '';
@@ -171,29 +168,28 @@ sub getLyricsBySongId {
     # Auto-detect the lyric format and parse to the richest possible
     # OpenSubsonic v2 structure.  Fall back to plain unsynced lines when
     # no timestamps are detected (backward-compatible with v1 clients).
-    my ( $lines, $is_synced, $cue_lines, $global_offset );
-    if ( $lyrics_text =~ /^\[\d+:\d+\.\d+\]/m ) {
-        ( $lines, $is_synced, $cue_lines, $global_offset ) = _parseLrc($lyrics_text);
+    my ( $lines, $is_synced, $cue_lines );
+    if ( _isLrc($lyrics_text) ) {
+        ( $lines, $is_synced, $cue_lines ) = _parseLrc($lyrics_text);
     }
-    elsif ( $lyrics_text =~ /^\d+\s*\n\d{1,2}:\d{2}:\d{2}[,.]\d{3}/s ) {
+    elsif ( _isSrt($lyrics_text) ) {
         ( $lines, $is_synced ) = _parseSrt($lyrics_text);
-        $cue_lines     = undef;
-        $global_offset = 0;
+        $cue_lines = undef;
     }
     else {
-        $lines         = [ map { { value => $_ } } split( /\r?\n/, $lyrics_text ) ];
-        $is_synced     = 0;
-        $cue_lines     = undef;
-        $global_offset = 0;
+        $lines     = [ map { { value => $_ } } split( /\r?\n/, $lyrics_text ) ];
+        $is_synced = 0;
+        $cue_lines = undef;
     }
 
+    # No offset field: _parseLrc has already applied any LRC [offset:] to the
+    # line and cue times, and a client honouring the field would apply it twice.
     my $structured = {
         lang          => $lang,
         synced        => $is_synced ? \1 : \0,
         line          => $lines,
         displayArtist => $artist_name,
         displayTitle  => $track->title(),
-        ( $global_offset ? ( offset => int($global_offset) ) : () ),
     };
 
     # v2 fields: only emitted when the client sends enhanced=true.
@@ -230,6 +226,44 @@ sub _withMaiSlot {
         return { sync => 1, result => $result->{request}->getResult('lyrics') };
     }
     return { sync => 0 };
+}
+
+sub _hasText {
+    my ($text) = @_;
+    return defined $text && $text =~ /\S/ ? 1 : 0;
+}
+
+# Timed formats that _parseLrc / _parseSrt turn into synced lines.
+sub _isLrc {
+    my ($text) = @_;
+    return defined $text && $text =~ /^\[\d+:\d+\.\d+\]/m ? 1 : 0;
+}
+
+sub _isSrt {
+    my ($text) = @_;
+    return defined $text && $text =~ /^\d+\s*\n\d{1,2}:\d{2}:\d{2}[,.]\d{3}/s ? 1 : 0;
+}
+
+sub _isSynced {
+    my ($text) = @_;
+    return _isLrc($text) || _isSrt($text);
+}
+
+# Pick the best local lyrics: embedded tag lyrics unless they are unsynced
+# and a sidecar file has synced ones.  Tags commonly carry plain lyrics next
+# to a synced .lrc, and the synced copy is what clients can scroll with.
+# $read_sidecar is only called when the embedded lyrics are not synced, so a
+# synced tag costs no filesystem probe.  Returns undef when neither has text.
+sub _chooseLocalLyrics {
+    my ( $embedded, $read_sidecar ) = @_;
+
+    return $embedded if _isSynced($embedded);
+
+    my $sidecar = $read_sidecar->();
+    return $sidecar  if _isSynced($sidecar);
+    return $embedded if _hasText($embedded);
+    return $sidecar  if _hasText($sidecar);
+    return undef;
 }
 
 # Best-effort language detection from LRC metadata tags.
@@ -286,9 +320,8 @@ sub _readSidecarLyrics {
 # Also parses the LRC [offset: +/-ms] metadata tag and applies it to
 # all line and cue timestamps.
 #
-# Returns: ( \@lines, $is_synced, \@cue_lines, $offset_ms )
+# Returns: ( \@lines, $is_synced, \@cue_lines )
 #   \@cue_lines is undef when no word-level timing tags are detected.
-#   $offset_ms is the parsed [offset:] value in ms (0 if absent).
 #   \@cue_lines elements: { index, start, end, value, cue => [...] }
 #     cue elements: { byteStart, byteEnd, start, end, value }
 sub _parseLrc {
@@ -300,7 +333,8 @@ sub _parseLrc {
 
     # Parse the [offset:] metadata tag for global timing adjustment.
     # Format: [offset: +/-ms].  Applied to all line start times and
-    # word cue times.  Positive = lyrics appear sooner (per spec).
+    # word cue times.  Positive = lyrics appear sooner (per the LRC
+    # format), so it is subtracted from every timestamp.
     my $global_offset = 0;
     if ( $text =~ /^\[offset:\s*([+-]?\d+)\s*\]/im ) {
         $global_offset = int($1);
@@ -318,7 +352,7 @@ sub _parseLrc {
         # Build ms offset from the first timestamp, adjusted by the
         # global [offset:] value.  Clamp negative results to zero.
         my $start_ms = int( ( $stamps[0] * 60000 ) + ( $stamps[1] * 1000 ) );
-        $start_ms += $global_offset;
+        $start_ms -= $global_offset;
         $start_ms = 0 if $start_ms < 0;
 
         # Strip all [mm:ss.xx] timestamp tags to get the intermediate text.
@@ -336,7 +370,7 @@ sub _parseLrc {
         #   lyric line are rare.
         my @word_cues;
         while ( $cooked =~ /<(\d+):(\d+\.\d+)>([^<]*)<\/\1:\2>/g ) {
-            my $word_ms = int( ( $1 * 60000 ) + ( $2 * 1000 ) ) + $global_offset;
+            my $word_ms = int( ( $1 * 60000 ) + ( $2 * 1000 ) ) - $global_offset;
             $word_ms = 0 if $word_ms < 0;
             push @word_cues,
               {
@@ -417,10 +451,10 @@ sub _parseLrc {
 
     # If no timestamped lines were found, return plain text.
     unless (@lines) {
-        return ( [ map { { value => $_ } } split( /\r?\n/, $text ) ], 0, undef, 0 );
+        return ( [ map { { value => $_ } } split( /\r?\n/, $text ) ], 0, undef );
     }
 
-    return ( \@lines, 1, $has_word_cues ? \@cue_lines : undef, $global_offset );
+    return ( \@lines, 1, $has_word_cues ? \@cue_lines : undef );
 }
 
 # Parse SRT (SubRip) lyric text into OpenSubsonic v2 line entries.

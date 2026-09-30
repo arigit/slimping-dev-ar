@@ -3,7 +3,7 @@
 	<id>eb674be0-4f08-44f0-8fbd-89911950145e</id>
 	<name>PLUGIN_SLIMPING</name>
 	<module>Plugins::SlimPing::Plugin</module>
-	<version>0.8.0009-dev</version>
+	<version>0.8.0009.1-dev</version>
 	<description>PLUGIN_SLIMPING_DESC</description>
 	<creator>DJWillis</creator>
 	<email>lms@distant-earth.com</email>

@@ -75,6 +75,11 @@ my @SUITES = (
         'percent to stars, stars to percent, and the round trip',
     ],
     [
+        'Synced lyrics',
+        'Plugins::SlimPing::Tests::LyricsTest',
+        'local source choice, LRC parse and [offset:] direction',
+    ],
+    [
         'Optional integration probes',
         'Plugins::SlimPing::Tests::PluginProbeTest',
         'module-to-file conversion, version comparison and plugin detection',
