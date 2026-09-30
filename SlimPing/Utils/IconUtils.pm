@@ -81,13 +81,13 @@ my %ICON_PATH_CACHE;
 my $DEFAULT_ICON = 'icon';
 
 sub getIcon {
-    my ($class, $icon_name, $format) = @_;
+    my ( $class, $icon_name, $format ) = @_;
     $format ||= 'png';
 
     my $cache_key = "$icon_name:$format";
     return $ICON_PATH_CACHE{$cache_key} if exists $ICON_PATH_CACHE{$cache_key};
 
-    unless (exists $ICON_DEFINITIONS{$icon_name}) {
+    unless ( exists $ICON_DEFINITIONS{$icon_name} ) {
         $log->warn("IconUtils: Unknown icon requested: $icon_name");
         my $fallback_path = $ICON_DEFINITIONS{$DEFAULT_ICON}->{$format};
         $ICON_PATH_CACHE{$cache_key} = $fallback_path;

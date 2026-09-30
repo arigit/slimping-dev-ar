@@ -40,11 +40,11 @@ use Plugins::SlimPing::Core::Logging;
 
 my $log = Plugins::SlimPing::Core::Logging->getLogger();
 
-use constant GRACE_PERIOD_RADIO  => 30;     # seconds before tearing down an idle radio pool
-use constant GRACE_PERIOD_TRACK  => 10;     # seconds before tearing down an idle track pool
-use constant BUFFER_SECS         => 10;     # seconds of audio in the ring buffer (both types)
-use constant METADATAINTERVAL    => 32768;  # bytes between ICY metadata blocks
-use constant SWEEP_MIN_INTERVAL  => 10;     # minimum seconds between stale-listener sweeps
+use constant GRACE_PERIOD_RADIO => 30;       # seconds before tearing down an idle radio pool
+use constant GRACE_PERIOD_TRACK => 10;       # seconds before tearing down an idle track pool
+use constant BUFFER_SECS        => 10;       # seconds of audio in the ring buffer (both types)
+use constant METADATAINTERVAL   => 32768;    # bytes between ICY metadata blocks
+use constant SWEEP_MIN_INTERVAL => 10;       # minimum seconds between stale-listener sweeps
 
 # Pool registry: "type:source_url:br_kbps[:time_offset]" => PoolEntry
 my %_pools;
@@ -71,17 +71,17 @@ my $_last_sweep_time = 0;
 # _stringifyHeaders).  Returns 1 when the listener is attached, 0 when the
 # pool is stale and the caller should create a new primary.
 sub registerListener {
-    my $class = shift;
-    my %args  = @_;
-    my $pool_type   = $args{pool_type}   || 'radio';
-    my $source_url  = $args{source_url}  or die 'registerListener: source_url required';
-    my $br_kbps     = $args{br_kbps}     or die 'registerListener: br_kbps required';
-    my $httpClient  = $args{httpClient}  or die 'registerListener: httpClient required';
-    my $headers     = $args{headers}     or die 'registerListener: headers required';
+    my $class       = shift;
+    my %args        = @_;
+    my $pool_type   = $args{pool_type} || 'radio';
+    my $source_url  = $args{source_url} or die 'registerListener: source_url required';
+    my $br_kbps     = $args{br_kbps}    or die 'registerListener: br_kbps required';
+    my $httpClient  = $args{httpClient} or die 'registerListener: httpClient required';
+    my $headers     = $args{headers}    or die 'registerListener: headers required';
     my $time_offset = $args{time_offset};
-    my $enable_icy  = $args{enable_icy}  // 0;
+    my $enable_icy  = $args{enable_icy} // 0;
 
-    my $key = _poolKey( $pool_type, $source_url, $br_kbps, $time_offset );
+    my $key   = _poolKey( $pool_type, $source_url, $br_kbps, $time_offset );
     my $entry = $_pools{$key} or return 0;
 
     # If the primary player is gone, the pool is stale
@@ -118,7 +118,7 @@ sub registerListener {
     my $start_head = $entry->{head};
     if ( @{ $entry->{chunks} } > 0 ) {
         my $bytes = 0;
-        for ( my $i = $#{ $entry->{chunks} }; $i >= $entry->{head}; $i-- ) {
+        for ( my $i = $#{ $entry->{chunks} } ; $i >= $entry->{head} ; $i-- ) {
             $bytes += length( $entry->{chunks}[$i] );
             if ( $bytes >= METADATAINTERVAL ) {
                 $start_head = $i;
@@ -134,16 +134,18 @@ sub registerListener {
         enable_icy => $enable_icy,
     };
     push @{ $entry->{listeners} }, $listener;
-    $_listener_map{"$httpClient"} = $listener;
+    $_listener_map{"$httpClient"}  = $listener;
     $_listener_pool{"$httpClient"} = $key;
 
     require Slim::Networking::Select;
     Slim::Networking::Select::addWrite( $httpClient, \&_fanOutTick, 1 );
 
-    $log->info( sprintf(
-        'SlimPing: pooled listener attached to %s (%d kbps, %d total listeners, icy=%d)',
-        $key, $br_kbps, scalar @{ $entry->{listeners} }, $enable_icy
-    ) );
+    $log->info(
+        sprintf(
+            'SlimPing: pooled listener attached to %s (%d kbps, %d total listeners, icy=%d)',
+            $key, $br_kbps, scalar @{ $entry->{listeners} }, $enable_icy
+        )
+    );
     return 1;
 }
 
@@ -151,13 +153,13 @@ sub registerListener {
 # radio stream.  Registers this player as the primary (chunk producer) for
 # the pool so subsequent requests attach as listeners.
 sub registerPrimary {
-    my $class = shift;
-    my %args  = @_;
-    my $pool_type   = $args{pool_type}   || 'radio';
-    my $source_url  = $args{source_url}  or die 'registerPrimary: source_url required';
-    my $br_kbps     = $args{br_kbps}     or die 'registerPrimary: br_kbps required';
-    my $player      = $args{player}      or die 'registerPrimary: player required';
-    my $httpClient  = $args{httpClient}  or die 'registerPrimary: httpClient required';
+    my $class       = shift;
+    my %args        = @_;
+    my $pool_type   = $args{pool_type} || 'radio';
+    my $source_url  = $args{source_url} or die 'registerPrimary: source_url required';
+    my $br_kbps     = $args{br_kbps}    or die 'registerPrimary: br_kbps required';
+    my $player      = $args{player}     or die 'registerPrimary: player required';
+    my $httpClient  = $args{httpClient} or die 'registerPrimary: httpClient required';
     my $time_offset = $args{time_offset};
 
     my $key       = _poolKey( $pool_type, $source_url, $br_kbps, $time_offset );
@@ -171,32 +173,35 @@ sub registerPrimary {
             $log->debug("SlimPing: pool $key already has alive primary, skipping registration");
             return;
         }
+
         # Old pool with dead primary — tear down before replacing
         _teardownPool($existing);
     }
 
     $_pools{$key} = {
-        pool_type           => $pool_type,
-        source_url          => $source_url,
-        br_kbps             => $br_kbps,
-        player              => $player,
-        primary_httpClient  => $httpClient,
-        chunks              => [],
-        head                => 0,
-        total_bytes         => 0,
-        max_bytes           => $max_bytes,
-        listeners           => [],
-        eos                 => 0,
-        grace_timer         => undef,
-        created_at          => time(),
+        pool_type          => $pool_type,
+        source_url         => $source_url,
+        br_kbps            => $br_kbps,
+        player             => $player,
+        primary_httpClient => $httpClient,
+        chunks             => [],
+        head               => 0,
+        total_bytes        => 0,
+        max_bytes          => $max_bytes,
+        listeners          => [],
+        eos                => 0,
+        grace_timer        => undef,
+        created_at         => time(),
     };
-    $_player_pool{ $player->id }   = $key;
+    $_player_pool{ $player->id } = $key;
     $_primary_pool{"$httpClient"} = $key;
 
-    $log->info( sprintf(
-        'SlimPing: %s pool primary registered for %s (%d kbps, %d B buffer)',
-        $pool_type, $key, $br_kbps, $max_bytes
-    ) );
+    $log->info(
+        sprintf(
+            'SlimPing: %s pool primary registered for %s (%d kbps, %d B buffer)',
+            $pool_type, $key, $br_kbps, $max_bytes
+        )
+    );
 }
 
 # Called by StreamingClient::nextChunk when this player is a pooled primary.
@@ -205,8 +210,8 @@ sub registerPrimary {
 # sentinel (\q{}) and sets the eos flag on the pool entry.
 sub pushChunk {
     my ( $player_id, $chunk_ref ) = @_;
-    my $key = $_player_pool{$player_id} or return;
-    my $entry = $_pools{$key} or return;
+    my $key   = $_player_pool{$player_id} or return;
+    my $entry = $_pools{$key}             or return;
 
     my $data = $$chunk_ref;
 
@@ -225,8 +230,8 @@ sub pushChunk {
     $entry->{total_bytes} += length($data);
 
     # Trim buffer to the byte cap
-    while (    $entry->{total_bytes} > $entry->{max_bytes}
-            && $entry->{head} < @{ $entry->{chunks} } )
+    while ($entry->{total_bytes} > $entry->{max_bytes}
+        && $entry->{head} < @{ $entry->{chunks} } )
     {
         $entry->{total_bytes} -= length( $entry->{chunks}[ $entry->{head} ] );
         $entry->{head}++;
@@ -240,12 +245,12 @@ sub pushChunk {
 sub notifyPlayerGone {
     my $class     = shift;
     my $player_id = shift;
-    my $key = $_player_pool{$player_id} or return 0;
+    my $key       = $_player_pool{$player_id} or return 0;
     delete $_player_pool{$player_id};
 
     my $entry = $_pools{$key} or return 0;
     if ( $entry->{primary_httpClient} ) {
-        delete $_primary_pool{ "$entry->{primary_httpClient}" };
+        delete $_primary_pool{"$entry->{primary_httpClient}"};
     }
     $entry->{primary_httpClient} = undef;
 
@@ -257,17 +262,15 @@ sub notifyPlayerGone {
         $_player_pool{$player_id} = $key;
         $entry->{keep_alive_player} = $entry->{player};
         require Slim::Utils::Timers;
-        Slim::Utils::Timers::setTimer(
-            undef, time() + 0.1,
-            sub { _keepAliveTick($player_id) },
-        );
+        Slim::Utils::Timers::setTimer( undef, time() + 0.1, sub { _keepAliveTick($player_id) }, );
         $log->info("SlimPing: $key primary gone but listeners remain — keep-alive started");
         return 1;
     }
 
     # Track pool that reached EOS — tear down immediately, no grace
-    if (    $entry->{pool_type} && $entry->{pool_type} eq 'track'
-         && $entry->{eos} )
+    if (   $entry->{pool_type}
+        && $entry->{pool_type} eq 'track'
+        && $entry->{eos} )
     {
         $log->info("SlimPing: $key track pool finished — tearing down");
         _teardownPool($entry);
@@ -285,8 +288,8 @@ sub notifyPlayerGone {
 # reaches EOS.
 sub _keepAliveTick {
     my ($player_id) = @_;
-    my $key = $_player_pool{$player_id} or return;
-    my $entry = $_pools{$key} or return;
+    my $key         = $_player_pool{$player_id} or return;
+    my $entry       = $_pools{$key}             or return;
 
     # Stop if all listeners have disconnected
     if ( @{ $entry->{listeners} } == 0 ) {
@@ -326,11 +329,9 @@ sub _keepAliveTick {
             require Slim::Web::HTTP;
             for my $l (@listeners) {
                 Slim::Web::HTTP::closeHTTPSocket( $l->{httpClient} )
-                    if $l->{httpClient} && $l->{httpClient}->connected();
+                  if $l->{httpClient} && $l->{httpClient}->connected();
             }
-            $log->info(
-                "SlimPing: keep-alive EOS for $key — radio pool torn down, $n_listeners listener(s) closed"
-            );
+            $log->info("SlimPing: keep-alive EOS for $key — radio pool torn down, $n_listeners listener(s) closed");
         }
         else {
             $log->debug("SlimPing: keep-alive EOS for $key");
@@ -345,10 +346,7 @@ sub _keepAliveTick {
 
     # Reschedule — pump at ~10 Hz to match normal nextChunk cadence
     require Slim::Utils::Timers;
-    Slim::Utils::Timers::setTimer(
-        undef, time() + 0.1,
-        sub { _keepAliveTick($player_id) },
-    );
+    Slim::Utils::Timers::setTimer( undef, time() + 0.1, sub { _keepAliveTick($player_id) }, );
 }
 
 
@@ -372,14 +370,9 @@ sub _playerAlive {
 sub _startGrace {
     my ( $entry, $key ) = @_;
 
-    my $period = ( $entry->{pool_type} && $entry->{pool_type} eq 'track' )
-      ? GRACE_PERIOD_TRACK : GRACE_PERIOD_RADIO;
+    my $period = ( $entry->{pool_type} && $entry->{pool_type} eq 'track' ) ? GRACE_PERIOD_TRACK : GRACE_PERIOD_RADIO;
 
-    $entry->{grace_timer} = Slim::Utils::Timers::setTimer(
-        undef,
-        time() + $period,
-        sub { _graceTick($key) },
-    );
+    $entry->{grace_timer} = Slim::Utils::Timers::setTimer( undef, time() + $period, sub { _graceTick($key) }, );
 
     $log->debug("SlimPing: $key grace timer started (${period}s)");
 }
@@ -409,6 +402,7 @@ sub _fanOutTick {
     my ($httpClient) = @_;
     my $listener = $_listener_map{"$httpClient"};
     unless ($listener) {
+
         # _removeListener should have deregistered this watcher, but defend
         # against any path that cleared the map without calling removeWrite.
         require Slim::Networking::Select;
@@ -432,17 +426,19 @@ sub _fanOutTick {
     my $tick_bytes = 0;
     if ( $listener->{pending_track} ) {
         my $result = _syswriteAll(
-            $httpClient, \$listener->{pending_track},
-            $listener->{pending_track_off}, $listener,
-            'pending_track', 'pending_track_off'
+            $httpClient,
+            \$listener->{pending_track},
+            $listener->{pending_track_off},
+            $listener, 'pending_track', 'pending_track_off'
         );
         if ( $result == 0 ) {
             _removeListener( $entry, $httpClient, $key );
             return;
         }
         if ( $result < 0 ) {
-            return;  # still backpressured, retry next tick
+            return;    # still backpressured, retry next tick
         }
+
         # Chunk fully written — advance read_head and clear pending state.
         my $chunk_len = length( $listener->{pending_track} );
         delete $listener->{pending_track};
@@ -453,16 +449,17 @@ sub _fanOutTick {
 
     if ( $listener->{pending_radio} ) {
         my $result = _syswriteAll(
-            $httpClient, \$listener->{pending_radio},
-            $listener->{pending_radio_off}, $listener,
-            'pending_radio', 'pending_radio_off'
+            $httpClient,
+            \$listener->{pending_radio},
+            $listener->{pending_radio_off},
+            $listener, 'pending_radio', 'pending_radio_off'
         );
         if ( $result == 0 ) {
             _removeListener( $entry, $httpClient, $key );
             return;
         }
         if ( $result < 0 ) {
-            return;  # still backpressured, retry next tick
+            return;    # still backpressured, retry next tick
         }
         my $chunk_len = length( $listener->{pending_radio} );
         delete $listener->{pending_radio};
@@ -476,7 +473,7 @@ sub _fanOutTick {
     # Write available chunks, limited to one ICY metadata interval per tick
     # so the client can drain its TCP buffer between event-loop iterations.
     # _writeChunk returns: 1 = success, -1 = backpressure (stop tick), 0 = error.
-    my $chunks     = $entry->{chunks};
+    my $chunks = $entry->{chunks};
     $tick_bytes = 0;
     while ( $listener->{read_head} < @$chunks ) {
         my $data   = $chunks->[ $listener->{read_head} ];
@@ -485,7 +482,7 @@ sub _fanOutTick {
             _removeListener( $entry, $httpClient, $key );
             return;
         }
-        last if $result < 0;  # backpressure (EAGAIN) -- stop tick, retry next time
+        last if $result < 0;    # backpressure (EAGAIN) -- stop tick, retry next time
         $listener->{read_head}++;
         $tick_bytes += length($data);
         last if $tick_bytes >= METADATAINTERVAL;
@@ -493,9 +490,10 @@ sub _fanOutTick {
 
     # Track pool EOS: all chunks drained, primary has signalled end-of-stream.
     # Close the listener socket cleanly — the track is finished.
-    if (    $entry->{pool_type} && $entry->{pool_type} eq 'track'
-         && $entry->{eos}
-         && $listener->{read_head} >= @$chunks )
+    if (   $entry->{pool_type}
+        && $entry->{pool_type} eq 'track'
+        && $entry->{eos}
+        && $listener->{read_head} >= @$chunks )
     {
         $log->debug("SlimPing: track pool EOS — closing listener socket");
         _closeAndRemoveListener( $entry, $httpClient, $key );
@@ -534,6 +532,7 @@ sub _writeChunk {
         my $until_meta = METADATAINTERVAL - $listener->{icy_bytes};
 
         if ( $until_meta <= 0 ) {
+
             # Inject ICY metadata block before writing more audio
             my $inject = _injectICYBlock( $httpClient, $listener, $entry );
             return $inject if $inject <= 0;
@@ -564,9 +563,9 @@ sub _syswriteStatus {
     return 1 if defined $written && $written > 0;
     if ( !defined $written ) {
         return -1 if $! == EAGAIN || $! == EWOULDBLOCK;
-        return 0;   # EPIPE, ECONNRESET, etc.
+        return 0;    # EPIPE, ECONNRESET, etc.
     }
-    return -1;      # zero bytes written -- treat as transient backpressure
+    return -1;       # zero bytes written -- treat as transient backpressure
 }
 
 # Write all bytes from $data_ref starting at $offset, tracking partial
@@ -585,15 +584,16 @@ sub _syswriteAll {
 
     if ( !defined $written ) {
         return -1 if $! == EAGAIN || $! == EWOULDBLOCK;
-        return 0;   # EPIPE, ECONNRESET, etc.
+        return 0;    # EPIPE, ECONNRESET, etc.
     }
 
     if ( $written == 0 ) {
         return -1 if $! == EAGAIN || $! == EWOULDBLOCK;
-        return 0;   # hard error with zero bytes
+        return 0;    # hard error with zero bytes
     }
 
     if ( $written < length($to_write) ) {
+
         # Partial write — save pending state so the next tick resumes
         # from where we left off.
         $listener->{$pending_key} = $$data_ref;
@@ -601,7 +601,7 @@ sub _syswriteAll {
         return -1;
     }
 
-    return 1;  # complete — all bytes written
+    return 1;    # complete — all bytes written
 }
 
 # Build and write an ICY metadata block using the current title from LMS's
@@ -619,7 +619,7 @@ sub _injectICYBlock {
 
     my $title;
     my $song_index = Slim::Player::Source::streamingSongIndex($player);
-    my $url = Slim::Player::Playlist::url( $player, $song_index );
+    my $url        = Slim::Player::Playlist::url( $player, $song_index );
     if ($url) {
         $title = Slim::Music::Info::getCurrentTitle( $player, $url );
     }
@@ -654,9 +654,7 @@ sub _removeListener {
     require Slim::Networking::Select;
     Slim::Networking::Select::removeWrite($httpClient);
 
-    @{ $entry->{listeners} } = grep {
-        $_->{httpClient} ne $httpClient
-    } @{ $entry->{listeners} };
+    @{ $entry->{listeners} } = grep { $_->{httpClient} ne $httpClient } @{ $entry->{listeners} };
 
     my $listener = $_listener_map{"$httpClient"};
     delete $_listener_map{"$httpClient"};
@@ -670,14 +668,12 @@ sub _removeListener {
         delete $listener->{pending_radio_off};
     }
 
-    $log->info( sprintf(
-        'SlimPing: listener detached from %s (%d remaining)',
-        $key, scalar @{ $entry->{listeners} }
-    ) );
+    $log->info(
+        sprintf( 'SlimPing: listener detached from %s (%d remaining)', $key, scalar @{ $entry->{listeners} } ) );
 
-    if (    @{ $entry->{listeners} } == 0
-         && !$entry->{primary_httpClient}
-         && !$entry->{grace_timer} )
+    if (   @{ $entry->{listeners} } == 0
+        && !$entry->{primary_httpClient}
+        && !$entry->{grace_timer} )
     {
         _startGrace( $entry, $key );
     }
@@ -689,9 +685,7 @@ sub _removeListener {
 sub _closeAndRemoveListener {
     my ( $entry, $httpClient, $key ) = @_;
 
-    @{ $entry->{listeners} } = grep {
-        $_->{httpClient} ne $httpClient
-    } @{ $entry->{listeners} };
+    @{ $entry->{listeners} } = grep { $_->{httpClient} ne $httpClient } @{ $entry->{listeners} };
 
     my $listener = $_listener_map{"$httpClient"};
     delete $_listener_map{"$httpClient"};
@@ -708,14 +702,11 @@ sub _closeAndRemoveListener {
     require Slim::Web::HTTP;
     Slim::Web::HTTP::closeHTTPSocket($httpClient);
 
-    $log->info( sprintf(
-        'SlimPing: listener closed for %s (%d remaining)',
-        $key, scalar @{ $entry->{listeners} }
-    ) );
+    $log->info( sprintf( 'SlimPing: listener closed for %s (%d remaining)', $key, scalar @{ $entry->{listeners} } ) );
 
     # If no listeners remain and the primary is gone, tear down immediately
-    if (    @{ $entry->{listeners} } == 0
-         && !$entry->{primary_httpClient} )
+    if ( @{ $entry->{listeners} } == 0
+        && !$entry->{primary_httpClient} )
     {
         _teardownPool($entry);
         delete $_pools{$key};
@@ -737,7 +728,7 @@ sub _teardownPool {
 
     # Clear primary maps
     if ( $entry->{primary_httpClient} ) {
-        delete $_primary_pool{ "$entry->{primary_httpClient}" };
+        delete $_primary_pool{"$entry->{primary_httpClient}"};
     }
     if ( $entry->{player} ) {
         delete $_player_pool{ $entry->{player}->id };
@@ -745,8 +736,8 @@ sub _teardownPool {
 
     # Clear listener maps
     for my $l ( @{ $entry->{listeners} } ) {
-        delete $_listener_map{ "$l->{httpClient}" };
-        delete $_listener_pool{ "$l->{httpClient}" };
+        delete $_listener_map{"$l->{httpClient}"};
+        delete $_listener_pool{"$l->{httpClient}"};
     }
 
     # Kill grace timer
@@ -787,9 +778,10 @@ sub sweepStaleListeners {
         for my $l ( @{ $entry->{listeners} } ) {
             if ( $l->{httpClient} && $l->{httpClient}->connected() ) {
                 push @alive, $l;
-            } else {
-                delete $_listener_map{ "$l->{httpClient}" };
-                delete $_listener_pool{ "$l->{httpClient}" };
+            }
+            else {
+                delete $_listener_map{"$l->{httpClient}"};
+                delete $_listener_pool{"$l->{httpClient}"};
             }
         }
         my $removed = @{ $entry->{listeners} } - @alive;
@@ -824,8 +816,7 @@ sub _ingestCacheChunk {
     my ( $player_id, $chunk ) = @_;
     eval {
         require Plugins::SlimPing::Core::TranscodeCache;
-        Plugins::SlimPing::Core::TranscodeCache->getInstance
-          ->ingestChunk( $player_id, $chunk );
+        Plugins::SlimPing::Core::TranscodeCache->getInstance->ingestChunk( $player_id, $chunk );
     };
 }
 
@@ -833,8 +824,7 @@ sub _finaliseCacheEntry {
     my ( $player_id, $trust_size ) = @_;
     eval {
         require Plugins::SlimPing::Core::TranscodeCache;
-        Plugins::SlimPing::Core::TranscodeCache->getInstance
-          ->finaliseStream( $player_id, $trust_size );
+        Plugins::SlimPing::Core::TranscodeCache->getInstance->finaliseStream( $player_id, $trust_size );
     };
 }
 

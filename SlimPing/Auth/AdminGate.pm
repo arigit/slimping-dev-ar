@@ -96,8 +96,7 @@ sub requireAdmin {
         if ( $opts{json_endpoint} ) {
             my $ct = $request->header('Content-Type') || '';
             unless ( $ct =~ m{^\s*application/json\b}i ) {
-                return ( 0, 415, 'Content-Type must be application/json',
-                    undef );
+                return ( 0, 415, 'Content-Type must be application/json', undef );
             }
         }
     }
@@ -125,8 +124,7 @@ sub requireAdmin {
     }
 
     if ( my $key = extractApiKey($request) ) {
-        my $user = Plugins::SlimPing::Core::Container->get('auth_manager')
-          ->getUserByApiKey($key);
+        my $user = Plugins::SlimPing::Core::Container->get('auth_manager')->getUserByApiKey($key);
         if ( $user && $user->{admin} && $user->{enabled} ) {
             return ( 1, undef, undef, $user->{username} );
         }
@@ -137,9 +135,7 @@ sub requireAdmin {
     # user would be locked out.  In lan_open / loopback_open the IP-trust
     # path already covers the bootstrap case.
     if ( $mode eq 'auth_required' && Plugins::SlimPing::Core::IPTrust->isLoopback($ip) && _hasNoAdmin() ) {
-        $log->warn(
-'SlimPing: settings bootstrap -- allowing loopback access (no admin user exists yet)'
-        );
+        $log->warn('SlimPing: settings bootstrap -- allowing loopback access (no admin user exists yet)');
         return ( 1, undef, undef, 'bootstrap' );
     }
 
@@ -165,8 +161,7 @@ sub remoteIp {
     }
     elsif ( $request && !$_xff_warned && $request->header('X-Forwarded-For') ) {
         $_xff_warned = 1;
-        $log->warn(
-            'SlimPing: X-Forwarded-For header present but trust_xff is off -- '
+        $log->warn( 'SlimPing: X-Forwarded-For header present but trust_xff is off -- '
               . 'reverse-proxy deployments should enable the trust_xff pref so '
               . 'admin_access source-IP checks see the real client address' );
     }
@@ -210,7 +205,7 @@ sub _originAllowed {
         return 0;
     }
     $origin_host ||= '';
-    my $req_host    = $request->header('Host')         || '';
+    my $req_host = $request->header('Host') || '';
     $req_host =~ s/:\d+$//;
     $origin_host = lc $origin_host;
     $req_host    = lc $req_host;

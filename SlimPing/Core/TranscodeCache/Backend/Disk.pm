@@ -34,12 +34,12 @@ use strict;
 use warnings;
 
 use Plugins::SlimPing::Core::Logging;
-use Digest::MD5      qw(md5_hex);
-use File::Path       qw(make_path);
+use Digest::MD5           qw(md5_hex);
+use File::Path            qw(make_path);
 use File::Spec::Functions qw(catfile catdir);
 use File::stat;
-use JSON::XS         ();
-use Time::HiRes      qw(time);
+use JSON::XS    ();
+use Time::HiRes qw(time);
 
 my $log = Plugins::SlimPing::Core::Logging->getLogger();
 
@@ -65,23 +65,17 @@ sub resolveBaseDir {
 
     if ( length $custom_path ) {
         if ( $custom_path !~ m{^/} ) {
-            $log->warn(
-"SlimPing: cache_disk_path must be an absolute path, refusing '$custom_path'"
-            );
+            $log->warn("SlimPing: cache_disk_path must be an absolute path, refusing '$custom_path'");
             return undef;
         }
         if ( $custom_path =~ m{/\.\./} || $custom_path =~ m{/\.\.$} ) {
-            $log->warn(
-"SlimPing: cache_disk_path must not contain .. segments, refusing '$custom_path'"
-            );
+            $log->warn("SlimPing: cache_disk_path must not contain .. segments, refusing '$custom_path'");
             return undef;
         }
         return $custom_path;
     }
 
-    my $cachedir = eval {
-        Slim::Utils::Prefs::preferences('server')->get('cachedir');
-    };
+    my $cachedir = eval { Slim::Utils::Prefs::preferences('server')->get('cachedir'); };
     return undef if $@ || !$cachedir;
 
     return catdir( $cachedir, 'slimping', 'transcode_cache' );
@@ -104,6 +98,7 @@ sub _directoryLooksLikeSlimpingCache {
         opendir my $dh, $dir or die "opendir($dir): $!";
         for my $f ( readdir $dh ) {
             next if $f =~ /^\.\.?$/;
+
             # SlimPing cache entries: 32-char lowercase MD5 hex stem
             # with .mp3, .flac, or .json extension.
             unless ( $f =~ /^[a-f0-9]{32}\.(mp3|flac|json)$/ ) {
@@ -129,7 +124,7 @@ sub _verifySentinel {
     my $path = catfile( $self->{base_dir}, SENTINEL_FILENAME );
     unless ( -f $path ) {
         $log->warn(
-"SlimPing: sentinel missing from $self->{base_dir} — refusing destructive sweep.
+            "SlimPing: sentinel missing from $self->{base_dir} — refusing destructive sweep.
 The cache directory may have been replaced or tampered with."
         );
         return 0;
@@ -139,7 +134,7 @@ The cache directory may have been replaced or tampered with."
 
 sub new {
     my ( $class, %args ) = @_;
-    my $max_mb   = $args{max_mb}  // 2048;
+    my $max_mb   = $args{max_mb} // 2048;
     my $base_dir = $args{base_dir} || '';
 
     # Route every path through resolveBaseDir — the single choke point for
@@ -163,7 +158,8 @@ sub new {
     if ( -d $base_dir ) {
         if ( -f $sentinel_path ) {
             $log->info("SlimPing: disk cache directory $base_dir has sentinel — proceeding");
-        } else {
+        }
+        else {
             my $empty = 1;
             eval {
                 opendir my $dh, $base_dir or die "opendir($base_dir): $!";
@@ -179,14 +175,13 @@ sub new {
                 return undef;
             }
             unless ($empty) {
+
                 # Check whether the directory looks like a pre-sentinel
                 # SlimPing cache (only MD5-hex-named .mp3/.flac/.json files).
                 # If so, sweep it clean and claim it — this is a legitimate
                 # upgrade from an earlier plugin version.
                 if ( $class->_directoryLooksLikeSlimpingCache($base_dir) ) {
-                    $log->info(
-"SlimPing: reclaiming pre-sentinel cache directory $base_dir — sweeping old entries"
-                    );
+                    $log->info("SlimPing: reclaiming pre-sentinel cache directory $base_dir — sweeping old entries");
                     eval {
                         opendir my $dh2, $base_dir
                           or die "opendir($base_dir): $!";
@@ -197,14 +192,13 @@ sub new {
                         closedir $dh2;
                     };
                     if ($@) {
-                        $log->warn(
-"SlimPing: failed to sweep pre-sentinel cache directory $base_dir: $@"
-                        );
+                        $log->warn("SlimPing: failed to sweep pre-sentinel cache directory $base_dir: $@");
                         return undef;
                     }
-                } else {
+                }
+                else {
                     $log->warn(
-"SlimPing: disk cache directory $base_dir is not empty and has no sentinel — refusing to use it.
+                        "SlimPing: disk cache directory $base_dir is not empty and has no sentinel — refusing to use it.
 The directory may be misconfigured.  Set cache_disk_path to an empty or dedicated directory,
 or remove the existing files if they are old SlimPing cache artifacts."
                     );
@@ -213,7 +207,8 @@ or remove the existing files if they are old SlimPing cache artifacts."
             }
             $log->info("SlimPing: claiming empty directory $base_dir as disk cache");
         }
-    } else {
+    }
+    else {
         eval { make_path($base_dir); };
         if ($@) {
             $log->warn("SlimPing: disk cache directory unavailable ($base_dir): $@");
@@ -298,11 +293,14 @@ sub startEntry {
     # RAM backend behaviour where startEntry replaces the old entry.
     $self->removeEntry($key);
 
-    $self->_writeMeta( $key, {
-        populated => 0,
-        complete  => 0,
-        mtime     => time(),
-    });
+    $self->_writeMeta(
+        $key,
+        {
+            populated => 0,
+            complete  => 0,
+            mtime     => time(),
+        }
+    );
     return 1;
 }
 
@@ -320,7 +318,7 @@ sub appendChunk {
             my $meta = $self->_readMeta($key) || { populated => 0, complete => 0 };
             my $len  = length($chunk);
             $meta->{populated} += $len;
-            $meta->{mtime}     = time();
+            $meta->{mtime} = time();
             $self->_writeMeta( $key, $meta );
         }
     };
@@ -383,12 +381,13 @@ sub _enforceSizeLimit {
             my $json_path = catfile( $self->{base_dir}, $f );
             my $json_meta = $self->_readMetaFromFile($json_path);
             next unless $json_meta && $json_meta->{complete};
-            push @entries, {
+            push @entries,
+              {
                 json_path => $json_path,
-                mtime     => $json_meta->{mtime} // 0,
+                mtime     => $json_meta->{mtime}     // 0,
                 size      => $json_meta->{populated} // 0,
-                suffix    => $json_meta->{suffix} // 'mp3',
-            };
+                suffix    => $json_meta->{suffix}    // 'mp3',
+              };
         }
         closedir $dh;
     };
@@ -419,7 +418,7 @@ sub _enforceSizeLimit {
         for my $f ( readdir $dh2 ) {
             next unless $f =~ /\.json$/;
             my $json_path = catfile( $self->{base_dir}, $f );
-            my $meta = $self->_readMetaFromFile($json_path);
+            my $meta      = $self->_readMetaFromFile($json_path);
             next unless $meta && !$meta->{complete};
             next unless ( $meta->{mtime} // 0 ) < $cutoff;
             my $ext2 = ( $meta->{suffix} || 'mp3' );
@@ -494,14 +493,15 @@ sub flush {
         opendir my $dh, $self->{base_dir} or die "opendir failed: $!";
         for my $f ( readdir $dh ) {
             next if $f =~ /^\.\.?$/;
-            next if $f eq SENTINEL_FILENAME;   # preserve the sentinel itself
+            next if $f eq SENTINEL_FILENAME;    # preserve the sentinel itself
             unlink catfile( $self->{base_dir}, $f );
         }
         closedir $dh;
     };
     if ($@) {
         $log->warn("SlimPing: disk cache flush failed: $@");
-    } else {
+    }
+    else {
         $log->info('SlimPing: disk cache flushed');
     }
 }

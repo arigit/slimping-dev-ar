@@ -33,23 +33,32 @@ use warnings;
 
 use Plugins::SlimPing::API::Router;
 use Plugins::SlimPing::Auth::Permissions;
+require Plugins::SlimPing::Core::Container;
 
 sub registerHandlers {
     my $class = shift;
-    Plugins::SlimPing::API::Router->registerHandler('getUser', \&getUser);
+    Plugins::SlimPing::API::Router->registerHandler( 'getUser', \&getUser );
 }
 
 sub _shapeUser {
     my ($u) = @_;
+
     # OpenSubsonic user spec includes optional legacy fields: maxBitRate,
     # folder (int[]), avatarLastChanged.  SlimPing does not support per-user
-    # bitrate caps, folder-scoped access control, or user avatars.  Per spec
-    # rule "if a server support a field it must return it," these are
-    # correctly omitted.  Returning dummy values would be misleading
-    # (maxBitRate: 0 blocks all streaming, folder: [] says no access).
-    my $roles = Plugins::SlimPing::Auth::Permissions->rolesFor($u);
+    # bitrate caps or user avatars, so those remain omitted per the spec rule
+    # "if a server support a field it must return it" -- returning dummy values
+    # would be misleading (maxBitRate: 0 blocks all streaming).
+    #
+    # folder IS returned: it lists the globally exposed music folders, which is
+    # exactly the set any user can reach.  SlimPing's per-user default folder is
+    # a view preference, not access control, so it deliberately does not narrow
+    # this list -- doing so would tell clients a user is restricted when they
+    # are not, and would hide the All Music escape hatch.
+    my $roles   = Plugins::SlimPing::Auth::Permissions->rolesFor($u);
+    my $folders = Plugins::SlimPing::Core::Container->get('library_mapper')->getMusicFolders();
     return {
         username            => $u->{username},
+        folder              => [ map { $_->{id} } @$folders ],
         adminRole           => $roles->{adminRole}           ? \1 : \0,
         settingsRole        => $roles->{settingsRole}        ? \1 : \0,
         downloadRole        => $roles->{downloadRole}        ? \1 : \0,

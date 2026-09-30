@@ -46,16 +46,16 @@ my $prefs = Plugins::SlimPing::Core::Logging->getPrefs();
 # Layer 1 -- Per-client rate limiting (sliding window).
 # Keyed by "username:client_name".  Catches rapid-fire requests from a single
 # client before they consume slots.
-my %_remote_rate_state;               # "$user:$client" => [@timestamps]
+my %_remote_rate_state;    # "$user:$client" => [@timestamps]
 my $_remote_rate_sweep_count = 0;
 
 # Layer 2 -- Global concurrency cap.
 # The backstop: total concurrent remote pipeline players regardless of which
 # clients contribute.  Slots are released in PlayerCleanup.
-my $_remote_in_flight       = 0;
-my $_remote_dropped         = 0;      # total rejections (observability)
-my %_remote_slots;                    # address => 1
-my $_remote_last_drop_log   = 0;
+my $_remote_in_flight = 0;
+my $_remote_dropped   = 0;    # total rejections (observability)
+my %_remote_slots;            # address => 1
+my $_remote_last_drop_log = 0;
 use constant REMOTE_LOG_COOLDOWN => 30;
 
 # Layer 1 -- Per-client sliding-window rate limiter.
@@ -64,7 +64,7 @@ sub _checkRemoteRateLimit {
     my ( $username, $client_name ) = @_;
     my $key = ( $username || '_anon' ) . ':' . ( $client_name || 'unknown' );
 
-    my $limit  = $prefs->get('remote_stream_rate_limit') // 3;
+    my $limit  = $prefs->get('remote_stream_rate_limit')  // 3;
     my $window = $prefs->get('remote_stream_rate_window') // 10;
 
     my $timestamps = $_remote_rate_state{$key} ||= [];
@@ -74,12 +74,9 @@ sub _checkRemoteRateLimit {
     shift @$timestamps while @$timestamps && $timestamps->[0] < $cutoff;
 
     if ( @$timestamps >= $limit ) {
-        $log->warn(
-            "SlimPing: remote stream rate limit reached for $key "
-              . '('
+        $log->warn( "SlimPing: remote stream rate limit reached for $key " . '('
               . scalar(@$timestamps)
-              . " requests in ${window}s limit=$limit)"
-        );
+              . " requests in ${window}s limit=$limit)" );
         return 0;
     }
 
@@ -108,10 +105,8 @@ sub _acquireRemoteSlot {
         $_remote_dropped++;
         my $now = time();
         if ( $now - $_remote_last_drop_log > REMOTE_LOG_COOLDOWN ) {
-            $log->warn(
-                "SlimPing: remote stream concurrency cap reached "
-                  . "($_remote_in_flight/$cap in-flight, total_dropped=$_remote_dropped)"
-            );
+            $log->warn( "SlimPing: remote stream concurrency cap reached "
+                  . "($_remote_in_flight/$cap in-flight, total_dropped=$_remote_dropped)" );
             $_remote_last_drop_log = $now;
         }
         return 0;

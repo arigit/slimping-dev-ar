@@ -34,7 +34,7 @@ require Plugins::SlimPing::Core::UserStore;
 
 # Delete all rows from a resultset, returning the count deleted.
 sub flushAll {
-    my ($class, $resultset_name) = @_;
+    my ( $class, $resultset_name ) = @_;
 
     my $rs    = Plugins::SlimPing::Schema->connect()->resultset($resultset_name);
     my $count = $rs->count();
@@ -44,14 +44,14 @@ sub flushAll {
 
 # Delete all rows for a user from a given resultset, returning the count deleted.
 sub flushForUser {
-    my ($class, $username, $resultset_name) = @_;
+    my ( $class, $username, $resultset_name ) = @_;
 
     my $schema = Plugins::SlimPing::Schema->connect();
     my $user   = Plugins::SlimPing::Core::UserStore->getInstance->getByUsername($username)
-        or return 0;
+      or return 0;
 
-    my $count = $schema->resultset($resultset_name)->search({ user_id => $user->id() })->count();
-    $schema->resultset($resultset_name)->search({ user_id => $user->id() })->delete();
+    my $count = $schema->resultset($resultset_name)->search( { user_id => $user->id() } )->count();
+    $schema->resultset($resultset_name)->search( { user_id => $user->id() } )->delete();
     return $count;
 }
 

@@ -21,7 +21,11 @@
 #
 # Stateless class that enumerates Lyrion plugins SlimPing directly depends on or
 # interoperates with, reading their installed state, version, and (for streaming
-# services) quality/bitrate preferences.  Two consumers:
+# services) quality/bitrate preferences.  Streaming-service entries additionally
+# probe the LMS protocol-handler registry: whether a handler is registered for
+# the service's URL scheme and how SlimPing's protocol handler will delegate to
+# it (two-phase signed-URL resolution vs self-contained convert.conf command).
+# Consumers:
 #
 #   TranscodeEstimate::resolveSourceBitrate  — accurate source_br_kbps for
 #       remote tracks, replacing hardcoded per-scheme defaults
@@ -53,10 +57,20 @@ use warnings;
 #   'format_id'  — pref value is an integer format ID mapped via quality_map
 #
 my @_PLUGIN_SPECS = (
+
     # --- Streaming services ---
+    #
+    # url_scheme   - the URL scheme registered with LMS (probed via
+    #                Slim::Player::ProtocolHandlers->handlerForURL)
+    # content_types- source-format codes reported by the service's
+    #                formatOverride that unambiguously identify it; used
+    #                for bitrate lookups.  Shared codes (flac/flc/mp3/aac)
+    #                are deliberately not claimed - the generic defaults
+    #                apply.
     {
         name            => 'Spotty',
-        scheme          => 'spt',
+        url_scheme      => 'spotify',
+        content_types   => [qw(spt)],
         label           => 'Spotify (Spotty)',
         role            => 'streaming',
         role_label      => 'Streaming Service',
@@ -68,8 +82,23 @@ my @_PLUGIN_SPECS = (
         quality_map     => undef,
     },
     {
+        name            => 'SpotOn',
+        url_scheme      => 'spoton',
+        content_types   => [qw(son soc)],
+        label           => 'Spotify (SpotOn)',
+        role            => 'streaming',
+        role_label      => 'Streaming Service',
+        module_class    => 'Plugins::SpotOn::Plugin',
+        prefs_ns        => 'plugin.spoton',
+        pref_key        => 'bitrate',
+        quality_type    => 'int',
+        quality_default => 320,
+        quality_map     => undef,
+    },
+    {
         name            => 'TIDAL',
-        scheme          => 'tid',
+        url_scheme      => 'tidal',
+        content_types   => [],
         label           => 'TIDAL',
         role            => 'streaming',
         role_label      => 'Streaming Service',
@@ -79,15 +108,16 @@ my @_PLUGIN_SPECS = (
         quality_type    => 'quality',
         quality_default => 'HIGH',
         quality_map     => {
-            LOW      => { label => '96 kbps AAC',    br => 96 },
-            HIGH     => { label => '320 kbps AAC',   br => 320 },
+            LOW      => { label => '96 kbps AAC',     br => 96 },
+            HIGH     => { label => '320 kbps AAC',    br => 320 },
             LOSSLESS => { label => 'FLAC (lossless)', br => 900 },
             HI_RES   => { label => 'FLAC (hi-res)',   br => 3000 },
         },
     },
     {
         name            => 'Deezer',
-        scheme          => 'dze',
+        url_scheme      => 'deezer',
+        content_types   => [],
         label           => 'Deezer',
         role            => 'streaming',
         role_label      => 'Streaming Service',
@@ -97,14 +127,15 @@ my @_PLUGIN_SPECS = (
         quality_type    => 'quality',
         quality_default => 'HIGH',
         quality_map     => {
-            LOW      => { label => '128 kbps MP3',   br => 128 },
-            HIGH     => { label => '320 kbps MP3',   br => 320 },
+            LOW      => { label => '128 kbps MP3',    br => 128 },
+            HIGH     => { label => '320 kbps MP3',    br => 320 },
             LOSSLESS => { label => 'FLAC (lossless)', br => 900 },
         },
     },
     {
         name            => 'Qobuz',
-        scheme          => 'qbz',
+        url_scheme      => 'qobuz',
+        content_types   => [],
         label           => 'Qobuz',
         role            => 'streaming',
         role_label      => 'Streaming Service',
@@ -114,9 +145,9 @@ my @_PLUGIN_SPECS = (
         quality_type    => 'format_id',
         quality_default => 6,
         quality_map     => {
-            5  => { label => 'MP3 320 kbps',        br => 320 },
-            6  => { label => 'FLAC (CD quality)',   br => 900 },
-            7  => { label => 'FLAC (hi-res 24/96)', br => 1500 },
+            5  => { label => 'MP3 320 kbps',         br => 320 },
+            6  => { label => 'FLAC (CD quality)',    br => 900 },
+            7  => { label => 'FLAC (hi-res 24/96)',  br => 1500 },
             27 => { label => 'FLAC (hi-res 24/192)', br => 3000 },
         },
     },
@@ -167,9 +198,17 @@ sub effectiveBitrateForScheme {
     return _readEffectiveBitrate($spec);
 }
 
-# Return a list of hashrefs describing each known plugin.
-# Each hashref: { name, label, role, role_label, installed, version,
-#                 quality_label, effective_br }
+# Return a list of hashrefs describing each known plugin.  Each hashref:
+# { name, label, role, role_label, installed, version, quality_label,
+#   effective_br, url_scheme, handler_class, handler_registered,
+#   delegation_mode }
+#
+# For streaming services the LMS protocol-handler registration is probed:
+# handler_registered marks whether a handler for the URL scheme is present,
+# and delegation_mode describes how the SlimPing protocol handler will
+# delegate to it ('two-phase' handlers resolve the signed stream URL in
+# getNextTrack, 'self-contained' handlers let their convert.conf rule pull
+# the audio via the $URL$ token, 'none' means playback will fail).
 # Used by Core/Settings to populate the settings UI table.
 sub audit {
     my ($class) = @_;
@@ -178,10 +217,13 @@ sub audit {
     for my $spec (@_PLUGIN_SPECS) {
         my $installed = _probeInstalled($spec);
 
-        my $label         = $spec->{label};
-        my $version       = '';
-        my $quality_label = '';
-        my $effective_br  = 0;
+        my $label           = $spec->{label};
+        my $version         = '';
+        my $quality_label   = '';
+        my $effective_br    = 0;
+        my $url_scheme      = $spec->{url_scheme} || '';
+        my $handler_class   = '';
+        my $delegation_mode = '';
 
         if ($installed) {
             $version = _readPluginVersion($spec);
@@ -190,19 +232,34 @@ sub audit {
             if ( $spec->{role} eq 'streaming' ) {
                 $effective_br  = _readEffectiveBitrate($spec);
                 $quality_label = _readQualityLabel($spec);
+
+                # Probe only installed services: handlerForURL can load the
+                # handler class (with file-scope registration side effects),
+                # so probing uninstalled services wastes a module load per
+                # settings render and can register URL regexes for plugins
+                # whose init never ran.
+                if ($url_scheme) {
+                    $handler_class   = _probeHandlerClass($url_scheme);
+                    $delegation_mode = _delegationModeFor( $handler_class, $url_scheme );
+                }
             }
         }
 
-        push @results, {
-            name          => $spec->{name},
-            label         => $label,
-            role          => $spec->{role},
-            role_label    => $spec->{role_label},
-            installed     => $installed,
-            version       => $version,
-            quality_label => $quality_label || '',
-            effective_br  => $effective_br,
-        };
+        push @results,
+          {
+            name               => $spec->{name},
+            label              => $label,
+            role               => $spec->{role},
+            role_label         => $spec->{role_label},
+            installed          => $installed,
+            version            => $version,
+            quality_label      => $quality_label || '',
+            effective_br       => $effective_br,
+            url_scheme         => $url_scheme,
+            handler_class      => $handler_class || '',
+            handler_registered => $handler_class ? 1 : 0,
+            delegation_mode    => $delegation_mode,
+          };
     }
 
     return @results;
@@ -210,13 +267,67 @@ sub audit {
 
 # --- Private helpers --------------------------------------------------------
 
-# Look up a plugin spec by URL scheme (streaming only).
+# Look up a plugin spec by URL scheme or by a source-format code the
+# service's formatOverride reports (streaming only).  Callers pass either
+# the LMS URL scheme (e.g. 'spotify') or the content-type code (e.g. 'spt').
 sub _specForScheme {
-    my ($scheme) = @_;
+    my ($code) = @_;
+    return undef unless defined $code && length $code;
+    $code = lc($code);
+
     for my $spec (@_PLUGIN_SPECS) {
-        return $spec if $spec->{scheme} && $spec->{scheme} eq $scheme;
+        next unless $spec->{role} eq 'streaming';
+
+        if ( $spec->{url_scheme} && $spec->{url_scheme} eq $code ) {
+            return $spec;
+        }
+
+        if ( $spec->{content_types} ) {
+            for my $ct ( @{ $spec->{content_types} } ) {
+                return $spec if $ct eq $code;
+            }
+        }
     }
+
     return undef;
+}
+
+# Resolve the registered protocol-handler class for a URL scheme via LMS's
+# own registry.  handlerForURL loads the class (covers both protocol-table
+# and regex registrations), so callers can then inspect its capabilities.
+# Memoised per scheme: registrations only change at plugin load time, which
+# is a server restart away from any settings render.
+my %_handler_probe;
+
+sub _probeHandlerClass {
+    my ($url_scheme) = @_;
+    return '' unless $url_scheme;
+    return $_handler_probe{$url_scheme} if exists $_handler_probe{$url_scheme};
+
+    require Slim::Player::ProtocolHandlers;
+    my $handler_class = eval { Slim::Player::ProtocolHandlers->handlerForURL("$url_scheme://x"); };
+    my $result        = ( $@ || !$handler_class || $handler_class !~ /::/ ) ? '' : $handler_class;
+    $_handler_probe{$url_scheme} = $result;
+    return $result;
+}
+
+# Classify how the SlimPing protocol handler will delegate to a service's
+# handler, based on the service handler's capabilities:
+#   two-phase      - has getNextTrack: resolves the signed stream URL there,
+#                    then opens it in new() (Qobuz, TIDAL, Deezer, SpotOn)
+#   self-contained - no getNextTrack: its convert.conf rule pulls the audio
+#                    itself via the $URL$ token (Spotty); formatOverride
+#                    reports the source format
+#   passthrough    - registered, but no known hooks; playback may still work
+#                    through contentType/convert.conf defaults
+#   none           - no handler registered for the scheme
+sub _delegationModeFor {
+    my ( $handler_class, $url_scheme ) = @_;
+    return 'none' unless $handler_class;
+
+    return 'two-phase'      if $handler_class->can('getNextTrack');
+    return 'self-contained' if $handler_class->can('formatOverride');
+    return 'passthrough';
 }
 
 # Check whether a plugin is installed.  Tries PluginManager first (covers
@@ -227,9 +338,7 @@ sub _probeInstalled {
     return 0 unless $spec->{module_class};
 
     # Third-party plugins: PluginManager has metadata from install.xml
-    my $data = eval {
-        Slim::Utils::PluginManager->dataForPlugin( $spec->{module_class} );
-    };
+    my $data = eval { Slim::Utils::PluginManager->dataForPlugin( $spec->{module_class} ); };
     return 1 if $data;
 
     # Core LMS plugins: no PluginManager entry, but the module is in %INC
@@ -308,9 +417,7 @@ sub _readPluginDisplayName {
     return '' unless $spec->{module_class};
 
     # Third-party plugins: PluginManager has the raw name key
-    my $data = eval {
-        Slim::Utils::PluginManager->dataForPlugin( $spec->{module_class} );
-    };
+    my $data = eval { Slim::Utils::PluginManager->dataForPlugin( $spec->{module_class} ); };
     if ( $data && $data->{name} ) {
         my $label = eval { Slim::Utils::Strings::string( $data->{name} ); };
         return $label || $data->{name};
@@ -333,9 +440,7 @@ sub _readPluginVersion {
     return '' unless $spec->{module_class};
 
     # Third-party plugins
-    my $data = eval {
-        Slim::Utils::PluginManager->dataForPlugin( $spec->{module_class} );
-    };
+    my $data = eval { Slim::Utils::PluginManager->dataForPlugin( $spec->{module_class} ); };
     return $data->{version} if $data && $data->{version};
 
     # Core LMS plugins: read install.xml from the module directory
@@ -353,7 +458,7 @@ sub _readInstallXmlValue {
 
     my $pm_path = $INC{$module_path} or return '';
     require File::Basename;
-    my $dir     = File::Basename::dirname($pm_path);
+    my $dir      = File::Basename::dirname($pm_path);
     my $xml_path = "$dir/install.xml";
     return '' unless -f $xml_path;
 

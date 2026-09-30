@@ -67,11 +67,11 @@ sub init {
     _registerQuirk(
         name        => 'substreamer_artwork_response',
         description => 'Replace underscores with hyphens in coverArt IDs '
-                     . '(github.com/ghenry22/substreamer/issues/144)',
-        pref        => 'quirk_substreamer_artwork',
-        hook        => 'response',
-        clients     => { substreamer => 1 },
-        transform   => \&_fixCoverArtUnderscores,
+          . '(github.com/ghenry22/substreamer/issues/144)',
+        pref      => 'quirk_substreamer_artwork',
+        hook      => 'response',
+        clients   => { substreamer => 1 },
+        transform => \&_fixCoverArtUnderscores,
     );
 
     # Request phase: convert hyphenated IDs back to underscore format
@@ -89,21 +89,21 @@ sub _registerQuirk {
     my (%args) = @_;
     my $name = $args{name} or die 'ClientQuirks: quirk registration missing name';
     die "ClientQuirks: duplicate quirk registration '$name'"
-        if exists $_quirks{$name};
+      if exists $_quirks{$name};
     my $pref_name = $args{pref} // "quirk_$name";
     $_quirks{$name} = {
         description => $args{description} // '',
         pref        => $pref_name,
-        hook        => $args{hook}        // 'response',
-        clients     => $args{clients}     // {},
-        transform   => $args{transform}   // sub { },
+        hook        => $args{hook}      // 'response',
+        clients     => $args{clients}   // {},
+        transform   => $args{transform} // sub { },
     };
 }
 
 # --- Per-request client tracking ------------------------------------------------
 
 sub setRequestClient {
-    my ($class, $client_name) = @_;
+    my ( $class, $client_name ) = @_;
     $_current_client = undef;
     return unless $prefs->get('client_quirks_enabled');
     $_current_client = $client_name;
@@ -114,39 +114,39 @@ sub setRequestClient {
 # Apply all request-phase quirks matching the current client.
 # Called by Router before handler dispatch.
 sub applyRequestHooks {
-    my ($class, $args) = @_;
+    my ( $class, $args ) = @_;
     return unless $prefs->get('client_quirks_enabled');
     return unless $_current_client;
-    _applyHooks('request', $args);
+    _applyHooks( 'request', $args );
 }
 
 # Apply all response-phase quirks matching the current client.
 # Called by Router after handler dispatch, before ResponseFormatter.
 # Mutates $result in-place.
 sub applyResponseHooks {
-    my ($class, $result) = @_;
+    my ( $class, $result ) = @_;
     return unless $prefs->get('client_quirks_enabled');
     return unless $_current_client;
     return unless $result && ref $result eq 'HASH';
-    _applyHooks('response', $result);
+    _applyHooks( 'response', $result );
 }
 
 # Apply all stream-phase quirks matching the current client.
 # Called by Stream handler before pipeline dispatch.
 sub applyStreamHooks {
-    my ($class, $args) = @_;
+    my ( $class, $args ) = @_;
     return unless $prefs->get('client_quirks_enabled');
     return unless $_current_client;
-    _applyHooks('stream', $args);
+    _applyHooks( 'stream', $args );
 }
 
 # --- Internal -------------------------------------------------------------------
 
 # Walk registered quirks and apply any that match the current client + hook type.
 sub _applyHooks {
-    my ($hook_type, $data) = @_;
+    my ( $hook_type, $data ) = @_;
 
-    for my $name (keys %_quirks) {
+    for my $name ( keys %_quirks ) {
         my $q = $_quirks{$name};
         next unless $q->{hook} eq $hook_type;
         next unless $prefs->get( $q->{pref} );
@@ -160,10 +160,10 @@ sub _applyHooks {
 # Many clients append version numbers or instance IDs to their base name
 # (e.g. substreamer8 matches registered key 'substreamer').
 sub _clientMatches {
-    my ($current, $clients) = @_;
+    my ( $current, $clients ) = @_;
     return 0 unless defined $current && length $current;
     my $lc = lc $current;
-    for my $prefix (keys %$clients) {
+    for my $prefix ( keys %$clients ) {
         return 1 if $lc eq $prefix || index( $lc, $prefix ) == 0;
     }
     return 0;
@@ -196,21 +196,21 @@ sub quirks_for_client {
 
 # Response-tree walker: calls $callback on every hashref in the tree.
 sub _walkResponseTree {
-    my ($data, $callback) = @_;
+    my ( $data, $callback ) = @_;
     return unless ref $data eq 'HASH';
 
     $callback->($data);
 
-    for my $key (keys %$data) {
+    for my $key ( keys %$data ) {
         my $val = $data->{$key};
         next unless defined $val;
 
-        if (ref $val eq 'HASH') {
-            _walkResponseTree($val, $callback);
+        if ( ref $val eq 'HASH' ) {
+            _walkResponseTree( $val, $callback );
         }
-        elsif (ref $val eq 'ARRAY') {
+        elsif ( ref $val eq 'ARRAY' ) {
             for my $item (@$val) {
-                _walkResponseTree($item, $callback) if ref $item eq 'HASH';
+                _walkResponseTree( $item, $callback ) if ref $item eq 'HASH';
             }
         }
     }
@@ -222,17 +222,21 @@ sub _walkResponseTree {
 # that Substreamer's parser truncates at the underscore.
 sub _fixCoverArtUnderscores {
     my ($data) = @_;
-    _walkResponseTree($data, sub {
-        my ($node) = @_;
-        for my $key (keys %$node) {
-            my $val = $node->{$key};
-            next unless defined $val && !ref $val;
-            # Transform URL fields AND the coverArt bare ID (clients construct URLs from it).
-            next unless $key eq 'coverArt' || ( $val =~ m{/rest/} && $val =~ /sq_/ );
-            $val =~ s/\b(sq)_([a-z]+)_(\w+)\b/$1-$2-$3/g;
-            $node->{$key} = $val;
+    _walkResponseTree(
+        $data,
+        sub {
+            my ($node) = @_;
+            for my $key ( keys %$node ) {
+                my $val = $node->{$key};
+                next unless defined $val && !ref $val;
+
+                # Transform URL fields AND the coverArt bare ID (clients construct URLs from it).
+                next unless $key eq 'coverArt' || ( $val =~ m{/rest/} && $val =~ /sq_/ );
+                $val =~ s/\b(sq)_([a-z]+)_(\w+)\b/$1-$2-$3/g;
+                $node->{$key} = $val;
+            }
         }
-    });
+    );
 }
 
 # Convert hyphenated sq-IDs in the id param back to underscore format

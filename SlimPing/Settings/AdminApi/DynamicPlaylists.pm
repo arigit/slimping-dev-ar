@@ -51,11 +51,11 @@ sub handle {
 
         $result = {
             feature_enabled => $prefs->get('dpl_feature_enabled') ? \1 : \0,
-            dpl4_available  => $bridge->isAvailable() ? \1 : \0,
+            dpl4_available  => $bridge->isAvailable()             ? \1 : \0,
             eligible_count  => $bridge->getExposureCount(),
             eligible_names  => $bridge->getExposureNames(),
             cache_ttl       => $prefs->get('dpl_cache_ttl_seconds') // 300,
-            seed_size       => $prefs->get('dpl_seed_size') // 100,
+            seed_size       => $prefs->get('dpl_seed_size')         // 100,
         };
     }
     elsif ( $method eq 'POST' ) {
@@ -68,7 +68,7 @@ sub handle {
 
         if ( exists $p->{cache_ttl} ) {
             my $ttl = int( $p->{cache_ttl} // 300 );
-            $ttl = 60  if $ttl < 60;
+            $ttl = 60   if $ttl < 60;
             $ttl = 3600 if $ttl > 3600;
             $prefs->set( 'dpl_cache_ttl_seconds', $ttl );
         }
@@ -92,7 +92,7 @@ sub handle {
             my $bridge = Plugins::SlimPing::Core::DynamicPlaylistBridge->getInstance();
             $bridge->refreshRegistry();
             $result->{registry_refreshed} = \1;
-            $result->{eligible_count} = $bridge->getExposureCount();
+            $result->{eligible_count}     = $bridge->getExposureCount();
         }
 
         $result->{feature_enabled} = $prefs->get('dpl_feature_enabled') ? \1 : \0;

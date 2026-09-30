@@ -32,13 +32,13 @@ use warnings;
 # Format a duration in seconds as "m:ss" or "h:mm:ss".
 # Returns '0:00' for undef, zero, or negative input.
 sub formatDuration {
-    my ($class, $secs) = @_;
+    my ( $class, $secs ) = @_;
     return '0:00' unless $secs && $secs > 0;
-    my $m = int($secs / 60);
-    my $s = int($secs % 60);
-    my $h = int($m / 60);
+    my $m = int( $secs / 60 );
+    my $s = int( $secs % 60 );
+    my $h = int( $m / 60 );
     $m = $m % 60;
-    return $h > 0 ? sprintf('%d:%02d:%02d', $h, $m, $s) : sprintf('%d:%02d', $m, $s);
+    return $h > 0 ? sprintf( '%d:%02d:%02d', $h, $m, $s ) : sprintf( '%d:%02d', $m, $s );
 }
 
 1;

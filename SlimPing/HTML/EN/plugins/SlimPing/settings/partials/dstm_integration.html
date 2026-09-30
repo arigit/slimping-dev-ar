@@ -1,0 +1,124 @@
+<div class="settings-accordion" data-accordion-id="dstm-integration">
+    <div class="settings-accordion-header" aria-expanded="false" role="button" tabindex="0"
+        aria-controls="accordion-content-dstm-integration">
+        <div class="settings-accordion-title">DSTM Integration</div>
+        <div class="settings-accordion-icon"></div>
+    </div>
+    <div id="accordion-content-dstm-integration" class="settings-accordion-content">
+
+        <p class="m-0 mb-10 fs-12 text-secondary">
+            SlimPing connects Lyrion's DSTM (Don't Stop The Music) mixers to Subsonic
+            clients. When a client asks for similar tracks (<code>getSonicSimilarTracks</code>,
+            <code>findSonicPath</code>, <code>getSimilarSongs</code>) or an active
+            stream's queue runs low, the DSTM mixer you choose below supplies the next
+            tracks. The mixing level controls how much of this integration is active;
+            the classic genre/tag engine remains available as a fallback.
+        </p>
+
+        <div class="prefsManager">
+            <div class="prefsBlock">
+                <div class="row">
+                    <div class="col-sm-6 col-md-4">
+                        [% WRAPPER setting title="Mixing level" desc="off keeps today's behaviour (classic genre/tag engine only). feed adds automatic queue top-up for active streams. similarity adds the sonic endpoints and mixer-backed similar songs. full adds findSonicPath." %]
+                        <select class="stdedit" name="dstm_mix_level">
+                            <option value="off" [% IF dstm_mix_level == 'off' %]selected[% END %]>Off (classic engine only)</option>
+                            <option value="feed" [% IF dstm_mix_level == 'feed' %]selected[% END %]>Feed top-up</option>
+                            <option value="similarity" [% IF dstm_mix_level == 'similarity' %]selected[% END %]>Similarity + feed</option>
+                            <option value="full" [% IF dstm_mix_level == 'full' %]selected[% END %]>Full (incl. sonic paths)</option>
+                        </select>
+                        [% END %]
+                    </div>
+                    <div class="col-sm-6 col-md-4">
+                        [% WRAPPER setting title="Classic fallback" desc="When the mixer returns nothing, fall back to the classic genre/tag engine. Off means the mixer result is final. Note: the built-in Lyrion DSTM bridge answers track-level queries only, so artist-seeded similar songs always use the classic engine unless a sonic provider is registered." %]
+                        <input type="hidden" name="dstm_fallback_db" value="0">
+                        <input type="checkbox" class="stdedit" name="dstm_fallback_db" value="1" [% IF dstm_fallback_db %]checked[% END %]>
+                        [% END %]
+                    </div>
+                    <div class="col-sm-6 col-md-4">
+                        [% WRAPPER setting title="Sonic path hops" desc="Maximum hops for findSonicPath when no provider implements pathfinding (5-500)." %]
+                        <input type="text" class="stdedit" name="dstm_path_hops" value="[% dstm_path_hops %]">
+                        [% END %]
+                    </div>
+                    <div class="col-sm-6 col-md-4">
+                        [% WRAPPER setting title="Seed window" desc="How many recent tracks are passed to the mixer as the seed (1-20)." %]
+                        <input type="text" class="stdedit" name="dstm_seed_window" value="[% dstm_seed_window %]">
+                        [% END %]
+                    </div>
+                    <div class="col-sm-6 col-md-4">
+                        [% WRAPPER setting title="Top-up threshold" desc="Tracks remaining in the active stream's queue before the continual feed tops it up (0-10)." %]
+                        <input type="text" class="stdedit" name="dstm_topup_threshold" value="[% dstm_topup_threshold %]">
+                        [% END %]
+                    </div>
+                    <div class="col-sm-6 col-md-4">
+                        [% WRAPPER setting title="DSTM provider" desc="The DSTM mixer token to use for the sonic endpoints and the continual feed. Auto uses the first provider configured on any Lyrion player; the list below shows the mixers available." %]
+                        <select class="stdedit" name="dstm_provider">
+                            <option value="" [% IF dstm_provider == '' %]selected[% END %]>Auto</option>
+                            [% FOR t IN dstm_tokens %]
+                            <option value="[% t | html %]" [% IF dstm_provider == t %]selected[% END %]>[% t | html %]</option>
+                            [% END %]
+                        </select>
+                        [% END %]
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        [% WRAPPER setting title="Sonic Providers"
+        desc="Mixer plugins that registered with SlimPing for the sonic extras: real similarity scores and pathfinding, instead of the built-in bridge. Read-only. See docs/dstm-plugin-integration.md for the plugin author contract." %]
+        [% IF dstm_providers.size %]
+        <table class="stdt" style="margin:0;width:auto;max-width:900px">
+            <tr>
+                <th>Provider</th>
+                <th>Source</th>
+                <th>Capabilities</th>
+            </tr>
+            [% FOR p IN dstm_providers %]
+            <tr>
+                <td>[% p.name | html %]</td>
+                <td>[% IF p.id == 'dstm' %]Lyrion DSTM[% ELSE %]Sonic registry[% END %]</td>
+                <td>
+                    [% IF p.has_similar_tracks %]similar tracks[% END %]
+                    [% IF p.has_find_path %]+ pathfinding[% END %]
+                    [% IF !p.has_similar_tracks && !p.has_find_path %]&mdash;[% END %]
+                </td>
+            </tr>
+            [% END %]
+        </table>
+        [% ELSE %]
+        <p class="m-0 fs-12 text-muted">
+            No sonic providers registered. Similarity comes from the built-in
+            Lyrion DSTM bridge (the mixer chosen above) or the classic engine.
+        </p>
+        [% END %]
+        [% END %]
+
+        [% WRAPPER setting title="Lyrion DSTM Mixers"
+        desc="The mixers available in Lyrion's DSTM settings. Any of them can back the sonic endpoints and the continual feed; pick one in the DSTM provider setting above, or leave Auto to use the first one configured on any Lyrion player." %]
+        [% IF dstm_tokens.size %]
+        <div class="settings-accordion" data-accordion-id="dstm-tokens">
+            <div class="settings-accordion-header" aria-expanded="false" role="button" tabindex="0"
+                aria-controls="accordion-content-dstm-tokens">
+                <div class="settings-accordion-title">[% dstm_tokens.size %] mixers available (click to expand)</div>
+                <div class="settings-accordion-icon"></div>
+            </div>
+            <div id="accordion-content-dstm-tokens" class="settings-accordion-content">
+                <table class="stdt" style="margin:0;width:auto">
+                    [% FOR t IN dstm_tokens %]
+                    <tr>
+                        <td>[% t | html %][% IF dstm_provider == t %] <span class="text-muted">(current)</span>[% END %]</td>
+                    </tr>
+                    [% END %]
+                </table>
+            </div>
+        </div>
+        [% ELSE %]
+        <p class="m-0 fs-12 text-muted">
+            Lyrion's DSTM feature is not installed, or no mixers are registered
+            with it. Install a DSTM mixer plugin (e.g. Bliss, LastMix, RandomPlay)
+            and enable it in Lyrion's DSTM settings to use this integration.
+        </p>
+        [% END %]
+        [% END %]
+
+    </div>
+</div>

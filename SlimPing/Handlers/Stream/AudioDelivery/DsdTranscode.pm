@@ -41,8 +41,8 @@ my $log = Plugins::SlimPing::Core::Logging->getLogger();
 # 88.2/176.4kHz available for high-bandwidth setups via settings.
 sub selectOutputRate {
     my ($track) = @_;
-    my $prefs = Plugins::SlimPing::Core::Logging->getPrefs();
-    my $rate  = $prefs->get('exotic_target_rate');
+    my $prefs   = Plugins::SlimPing::Core::Logging->getPrefs();
+    my $rate    = $prefs->get('exotic_target_rate');
     $rate = 44100  if $rate < 44100;
     $rate = 176400 if $rate > 176400;
     return $rate;

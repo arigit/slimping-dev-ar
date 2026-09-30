@@ -65,13 +65,14 @@ use constant MAINTENANCE_INTERVAL => 30;
 # --- Startup audit ------------------------------------------------------------
 
 sub auditCapabilities {
+
     # Platform gate: Windows Perl lacks fork(), pipe-based completion
     # detection, and /bin/sh.  External binary processing is unavailable
     # regardless of whether binaries (flac.exe, dsdplay.exe) exist on PATH.
     my $is_windows = defined &main::ISWINDOWS && main::ISWINDOWS;
     if ($is_windows) {
         $log->warn("SlimPing: ExternalProcess disabled on Windows (fork unavailable)");
-        $_CAN_FORK    = 0;
+        $_CAN_FORK     = 0;
         $_HAVE_FLAC    = undef;
         $_HAVE_DSDPLAY = undef;
         _cleanupOrphanedTempFiles();
@@ -85,16 +86,17 @@ sub auditCapabilities {
         flac    => \$_HAVE_FLAC,
         dsdplay => \$_HAVE_DSDPLAY,
     );
-    for my $bin (keys %binaries) {
+    for my $bin ( keys %binaries ) {
         my $path = eval { Slim::Utils::Misc::findbin($bin) };
         if ($@) {
             $log->warn("SlimPing: ExternalProcess capability $bin lookup error: $@");
             $path = undef;
         }
         ${ $binaries{$bin} } = defined $path ? $path : undef;
-        if (${ $binaries{$bin} }) {
+        if ( ${ $binaries{$bin} } ) {
             $log->info("SlimPing: ExternalProcess capability $bin -> $path");
-        } else {
+        }
+        else {
             $log->warn("SlimPing: ExternalProcess capability $bin NOT FOUND");
         }
     }
@@ -134,14 +136,14 @@ sub dsdplayPath { return $_HAVE_DSDPLAY; }
 # Returns 1 on success, 0 if a duplicate is already in-flight
 # (caller should fall through to MP3 pipeline).
 sub spawn {
-    my ($class, %args) = @_;
+    my ( $class, %args ) = @_;
 
     my $cmd          = $args{cmd};
     my $tmp_path     = $args{tmp_path};
     my $cache_key    = $args{cache_key};
     my $cache_sq_id  = $args{cache_sq_id};
     my $cache_suffix = $args{cache_suffix};
-    my $timeout_s    = $args{timeout_s}   // 120;
+    my $timeout_s    = $args{timeout_s} // 120;
     my $on_complete  = $args{on_complete};
     my $on_error     = $args{on_error};
     my $httpClient   = $args{httpClient};
@@ -182,10 +184,10 @@ sub spawn {
     # $^F controls which FDs survive exec().  Default is 2 (only stdin/
     # stdout/stderr survive).  We bump it so the pipe FDs survive.
     local $^F = 999;
-    pipe(my $read_fh, my $write_fh);
+    pipe( my $read_fh, my $write_fh );
 
     my $pid = fork();
-    unless (defined $pid) {
+    unless ( defined $pid ) {
         close($read_fh);
         close($write_fh);
         $log->error("SlimPing: ExternalProcess fork failed: $!");
@@ -193,13 +195,12 @@ sub spawn {
         return 1;
     }
 
-    if ($pid == 0) {
+    if ( $pid == 0 ) {
+
         # --- CHILD ---
         close($read_fh);
         eval { Plugins::SlimPing::Schema->disconnect(); };
-        _execChild( $cmd,
-            keep_fds => [ fileno($write_fh) ],
-        );
+        _execChild( $cmd, keep_fds => [ fileno($write_fh) ], );
     }
 
     # --- PARENT ---
@@ -231,20 +232,18 @@ sub spawn {
     # Register the pipe read-end with LMS's EV event loop.  addRead
     # creates an EV I/O watcher; when the child exits and the pipe gets
     # EOF, EV fires the callback from within its normal event dispatch.
-Slim::Networking::Select::addRead($read_fh, sub { _onChildExit($cache_key); });
+    Slim::Networking::Select::addRead( $read_fh, sub { _onChildExit($cache_key); } );
 
     # Arm the one-shot timeout.  If the child hasn't exited by the
     # timeout, we kill it -- the resulting pipe EOF will fire the
     # addRead callback which handles cleanup.
-    $entry->{timer} = Slim::Utils::Timers::setTimer(
-        undef, time() + $timeout_s, sub { _handleTimeout($cache_key); }
-    );
+    $entry->{timer} = Slim::Utils::Timers::setTimer( undef, time() + $timeout_s, sub { _handleTimeout($cache_key); } );
 
     if ($httpClient) {
         $entry->{close_handler} = sub {
             my ($closedClient) = @_;
             return unless $closedClient && $closedClient eq $httpClient;
-            _cleanupEntry($cache_key, 'client disconnect');
+            _cleanupEntry( $cache_key, 'client disconnect' );
         };
         push @Slim::Web::HTTP::closeHandlers, $entry->{close_handler};
     }
@@ -265,23 +264,25 @@ Slim::Networking::Select::addRead($read_fh, sub { _onChildExit($cache_key); });
 #   cmd_intermediate => [$bin, @args]    (optional middle stage, reads from
 #                                         STDIN, writes to STDOUT)
 sub spawnPipeline {
-    my ($class, %args) = @_;
+    my ( $class, %args ) = @_;
 
-    my $cmd_decode      = $args{cmd_decode};
-    my $cmd_encode      = $args{cmd_encode};
+    my $cmd_decode       = $args{cmd_decode};
+    my $cmd_encode       = $args{cmd_encode};
     my $cmd_intermediate = $args{cmd_intermediate};
     my $tmp_path         = $args{tmp_path};
     my $cache_key        = $args{cache_key};
     my $cache_sq_id      = $args{cache_sq_id};
     my $cache_suffix     = $args{cache_suffix};
-    my $timeout_s        = $args{timeout_s}   // 120;
+    my $timeout_s        = $args{timeout_s} // 120;
     my $on_complete      = $args{on_complete};
     my $on_error         = $args{on_error};
     my $httpClient       = $args{httpClient};
     my $response         = $args{response};
 
-    my $three_stage = defined $cmd_intermediate
-        && ref $cmd_intermediate eq 'ARRAY' && @$cmd_intermediate;
+    my $three_stage =
+         defined $cmd_intermediate
+      && ref $cmd_intermediate eq 'ARRAY'
+      && @$cmd_intermediate;
 
     unless ($_CAN_FORK) {
         $log->error("SlimPing: spawnPipeline called but fork unavailable");
@@ -309,27 +310,26 @@ sub spawnPipeline {
     local $^F = 999;
 
     # Create IPC pipe 1 (decode → intermediate or encode).
-    pipe(my $ipc1_read, my $ipc1_write);
+    pipe( my $ipc1_read, my $ipc1_write );
 
     # Create IPC pipe 2 (intermediate → encode), only for three-stage.
     my ( $ipc2_read, $ipc2_write );
     if ($three_stage) {
-        pipe($ipc2_read, $ipc2_write);
+        pipe( $ipc2_read, $ipc2_write );
     }
 
     # Create completion pipe — write end held by encode child.
-    pipe(my $comp_read, my $comp_write);
+    pipe( my $comp_read, my $comp_write );
 
     # --- Fork decode child (stage 1) ---
     my $decode_pid = _forkExecChild(
         'decode', $cmd_decode,
-        stdin_fd   => undef,
-        stdout_fd  => fileno($ipc1_write),
-        keep_fds   => [ fileno($ipc1_write) ],
+        stdin_fd  => undef,
+        stdout_fd => fileno($ipc1_write),
+        keep_fds  => [ fileno($ipc1_write) ],
     );
-    unless (defined $decode_pid) {
-        close($_) for ( grep defined, $ipc1_read, $ipc1_write,
-            $ipc2_read, $ipc2_write, $comp_read, $comp_write );
+    unless ( defined $decode_pid ) {
+        close($_) for ( grep defined, $ipc1_read, $ipc1_write, $ipc2_read, $ipc2_write, $comp_read, $comp_write );
         $log->error("SlimPing: spawnPipeline decode fork failed: $!");
         $on_error->("decode fork failed: $!");
         return 1;
@@ -346,11 +346,10 @@ sub spawnPipeline {
             stdout_fd => fileno($ipc2_write),
             keep_fds  => [ fileno($ipc1_read), fileno($ipc2_write) ],
         );
-        unless (defined $intermediate_pid) {
-            close($_) for ( grep defined, $ipc1_read, $ipc2_read, $ipc2_write,
-                $comp_read, $comp_write );
-            kill('TERM', $decode_pid);
-            waitpid($decode_pid, 0);
+        unless ( defined $intermediate_pid ) {
+            close($_) for ( grep defined, $ipc1_read, $ipc2_read, $ipc2_write, $comp_read, $comp_write );
+            kill( 'TERM', $decode_pid );
+            waitpid( $decode_pid, 0 );
             $log->error("SlimPing: spawnPipeline intermediate fork failed: $!");
             $on_error->("intermediate fork failed: $!");
             return 1;
@@ -361,26 +360,25 @@ sub spawnPipeline {
 
     # --- Fork encode child (final stage) ---
     my $enc_stdin_fd = $three_stage ? fileno($ipc2_read) : fileno($ipc1_read);
-    my $encode_pid = _forkExecChild(
+    my $encode_pid   = _forkExecChild(
         'encode', $cmd_encode,
-        stdin_fd   => $enc_stdin_fd,
-        keep_fds   => [ $enc_stdin_fd, fileno($comp_write) ],
+        stdin_fd => $enc_stdin_fd,
+        keep_fds => [ $enc_stdin_fd, fileno($comp_write) ],
     );
-    unless (defined $encode_pid) {
-        close($_) for ( grep defined, $three_stage ? $ipc2_read : $ipc1_read,
-            $comp_read, $comp_write );
-        kill('TERM', $decode_pid);
-        waitpid($decode_pid, 0);
+    unless ( defined $encode_pid ) {
+        close($_) for ( grep defined, $three_stage ? $ipc2_read : $ipc1_read, $comp_read, $comp_write );
+        kill( 'TERM', $decode_pid );
+        waitpid( $decode_pid, 0 );
         if ($intermediate_pid) {
-            kill('TERM', $intermediate_pid);
-            waitpid($intermediate_pid, 0);
+            kill( 'TERM', $intermediate_pid );
+            waitpid( $intermediate_pid, 0 );
         }
         $log->error("SlimPing: spawnPipeline encode fork failed: $!");
         $on_error->("encode fork failed: $!");
         return 1;
     }
 
-    close($three_stage ? $ipc2_read : $ipc1_read);
+    close( $three_stage ? $ipc2_read : $ipc1_read );
     close($comp_write);
 
     # --- Parent: register entry and completion watcher ---
@@ -407,33 +405,31 @@ sub spawnPipeline {
     };
     $_IN_FLIGHT{$cache_key} = $entry;
 
-Slim::Networking::Select::addRead($comp_read, sub { _onChildExit($cache_key); });
+    Slim::Networking::Select::addRead( $comp_read, sub { _onChildExit($cache_key); } );
 
-    $entry->{timer} = Slim::Utils::Timers::setTimer(
-        undef, time() + $timeout_s, sub { _handleTimeout($cache_key); }
-    );
+    $entry->{timer} = Slim::Utils::Timers::setTimer( undef, time() + $timeout_s, sub { _handleTimeout($cache_key); } );
 
     if ($httpClient) {
         $entry->{close_handler} = sub {
             my ($closedClient) = @_;
             return unless $closedClient && $closedClient eq $httpClient;
-            _cleanupEntry($cache_key, 'client disconnect');
+            _cleanupEntry( $cache_key, 'client disconnect' );
         };
         push @Slim::Web::HTTP::closeHandlers, $entry->{close_handler};
     }
 
-    $log->debug("SlimPing: spawnPipeline decode_pid=$decode_pid "
-        . ( $intermediate_pid ? "intermediate_pid=$intermediate_pid " : '' )
-        . "encode_pid=$encode_pid key=$cache_key");
+    $log->debug( "SlimPing: spawnPipeline decode_pid=$decode_pid "
+          . ( $intermediate_pid ? "intermediate_pid=$intermediate_pid " : '' )
+          . "encode_pid=$encode_pid key=$cache_key" );
     return 1;
 }
 
 # Fork a child and call _execChild in it.  Used by spawnPipeline.
 sub _forkExecChild {
-    my ($label, $cmd, %opts) = @_;
+    my ( $label, $cmd, %opts ) = @_;
     my $pid = fork();
     return $pid unless defined $pid && $pid == 0;
-    _execChild($cmd, %opts);
+    _execChild( $cmd, %opts );
 }
 
 # Prepare a forked child for exec: optionally redirect stdin/stdout, redirect
@@ -445,7 +441,7 @@ sub _forkExecChild {
 #   output_path - if set and stdout_fd is undef, open this file for STDOUT
 #   keep_fds    - arrayref of additional fds to preserve
 sub _execChild {
-    my ($cmd, %opts) = @_;
+    my ( $cmd, %opts ) = @_;
     my $stdin_fd    = $opts{stdin_fd};
     my $stdout_fd   = $opts{stdout_fd};
     my $output_path = $opts{output_path};
@@ -459,7 +455,8 @@ sub _execChild {
     if ( defined $stdout_fd ) {
         POSIX::dup2( $stdout_fd, fileno(STDOUT) );
         POSIX::close($stdout_fd) unless $stdout_fd == fileno(STDOUT);
-    } elsif ( defined $output_path ) {
+    }
+    elsif ( defined $output_path ) {
         open( my $out_fh, '>', $output_path ) or POSIX::_exit(127);
         POSIX::dup2( fileno($out_fh), fileno(STDOUT) );
         POSIX::close($out_fh);
@@ -467,8 +464,8 @@ sub _execChild {
 
     # Redirect stderr to a temp log.  Include $$ (child PID after fork)
     # so concurrent spawnPipeline children don't collide on filenames.
-    my $err_path = Slim::Utils::Misc::getTempDir() . '/slimping_err_'
-      . time() . '_' . $$ . '_' . int( rand(999999) ) . '.log';
+    my $err_path =
+      Slim::Utils::Misc::getTempDir() . '/slimping_err_' . time() . '_' . $$ . '_' . int( rand(999999) ) . '.log';
     my $err_fh;
     open( $err_fh, '>>', $err_path )
       or open( $err_fh, '>>', '/tmp/slimping_err.log' );
@@ -478,10 +475,9 @@ sub _execChild {
     # Build set of FDs to preserve: redirected stdin/stdout, stderr log,
     # and any caller-specified extras (e.g. completion pipe write-end).
     my %keep = map { $_ => 1 } (
-        ( defined $stdin_fd  ? fileno(STDIN)  : () ),
+        ( defined $stdin_fd                          ? fileno(STDIN)  : () ),
         ( defined $stdout_fd || defined $output_path ? fileno(STDOUT) : () ),
-        $err_fd,
-        @$keep_fds,
+        $err_fd, @$keep_fds,
     );
 
     if ( opendir( my $fd_dir, '/proc/self/fd' ) ) {
@@ -492,7 +488,8 @@ sub _execChild {
             POSIX::close($fd);
         }
         closedir($fd_dir);
-    } else {
+    }
+    else {
         for my $fd ( 3 .. 1023 ) {
             next if $keep{$fd};
             POSIX::close($fd);
@@ -500,7 +497,7 @@ sub _execChild {
     }
 
     eval { untie(*STDERR); };
-    for my $sig (keys %SIG) {
+    for my $sig ( keys %SIG ) {
         next if $sig eq '__WARN__' || $sig eq '__DIE__';
         $SIG{$sig} = 'DEFAULT';
     }
@@ -521,47 +518,51 @@ sub _onChildExit {
     }
 
     # Remove the EV I/O watcher for the pipe.
-Slim::Networking::Select::removeRead($entry->{read_fh});
+    Slim::Networking::Select::removeRead( $entry->{read_fh} );
 
     # Cancel the timeout timer -- child already exited.
-    Slim::Utils::Timers::killTimers(undef, $entry->{timer})
+    Slim::Utils::Timers::killTimers( undef, $entry->{timer} )
       if $entry->{timer};
 
     # Close the pipe read-end.
-    close(delete $entry->{read_fh});
+    close( delete $entry->{read_fh} );
 
     # Reap the child.
     my $pid = $entry->{pid};
-    my $ret = waitpid($pid, &WNOHANG);
+    my $ret = waitpid( $pid, &WNOHANG );
 
-    if ($ret == $pid) {
-        _handleExit($cache_key, $ret, $?);
+    if ( $ret == $pid ) {
+        _handleExit( $cache_key, $ret, $? );
         return;
     }
 
-    if ($ret == 0) {
+    if ( $ret == 0 ) {
+
         # Child still running but pipe got EOF?  Unusual -- the child
         # may have explicitly closed the write-end.  Block-wait briefly.
-        $ret = waitpid($pid, 0);
-        if ($ret == $pid) {
-            _handleExit($cache_key, $ret, $?);
+        $ret = waitpid( $pid, 0 );
+        if ( $ret == $pid ) {
+            _handleExit( $cache_key, $ret, $? );
             return;
         }
-        _fireError($cache_key, 'pipe EOF but child still alive after block-wait');
+        _fireError( $cache_key, 'pipe EOF but child still alive after block-wait' );
         return;
     }
 
-    if ($ret == -1) {
-        if ($!{ECHILD}) {
+    if ( $ret == -1 ) {
+        if ( $!{ECHILD} ) {
+
             # Another handler reaped our child.  Treat as success if
             # the temp file is non-empty.
-            if (-f $entry->{tmp_path} && -s $entry->{tmp_path}) {
+            if ( -f $entry->{tmp_path} && -s $entry->{tmp_path} ) {
                 _fireComplete($cache_key);
-            } else {
-                _fireError($cache_key, 'ECHILD - child reaped externally, no output');
             }
-        } else {
-            _fireError($cache_key, "waitpid error: $!");
+            else {
+                _fireError( $cache_key, 'ECHILD - child reaped externally, no output' );
+            }
+        }
+        else {
+            _fireError( $cache_key, "waitpid error: $!" );
         }
         return;
     }
@@ -570,7 +571,7 @@ Slim::Networking::Select::removeRead($entry->{read_fh});
 # --- Exit / error handling ----------------------------------------------------
 
 sub _handleExit {
-    my ($cache_key, $pid, $status) = @_;
+    my ( $cache_key, $pid, $status ) = @_;
     my $entry = $_IN_FLIGHT{$cache_key};
     return unless $entry;
 
@@ -579,27 +580,34 @@ sub _handleExit {
     for my $extra_pid ( grep defined, $entry->{decode_pid}, $entry->{intermediate_pid} ) {
         my $ret = waitpid( $extra_pid, &WNOHANG );
         if ( $ret <= 0 ) {
-            kill('TERM', $extra_pid);
-            Slim::Utils::Timers::setTimer( undef, time() + 1.0, sub {
-                my $r = waitpid( $extra_pid, &WNOHANG );
-                kill('KILL', $extra_pid) if $r == 0;
-                waitpid( $extra_pid, 0 );
-            });
+            kill( 'TERM', $extra_pid );
+            Slim::Utils::Timers::setTimer(
+                undef,
+                time() + 1.0,
+                sub {
+                    my $r = waitpid( $extra_pid, &WNOHANG );
+                    kill( 'KILL', $extra_pid ) if $r == 0;
+                    waitpid( $extra_pid, 0 );
+                }
+            );
         }
     }
 
-    if ($status == 0) {
-        if (-f $entry->{tmp_path} && -s $entry->{tmp_path}) {
+    if ( $status == 0 ) {
+        if ( -f $entry->{tmp_path} && -s $entry->{tmp_path} ) {
             _fireComplete($cache_key);
-        } else {
-            _fireError($cache_key, 'child exited 0 but output file empty');
         }
-    } elsif ($status & 127) {
+        else {
+            _fireError( $cache_key, 'child exited 0 but output file empty' );
+        }
+    }
+    elsif ( $status & 127 ) {
         my $sig = $status & 127;
-        _fireError($cache_key, "child killed by signal $sig");
-    } else {
+        _fireError( $cache_key, "child killed by signal $sig" );
+    }
+    else {
         my $exit_code = $status >> 8;
-        _fireError($cache_key, "child exited $exit_code");
+        _fireError( $cache_key, "child exited $exit_code" );
     }
 }
 
@@ -613,18 +621,23 @@ sub _handleTimeout {
     # SIGTERM with 2s grace, then SIGKILL.
     # When the child dies the pipe write-end closes, EOF fires the
     # addRead callback which handles cleanup via _onChildExit.
-    kill('TERM', $entry->{pid});
-    Slim::Utils::Timers::setTimer(undef, time() + 2.0, sub {
-        my $ret = waitpid($entry->{pid}, &WNOHANG);
-        if ($ret == 0) {
-            kill('KILL', $entry->{pid});
-            waitpid($entry->{pid}, 0);
+    kill( 'TERM', $entry->{pid} );
+    Slim::Utils::Timers::setTimer(
+        undef,
+        time() + 2.0,
+        sub {
+            my $ret = waitpid( $entry->{pid}, &WNOHANG );
+            if ( $ret == 0 ) {
+                kill( 'KILL', $entry->{pid} );
+                waitpid( $entry->{pid}, 0 );
+            }
+
+            # Pipe EOF will fire addRead -> _onChildExit, which calls _fireError.
+            # As a backstop, fire directly if the entry somehow still exists.
+            $entry = $_IN_FLIGHT{$cache_key};
+            _fireError( $cache_key, 'timeout' ) if $entry;
         }
-        # Pipe EOF will fire addRead -> _onChildExit, which calls _fireError.
-        # As a backstop, fire directly if the entry somehow still exists.
-        $entry = $_IN_FLIGHT{$cache_key};
-        _fireError($cache_key, 'timeout') if $entry;
-    });
+    );
 }
 
 # --- Callback dispatch --------------------------------------------------------
@@ -636,9 +649,9 @@ sub _fireComplete {
     return if $entry->{fired}++;
 
     # Clean up any remaining event-loop resources.
-Slim::Networking::Select::removeRead($entry->{read_fh})    if $entry->{read_fh};
-    close($entry->{read_fh})         if $entry->{read_fh};
-    Slim::Utils::Timers::killTimers(undef, $entry->{timer})
+    Slim::Networking::Select::removeRead( $entry->{read_fh} ) if $entry->{read_fh};
+    close( $entry->{read_fh} )                                if $entry->{read_fh};
+    Slim::Utils::Timers::killTimers( undef, $entry->{timer} )
       if $entry->{timer};
 
     _removeCloseHandler($entry);
@@ -651,11 +664,9 @@ Slim::Networking::Select::removeRead($entry->{read_fh})    if $entry->{read_fh};
     if ( $entry->{cache_sq_id} ) {
         eval {
             require Plugins::SlimPing::Core::TranscodeCache;
-            $serve_path = Plugins::SlimPing::Core::TranscodeCache->getInstance
-              ->finishFormatOutput(
-                $entry->{cache_sq_id}, $entry->{tmp_path},
-                $entry->{cache_suffix} || 'tmp'
-              );
+            $serve_path =
+              Plugins::SlimPing::Core::TranscodeCache->getInstance->finishFormatOutput( $entry->{cache_sq_id},
+                $entry->{tmp_path}, $entry->{cache_suffix} || 'tmp' );
         };
         if ($@) {
             $log->warn("SlimPing: finishFormatOutput error for $cache_key: $@");
@@ -670,15 +681,15 @@ Slim::Networking::Select::removeRead($entry->{read_fh})    if $entry->{read_fh};
 }
 
 sub _fireError {
-    my ($cache_key, $reason) = @_;
+    my ( $cache_key, $reason ) = @_;
     my $entry = delete $_IN_FLIGHT{$cache_key};
     return unless $entry;
     return if $entry->{fired}++;
 
     # Clean up any remaining event-loop resources.
-Slim::Networking::Select::removeRead($entry->{read_fh})    if $entry->{read_fh};
-    close($entry->{read_fh})         if $entry->{read_fh};
-    Slim::Utils::Timers::killTimers(undef, $entry->{timer})
+    Slim::Networking::Select::removeRead( $entry->{read_fh} ) if $entry->{read_fh};
+    close( $entry->{read_fh} )                                if $entry->{read_fh};
+    Slim::Utils::Timers::killTimers( undef, $entry->{timer} )
       if $entry->{timer};
 
     _removeCloseHandler($entry);
@@ -688,15 +699,12 @@ Slim::Networking::Select::removeRead($entry->{read_fh})    if $entry->{read_fh};
     if ( $entry->{cache_sq_id} ) {
         eval {
             require Plugins::SlimPing::Core::TranscodeCache;
-            Plugins::SlimPing::Core::TranscodeCache->getInstance
-              ->discardFormatOutput(
-                $entry->{cache_sq_id}, $entry->{tmp_path},
-                $entry->{cache_suffix} || 'tmp'
-              );
+            Plugins::SlimPing::Core::TranscodeCache->getInstance->discardFormatOutput( $entry->{cache_sq_id},
+                $entry->{tmp_path}, $entry->{cache_suffix} || 'tmp' );
         };
     }
     elsif ( $entry->{tmp_path} && -f $entry->{tmp_path} ) {
-        unlink($entry->{tmp_path});
+        unlink( $entry->{tmp_path} );
     }
 
     $log->warn("SlimPing: ExternalProcess error for $cache_key: $reason");
@@ -716,9 +724,7 @@ Slim::Networking::Select::removeRead($entry->{read_fh})    if $entry->{read_fh};
 sub _removeCloseHandler {
     my ($entry) = @_;
     return unless $entry->{close_handler};
-    @Slim::Web::HTTP::closeHandlers = grep {
-        $_ ne $entry->{close_handler}
-    } @Slim::Web::HTTP::closeHandlers;
+    @Slim::Web::HTTP::closeHandlers = grep { $_ ne $entry->{close_handler} } @Slim::Web::HTTP::closeHandlers;
 }
 
 # --- Orphaned temp file cleanup -----------------------------------------------
@@ -734,7 +740,7 @@ sub _cleanupOrphanedTempFiles {
         my $full = "$tmp_dir/$f";
         next unless -f $full;
         my $age = $now - ( ( stat($full) )[9] // $now );
-        next unless $age > 7200;  # 2 h -- safe for 45+ min DSD tracks
+        next unless $age > 7200;    # 2 h -- safe for 45+ min DSD tracks
         unlink($full);
         $count++;
     }
@@ -751,33 +757,34 @@ sub _cleanupOrphanedTempFiles {
 my $_maintenance_ticks = 0;
 
 sub _startMaintenanceSweep {
-    Slim::Utils::Timers::setTimer(
-        undef, time() + MAINTENANCE_INTERVAL, \&_maintenanceSweep
-    );
+    Slim::Utils::Timers::setTimer( undef, time() + MAINTENANCE_INTERVAL, \&_maintenanceSweep );
 }
 
 sub _maintenanceSweep {
     my $count = 0;
-    for my $key (keys %_IN_FLIGHT) {
+    for my $key ( keys %_IN_FLIGHT ) {
         my $e = $_IN_FLIGHT{$key};
         next unless $e && $e->{pid};
-        my $ret = waitpid($e->{pid}, &WNOHANG);
-        if ($ret == -1 && $!{ECHILD}) {
-            _cleanupEntry($key, 'ECHILD sweep');
+        my $ret = waitpid( $e->{pid}, &WNOHANG );
+        if ( $ret == -1 && $!{ECHILD} ) {
+            _cleanupEntry( $key, 'ECHILD sweep' );
             $count++;
-        } elsif ($ret > 0) {
-            _handleExit($key, $ret, $?);
+        }
+        elsif ( $ret > 0 ) {
+            _handleExit( $key, $ret, $? );
             $count++;
-        } elsif ($ret == 0) {
+        }
+        elsif ( $ret == 0 ) {
+
             # Process still running.  Track how long it has been stuck.
             # D-state (uninterruptible I/O — stale NFS mount, defective
             # block device) prevents SIGTERM/SIGKILL from working and
             # waitpid() returns 0 indefinitely.
             $e->{stuck_sweeps}++;
-            if ( $e->{stuck_sweeps} >= 10 ) {   # 10 sweeps = 5 minutes
-                $log->warn("SlimPing: pid $e->{pid} stuck for $e->{stuck_sweeps} sweeps"
-                    . " — child may be in uninterruptible I/O, forcibly cleaning $key");
-                _fireError($key, "child stuck in D-state after $e->{stuck_sweeps} sweeps");
+            if ( $e->{stuck_sweeps} >= 10 ) {    # 10 sweeps = 5 minutes
+                $log->warn( "SlimPing: pid $e->{pid} stuck for $e->{stuck_sweeps} sweeps"
+                      . " — child may be in uninterruptible I/O, forcibly cleaning $key" );
+                _fireError( $key, "child stuck in D-state after $e->{stuck_sweeps} sweeps" );
                 $count++;
             }
         }
@@ -794,33 +801,41 @@ sub _maintenanceSweep {
 # --- Cleanup ------------------------------------------------------------------
 
 sub _cleanupEntry {
-    my ($key, $reason) = @_;
+    my ( $key, $reason ) = @_;
     my $e = delete $_IN_FLIGHT{$key};
     return unless $e;
 
     # Remove EV watcher and close pipe.
-    Slim::Networking::Select::removeRead($e->{read_fh}) if $e->{read_fh};
-    close($e->{read_fh})         if $e->{read_fh};
-    Slim::Utils::Timers::killTimers(undef, $e->{timer})
+    Slim::Networking::Select::removeRead( $e->{read_fh} ) if $e->{read_fh};
+    close( $e->{read_fh} )                                if $e->{read_fh};
+    Slim::Utils::Timers::killTimers( undef, $e->{timer} )
       if $e->{timer};
 
-    if ($e->{pid}) {
-        kill('TERM', $e->{pid});
-        Slim::Utils::Timers::setTimer(undef, time() + 2.0, sub {
-            my $ret = waitpid($e->{pid}, &WNOHANG);
-            if ($ret == 0) {
-                kill('KILL', $e->{pid});
-                waitpid($e->{pid}, 0);
+    if ( $e->{pid} ) {
+        kill( 'TERM', $e->{pid} );
+        Slim::Utils::Timers::setTimer(
+            undef,
+            time() + 2.0,
+            sub {
+                my $ret = waitpid( $e->{pid}, &WNOHANG );
+                if ( $ret == 0 ) {
+                    kill( 'KILL', $e->{pid} );
+                    waitpid( $e->{pid}, 0 );
+                }
             }
-        });
+        );
     }
     for my $extra_pid ( grep defined, $e->{decode_pid}, $e->{intermediate_pid} ) {
-        kill('TERM', $extra_pid);
-        Slim::Utils::Timers::setTimer( undef, time() + 2.0, sub {
-            my $r = waitpid( $extra_pid, &WNOHANG );
-            kill('KILL', $extra_pid) if $r == 0;
-            waitpid( $extra_pid, 0 );
-        });
+        kill( 'TERM', $extra_pid );
+        Slim::Utils::Timers::setTimer(
+            undef,
+            time() + 2.0,
+            sub {
+                my $r = waitpid( $extra_pid, &WNOHANG );
+                kill( 'KILL', $extra_pid ) if $r == 0;
+                waitpid( $extra_pid, 0 );
+            }
+        );
     }
 
     # Discard any partial output via the TranscodeCache API so the
@@ -829,23 +844,20 @@ sub _cleanupEntry {
     if ( $e->{cache_sq_id} ) {
         eval {
             require Plugins::SlimPing::Core::TranscodeCache;
-            Plugins::SlimPing::Core::TranscodeCache->getInstance
-              ->discardFormatOutput(
-                $e->{cache_sq_id}, $e->{tmp_path},
-                $e->{cache_suffix} || 'tmp'
-              );
+            Plugins::SlimPing::Core::TranscodeCache->getInstance->discardFormatOutput( $e->{cache_sq_id},
+                $e->{tmp_path}, $e->{cache_suffix} || 'tmp' );
         };
     }
     elsif ( $e->{tmp_path} && -f $e->{tmp_path} ) {
-        unlink($e->{tmp_path});
+        unlink( $e->{tmp_path} );
     }
 
     $log->debug("SlimPing: ExternalProcess cleanup $key ($reason)");
 }
 
 sub killAll {
-    for my $key (keys %_IN_FLIGHT) {
-        _cleanupEntry($key, 'killAll/shutdown');
+    for my $key ( keys %_IN_FLIGHT ) {
+        _cleanupEntry( $key, 'killAll/shutdown' );
     }
 }
 

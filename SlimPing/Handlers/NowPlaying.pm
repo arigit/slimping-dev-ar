@@ -37,10 +37,10 @@ require Plugins::SlimPing::Utils::Params;
 
 sub registerHandlers {
     my $class = shift;
-    Plugins::SlimPing::API::Router->registerHandler('getPlayQueue',         \&getPlayQueue);
-    Plugins::SlimPing::API::Router->registerHandler('savePlayQueue',        \&savePlayQueue);
-    Plugins::SlimPing::API::Router->registerHandler('getPlayQueueByIndex',  \&getPlayQueueByIndex);
-    Plugins::SlimPing::API::Router->registerHandler('savePlayQueueByIndex', \&savePlayQueueByIndex);
+    Plugins::SlimPing::API::Router->registerHandler( 'getPlayQueue',         \&getPlayQueue );
+    Plugins::SlimPing::API::Router->registerHandler( 'savePlayQueue',        \&savePlayQueue );
+    Plugins::SlimPing::API::Router->registerHandler( 'getPlayQueueByIndex',  \&getPlayQueueByIndex );
+    Plugins::SlimPing::API::Router->registerHandler( 'savePlayQueueByIndex', \&savePlayQueueByIndex );
 }
 
 my $mapper   = sub { Plugins::SlimPing::Core::Container->get('library_mapper') };
@@ -51,7 +51,7 @@ sub getPlayQueue {
 
     my $username    = $args->{user}{username};
     my $client_name = $args->{client_name};
-    my $queue       = $sessions->()->getQueue($username, $client_name);
+    my $queue       = $sessions->()->getQueue( $username, $client_name );
 
     # Batch-resolve track IDs with prefetch instead of calling getTrackById()
     # N times -- each call would trigger individual find() + shapeTrack() with
@@ -62,8 +62,8 @@ sub getPlayQueue {
     my @sq_ids = @{ $queue->{entry} };
     my %sq_to_raw;
     for my $sq_id (@sq_ids) {
-        my (undef, $raw_id) = $mapper_obj->decodeId($sq_id);
-        if (defined $raw_id) {
+        my ( undef, $raw_id ) = $mapper_obj->decodeId($sq_id);
+        if ( defined $raw_id ) {
             push @raw_ids, $raw_id;
             $sq_to_raw{$raw_id} = $sq_id;
         }
@@ -71,36 +71,42 @@ sub getPlayQueue {
 
     my %shaped;
     if (@raw_ids) {
-        my @track_objs = $mapper_obj->getTracksByIds(\@raw_ids);
+        my @track_objs = $mapper_obj->getTracksByIds( \@raw_ids );
 
-        my $track_genre = $mapper_obj->batchFetchTrackGenres(\@track_objs);
+        my $track_genre = $mapper_obj->batchFetchTrackGenres( \@track_objs );
 
         # Batch-fetch annotations so shapeTrack does zero per-track lookups.
         my @track_rows = map { [ $_->id() ] } @track_objs;
-        my ($starred, $ratings) = $mapper_obj->_batchFetchAnnotations('track', \@track_rows);
+        my ( $starred, $ratings ) = $mapper_obj->_batchFetchAnnotations( 'track', \@track_rows );
 
         %shaped = map {
-            my $encoded = $mapper_obj->encodeId('track', $_->id());
-            $_->id() => $mapper_obj->shapeTrack($_, $track_genre->{$_->id()}, undef, {
-                starredAt        => $starred->{$encoded},
-                rating           => $ratings->{$encoded},
-                bookmarkPosition => undef,
-            })
+            my $encoded = $mapper_obj->encodeId( 'track', $_->id() );
+            $_->id() => $mapper_obj->shapeTrack(
+                $_,
+                $track_genre->{ $_->id() },
+                undef,
+                {
+                    starredAt        => $starred->{$encoded},
+                    rating           => $ratings->{$encoded},
+                    bookmarkPosition => undef,
+                }
+            )
         } @track_objs;
     }
 
     for my $sq_id (@sq_ids) {
-        my (undef, $raw_id) = $mapper_obj->decodeId($sq_id);
-        if (defined $raw_id && $shaped{$raw_id}) {
+        my ( undef, $raw_id ) = $mapper_obj->decodeId($sq_id);
+        if ( defined $raw_id && $shaped{$raw_id} ) {
             push @entries, $shaped{$raw_id};
-        } else {
+        }
+        else {
             push @entries, { id => $sq_id, title => '(unknown)' };
         }
     }
 
-    my $changed_ts = $queue->{changed};
+    my $changed_ts  = $queue->{changed};
     my $changed_iso = Plugins::SlimPing::Core::LibraryMapper::_iso8601($changed_ts)
-        // Plugins::SlimPing::Core::LibraryMapper::_iso8601(time());
+      // Plugins::SlimPing::Core::LibraryMapper::_iso8601( time() );
 
     return {
         playQueue => {
@@ -121,18 +127,18 @@ sub savePlayQueue {
     my $username    = $args->{user}{username};
     my $client_name = $args->{client_name};
 
-    my @ids = Plugins::SlimPing::Utils::Params->multiParam($p->{id});
+    my @ids = Plugins::SlimPing::Utils::Params->multiParam( $p->{id} );
 
     # Per OpenSubsonic spec: if entry is non-empty, current must be
     # a valid track ID in the entry list and is a string, not an index.
-    if (@ids && defined $p->{current} && length $p->{current}) {
+    if ( @ids && defined $p->{current} && length $p->{current} ) {
         my %id_set = map { $_ => 1 } @ids;
-        unless ($id_set{$p->{current}}) {
+        unless ( $id_set{ $p->{current} } ) {
+
             # Code 0 rather than 10: the parameter is present but has an
             # invalid value.  Subsonic has no "invalid value" error code;
             # Navidrome uses 0 for this case.
-            return Plugins::SlimPing::Utils::Errors->error(0,
-                'current must be a valid track ID in the entry list');
+            return Plugins::SlimPing::Utils::Errors->error( 0, 'current must be a valid track ID in the entry list' );
         }
     }
 
@@ -160,9 +166,9 @@ sub getPlayQueueByIndex {
     my $queue  = $result->{playQueue};
 
     # Compute currentIndex from the track ID stored in SessionState.
-    my @sq_ids = map { $_->{id} } @{ $queue->{entry} };
+    my @sq_ids           = map { $_->{id} } @{ $queue->{entry} };
     my $current_track_id = delete $queue->{current};
-    my $idx = 0;
+    my $idx              = 0;
     if ( defined $current_track_id && length $current_track_id ) {
         for my $i ( 0 .. $#sq_ids ) {
             if ( $sq_ids[$i] eq $current_track_id ) {
@@ -174,7 +180,7 @@ sub getPlayQueueByIndex {
 
     # SessionStore keeps position in seconds; OpenSubsonic index-based spec
     # requires milliseconds.
-    $queue->{position} = int( ( $queue->{position} // 0 ) * 1000 );
+    $queue->{position}     = int( ( $queue->{position} // 0 ) * 1000 );
     $queue->{currentIndex} = $idx;
 
     return $result;
@@ -190,7 +196,7 @@ sub savePlayQueueByIndex {
     my $username    = $args->{user}{username};
     my $client_name = $args->{client_name};
 
-    my @ids = Plugins::SlimPing::Utils::Params->multiParam( $p->{id} );
+    my @ids   = Plugins::SlimPing::Utils::Params->multiParam( $p->{id} );
     my $index = $p->{currentIndex};
 
     # Convert currentIndex to a track ID for SessionState storage.
@@ -198,8 +204,7 @@ sub savePlayQueueByIndex {
     my $current_id;
     if ( defined $index && length $index ) {
         if ( $index < 0 || $index > $#ids ) {
-            return Plugins::SlimPing::Utils::Errors->error( 0,
-                'currentIndex out of range' );
+            return Plugins::SlimPing::Utils::Errors->error( 0, 'currentIndex out of range' );
         }
         $current_id = $ids[$index];
     }

@@ -48,37 +48,29 @@ my $prefs = Plugins::SlimPing::Core::Logging->getPrefs();
 
 sub registerHandlers {
     my $class = shift;
-    Plugins::SlimPing::API::Router->registerHandler( 'createShare',
-        \&createShare );
-    Plugins::SlimPing::API::Router->registerHandler( 'getShares',
-        \&getShares );
-    Plugins::SlimPing::API::Router->registerHandler( 'updateShare',
-        \&updateShare );
-    Plugins::SlimPing::API::Router->registerHandler( 'deleteShare',
-        \&deleteShare );
-    Plugins::SlimPing::API::Router->registerStreamHandler( 'shareStream',
-        \&shareStream );
-    Plugins::SlimPing::API::Router->registerStreamHandler( 'shareMetadata',
-        \&shareMetadata );
+    Plugins::SlimPing::API::Router->registerHandler( 'createShare', \&createShare );
+    Plugins::SlimPing::API::Router->registerHandler( 'getShares',   \&getShares );
+    Plugins::SlimPing::API::Router->registerHandler( 'updateShare', \&updateShare );
+    Plugins::SlimPing::API::Router->registerHandler( 'deleteShare', \&deleteShare );
+    Plugins::SlimPing::API::Router->registerStreamHandler( 'shareStream',   \&shareStream );
+    Plugins::SlimPing::API::Router->registerStreamHandler( 'shareMetadata', \&shareMetadata );
 }
 
 # --- Standard handlers (Subsonic-envelope, auth'd) ---
 
 sub createShare {
     my ($args) = @_;
-    my $p    = $args->{params};
-    my $user = $args->{user};
+    my $p      = $args->{params};
+    my $user   = $args->{user};
 
     require Plugins::SlimPing::Auth::Permissions;
-    if ( my $err =
-        Plugins::SlimPing::Auth::Permissions->requireRole( $user, 'shareRole' ) )
-    {
+    if ( my $err = Plugins::SlimPing::Auth::Permissions->requireRole( $user, 'shareRole' ) ) {
         return $err;
     }
-    return Plugins::SlimPing::Utils::Errors->error(50, 'Not authorised')
-        if $user->{username} eq '_anon';
+    return Plugins::SlimPing::Utils::Errors->error( 50, 'Not authorised' )
+      if $user->{username} eq '_anon';
 
-    my @ids = Plugins::SlimPing::Utils::Params->multiParam($p->{id});
+    my @ids = Plugins::SlimPing::Utils::Params->multiParam( $p->{id} );
     unless (@ids) {
         return Plugins::SlimPing::Utils::Errors->missingParam('id');
     }
@@ -89,7 +81,7 @@ sub createShare {
     # expires is a Unix timestamp (seconds or milliseconds since epoch).
     # Convert to a relative TTL so ShareStore can clamp it against server bounds.
     # A value of 0 or "never" from the client means "use the server default."
-    my $ttl = _expiresToTtl($p->{expires});
+    my $ttl = _expiresToTtl( $p->{expires} );
 
     # Validate all IDs and expand album/playlist entries to constituent tracks.
     # Expansion happens before cap checks so the entry count reflects the real
@@ -97,14 +89,14 @@ sub createShare {
     my $mapper = Plugins::SlimPing::Core::Container->get('library_mapper');
     my @entry_ids;
     for my $sq_id (@ids) {
-        my ( $type ) = $mapper->decodeId($sq_id);
+        my ($type) = $mapper->decodeId($sq_id);
         unless ($type) {
-            return Plugins::SlimPing::Utils::Errors->error(70, "Unknown ID: $sq_id");
+            return Plugins::SlimPing::Utils::Errors->error( 70, "Unknown ID: $sq_id" );
         }
         if ( $type eq 'album' ) {
             my $tracks = $mapper->getTracksByAlbum($sq_id);
             unless ( $tracks && @$tracks ) {
-                return Plugins::SlimPing::Utils::Errors->error(70, "Album is empty: $sq_id");
+                return Plugins::SlimPing::Utils::Errors->error( 70, "Album is empty: $sq_id" );
             }
             push @entry_ids, map { $_->{id} } @$tracks;
         }
@@ -114,9 +106,7 @@ sub createShare {
     }
     @ids = @entry_ids;
 
-    my $share_row = _shareStore()->createShare(
-        $user->{username}, \@ids, $description, $ttl
-    );
+    my $share_row = _shareStore()->createShare( $user->{username}, \@ids, $description, $ttl );
     return $share_row if $share_row->{error};
 
     my $shaped = _shareStore()->shapeShare($share_row);
@@ -133,8 +123,8 @@ sub getShares {
 
 sub updateShare {
     my ($args) = @_;
-    my $p    = $args->{params};
-    my $user = $args->{user};
+    my $p      = $args->{params};
+    my $user   = $args->{user};
 
     my $token = $p->{id}
       or return Plugins::SlimPing::Utils::Errors->missingParam('id');
@@ -149,7 +139,7 @@ sub updateShare {
 
     my $description = $p->{description};
     $description =~ tr/+/ / if defined $description;
-    my $new_ttl = _expiresToTtl($p->{expires});
+    my $new_ttl = _expiresToTtl( $p->{expires} );
 
     _shareStore()->updateShare( $token, $description, $new_ttl );
     return {};
@@ -157,8 +147,8 @@ sub updateShare {
 
 sub deleteShare {
     my ($args) = @_;
-    my $p    = $args->{params};
-    my $user = $args->{user};
+    my $p      = $args->{params};
+    my $user   = $args->{user};
 
     my $token = $p->{id}
       or return Plugins::SlimPing::Utils::Errors->missingParam('id');
@@ -182,21 +172,21 @@ sub shareStream {
 
     # Gate 1: Feature toggle
     return
-      if Plugins::SlimPing::Core::StreamGate->requireFeature(
-        $httpClient, $response, 'feature_sharing', 'shareStream' );
+      if Plugins::SlimPing::Core::StreamGate->requireFeature( $httpClient, $response, 'feature_sharing',
+        'shareStream' );
 
     # Gate 2: Rate-limit gate
-    my ($ip) =
-      Plugins::SlimPing::Core::StreamGate->gateIp( $httpClient, $response,
-        $response->request() )
+    my ($ip) = Plugins::SlimPing::Core::StreamGate->gateIp( $httpClient, $response, $response->request() )
       or return;
 
     # Gate 3: Extract share token
-    my ($token) =
-      Plugins::SlimPing::Core::StreamGate->requireParam(
-        httpClient => $httpClient, response => $response,
-        ip => $ip, value => $p->{share}, param_name => 'share' )
-      or return;
+    my ($token) = Plugins::SlimPing::Core::StreamGate->requireParam(
+        httpClient => $httpClient,
+        response   => $response,
+        ip         => $ip,
+        value      => $p->{share},
+        param_name => 'share'
+    ) or return;
 
     # Gate 4: Validate share token (DB lookup -- not HMAC, unlike radio)
     my $share = _shareStore()->getShareByToken($token);
@@ -233,13 +223,9 @@ sub shareStream {
 
     # Audit log (rate-limited: once per 60s per share).  Token is truncated
     # in log messages -- the full token is a bearer credential.
-    my $token_short = substr($token, 0, 4) . '...';
-    Plugins::SlimPing::Core::DebugThrottle->debugRateLimited(
-        "share_access_$token",
-        sprintf( "SlimPing: share access token=%s ip=%s (%d unique IPs)",
-            $token_short, $ip, $unique_ips ),
-        60
-    );
+    my $token_short = substr( $token, 0, 4 ) . '...';
+    Plugins::SlimPing::Core::DebugThrottle->debugRateLimited( "share_access_$token",
+        sprintf( "SlimPing: share access token=%s ip=%s (%d unique IPs)", $token_short, $ip, $unique_ips ), 60 );
 
     # Three-way dispatch when no specific track is requested:
     #   ?playlist=1  -> M3U playlist (even for single-entry shares)
@@ -263,27 +249,27 @@ sub shareStream {
         return;
     }
 
-    my $track_idx  = int( $p->{track} // 0 );
-    my $max_idx    = $#{ $share->{entry} };
+    my $track_idx = int( $p->{track} // 0 );
+    my $max_idx   = $#{ $share->{entry} };
     if ( $track_idx < 0 || $track_idx > $max_idx ) {
         Plugins::SlimPing::Core::VirtualPlayer->sendStreamError( $httpClient, $response, 70,
             'Track index out of range' );
         return;
     }
-    my $entry        = $share->{entry}[$track_idx];
-    my $sq_id        = $entry->{id};
-    my $max_bitrate  = $prefs->get('share_max_bitrate');
+    my $entry       = $share->{entry}[$track_idx];
+    my $sq_id       = $entry->{id};
+    my $max_bitrate = $prefs->get('share_max_bitrate');
 
     require Plugins::SlimPing::Handlers::Stream::AudioDelivery;
-    my $d = Plugins::SlimPing::Handlers::Stream::AudioDelivery::resolveTrack(
-        $httpClient, $response, $args,
-        { id => $sq_id, max_bitrate => $max_bitrate, format => '' }
-    ) or return;
+    my $d =
+      Plugins::SlimPing::Handlers::Stream::AudioDelivery::resolveTrack( $httpClient, $response, $args,
+        { id => $sq_id, max_bitrate => $max_bitrate, format => '' } )
+      or return;
 
-    my $track        = $d->{track};
-    my $stream_info  = $d->{stream_info};
-    my $estimate     = $d->{estimate};
-    my $time_offset  = $d->{time_offset};
+    my $track            = $d->{track};
+    my $stream_info      = $d->{stream_info};
+    my $estimate         = $d->{estimate};
+    my $time_offset      = $d->{time_offset};
     my $range_byte_start = $d->{range_byte_start};
 
     my $req = $response->request();
@@ -292,8 +278,8 @@ sub shareStream {
     }
 
     my $meta;
-    if ($entry->{artist} || $entry->{title}) {
-        $meta = {};
+    if ( $entry->{artist} || $entry->{title} ) {
+        $meta           = {};
         $meta->{artist} = $entry->{artist} if $entry->{artist};
         $meta->{title}  = $entry->{title}  if $entry->{title};
         $meta->{album}  = $entry->{album}  if $entry->{album};
@@ -301,8 +287,8 @@ sub shareStream {
         $meta->{year}   = $entry->{year}   if $entry->{year};
     }
 
-    (my $safe_username = $share->{username}) =~ s/[\x00-\x1f\x7f]//g;
-    my $desc = $share->{description} || $safe_username;
+    ( my $safe_username = $share->{username} ) =~ s/[\x00-\x1f\x7f]//g;
+    my $desc        = $share->{description} || $safe_username;
     my $stream_name = "SlimPing Share by $safe_username";
 
     my $base = Plugins::SlimPing::Core::LibraryMapper->_requestBaseUrl() || '';
@@ -330,12 +316,13 @@ sub shareStream {
         icy_description   => $stream_name,
         artwork_cache_key => "$token:$track_idx",
     );
+
     if ( defined $started && $started <= 0 ) {
-        my $msg = $started == -1
+        my $msg =
+          $started == -1
           ? 'Too many remote stream requests - wait before retrying'
           : 'Too many concurrent remote streams - try again later';
-        Plugins::SlimPing::Core::VirtualPlayer->sendStreamError(
-            $httpClient, $response, 40, $msg );
+        Plugins::SlimPing::Core::VirtualPlayer->sendStreamError( $httpClient, $response, 40, $msg );
         return;
     }
 }
@@ -348,21 +335,21 @@ sub shareMetadata {
 
     # Gate 1: Feature toggle
     return
-      if Plugins::SlimPing::Core::StreamGate->requireFeature(
-        $httpClient, $response, 'feature_sharing', 'shareMetadata' );
+      if Plugins::SlimPing::Core::StreamGate->requireFeature( $httpClient, $response, 'feature_sharing',
+        'shareMetadata' );
 
     # Gate 2: Rate-limit gate
-    my ($ip) =
-      Plugins::SlimPing::Core::StreamGate->gateIp( $httpClient, $response,
-        $response->request() )
+    my ($ip) = Plugins::SlimPing::Core::StreamGate->gateIp( $httpClient, $response, $response->request() )
       or return;
 
     # Gate 3: Extract share token
-    my ($token) =
-      Plugins::SlimPing::Core::StreamGate->requireParam(
-        httpClient => $httpClient, response => $response,
-        ip => $ip, value => $p->{share}, param_name => 'share' )
-      or return;
+    my ($token) = Plugins::SlimPing::Core::StreamGate->requireParam(
+        httpClient => $httpClient,
+        response   => $response,
+        ip         => $ip,
+        value      => $p->{share},
+        param_name => 'share'
+    ) or return;
 
     # Gate 4: Validate share token
     my $share = _shareStore()->getShareByToken($token);
@@ -370,7 +357,8 @@ sub shareMetadata {
         require Plugins::SlimPing::Auth::RateLimit;
         Plugins::SlimPing::Auth::RateLimit->recordFailure( $ip, '_anon' );
         Plugins::SlimPing::Auth::RateLimit->recordFailure( $ip, "share_meta:$token" );
-        Plugins::SlimPing::Core::VirtualPlayer->sendStreamError( $httpClient, $response, 70, 'Share not found or expired' );
+        Plugins::SlimPing::Core::VirtualPlayer->sendStreamError( $httpClient, $response, 70,
+            'Share not found or expired' );
         return;
     }
     Plugins::SlimPing::Core::StreamGate->clearGate($ip);
@@ -379,7 +367,8 @@ sub shareMetadata {
     my $track_idx = int( $p->{track} // 0 );
     my $max_idx   = $#{ $share->{entry} };
     if ( $track_idx < 0 || $track_idx > $max_idx ) {
-        Plugins::SlimPing::Core::VirtualPlayer->sendStreamError( $httpClient, $response, 70, 'Track index out of range' );
+        Plugins::SlimPing::Core::VirtualPlayer->sendStreamError( $httpClient, $response, 70,
+            'Track index out of range' );
         return;
     }
 
@@ -387,11 +376,13 @@ sub shareMetadata {
     _shareStore()->recordVisit($token);
     my $unique_ips = _shareStore()->recordIp( $token, $ip );
 
-    my $token_short = substr($token, 0, 4) . '...';
+    my $token_short = substr( $token, 0, 4 ) . '...';
     Plugins::SlimPing::Core::DebugThrottle->debugRateLimited(
         "share_meta_$token",
-        sprintf( "SlimPing: share metadata token=%s ip=%s track=%d (%d unique IPs)",
-            $token_short, $ip, $track_idx, $unique_ips ),
+        sprintf(
+            "SlimPing: share metadata token=%s ip=%s track=%d (%d unique IPs)",
+            $token_short, $ip, $track_idx, $unique_ips
+        ),
         60
     );
 
@@ -405,15 +396,12 @@ sub shareMetadata {
     # streaming virtual player, including plugin-injected artwork (BBC Sounds,
     # etc.) that LMS resolved through its native chain.
     ( $body, $content_type ) =
-      Plugins::SlimPing::Core::VirtualPlayer->getArtworkFromLivePlayer(
-        "slimping-share-$token", "$token:$track_idx" );
+      Plugins::SlimPing::Core::VirtualPlayer->getArtworkFromLivePlayer( "slimping-share-$token", "$token:$track_idx" );
 
     # Path B: Timer-populated cache -- same $song->coverArt() data from the
     # streaming timer callback (pre-stream or post-disconnect).
     unless ($body) {
-        ( $body, $content_type ) =
-          Plugins::SlimPing::Core::VirtualPlayer->getArtworkFromCache(
-            "$token:$track_idx" );
+        ( $body, $content_type ) = Plugins::SlimPing::Core::VirtualPlayer->getArtworkFromCache("$token:$track_idx");
     }
 
     # Path B2: Resolve artwork from the share entry when no player is streaming
@@ -426,21 +414,18 @@ sub shareMetadata {
             my $mapper = Plugins::SlimPing::Core::Container->get('library_mapper');
             my ( undef, $track_raw ) = $mapper->decodeId( $entry->{id} );
             if ($track_raw) {
-                ( $body, $content_type ) =
-                  Plugins::SlimPing::Core::VirtualPlayer->getArtworkFromTrackId($track_raw);
+                ( $body, $content_type ) = Plugins::SlimPing::Core::VirtualPlayer->getArtworkFromTrackId($track_raw);
             }
         }
     }
 
     # Path C: Shipped default music icon -- absolute last resort.
     unless ($body) {
-        ( $body, $content_type ) =
-          Plugins::SlimPing::Core::VirtualPlayer->readDefaultArtwork('share');
+        ( $body, $content_type ) = Plugins::SlimPing::Core::VirtualPlayer->readDefaultArtwork('share');
     }
 
     unless ($body) {
-        Plugins::SlimPing::Core::VirtualPlayer->sendStreamError(
-            $httpClient, $response, 70, 'Cover art not found' );
+        Plugins::SlimPing::Core::VirtualPlayer->sendStreamError( $httpClient, $response, 70, 'Cover art not found' );
         return;
     }
 
@@ -486,7 +471,7 @@ sub _expiresToTtl {
     my $raw = int($expires);
     return undef unless $raw > 0;
     my $expires_epoch = $raw > 10_000_000_000 ? int( $raw / 1000 ) : $raw;
-    my $ttl = $expires_epoch - time();
+    my $ttl           = $expires_epoch - time();
     return $ttl < 0 ? 0 : $ttl;
 }
 
@@ -496,15 +481,14 @@ sub _addShareUrl {
     my ($share) = @_;
     return unless $share && ref $share eq 'HASH' && $share->{id};
     my $base = Plugins::SlimPing::Core::LibraryMapper->_requestBaseUrl();
-    $share->{url} = ($base || '') . '/rest/shareStream.view?share=' . $share->{id};
+    $share->{url} = ( $base || '' ) . '/rest/shareStream.view?share=' . $share->{id};
 
     # Per-entry stream URLs let clients navigate between tracks within a
     # shared album/playlist.  Each URL is clamped to the share's expiry.
     if ( $share->{entry} && ref $share->{entry} eq 'ARRAY' ) {
         for my $i ( 0 .. $#{ $share->{entry} } ) {
             $share->{entry}[$i]{streamUrl} =
-              ($base || '') . '/rest/shareStream.view?share=' . $share->{id}
-            . '&track=' . $i;
+              ( $base || '' ) . '/rest/shareStream.view?share=' . $share->{id} . '&track=' . $i;
         }
     }
 }
@@ -539,17 +523,17 @@ sub _serveM3uPlaylist {
     my @lines = ("#EXTM3U");
 
     for my $i ( 0 .. $#{ $share->{entry} } ) {
-        my $entry = $share->{entry}[$i];
-        my $title = $entry->{title} || 'Untitled';
-        my $artist = $entry->{artist} || '';
-        my $display = $artist ? "$artist - $title" : $title;
+        my $entry    = $share->{entry}[$i];
+        my $title    = $entry->{title}  || 'Untitled';
+        my $artist   = $entry->{artist} || '';
+        my $display  = $artist ? "$artist - $title" : $title;
         my $duration = $entry->{duration} // 0;
 
         push @lines, "#EXTINF:$duration,$display";
         push @lines, "$base/rest/shareStream.view?share=$share->{id}&track=$i";
     }
 
-    my $body = join("\n", @lines) . "\n";
+    my $body = join( "\n", @lines ) . "\n";
 
     $response->code(200);
     $response->header( 'Content-Type'        => 'audio/x-mpegurl; charset=utf-8' );

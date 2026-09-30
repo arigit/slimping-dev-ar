@@ -40,11 +40,13 @@ use Slim::Utils::Log;
 use Plugins::SlimPing::Core::Logging;
 
 # Register the log category with LMS settings UI
-my $log = Slim::Utils::Log->addLogCategory({
-    category     => 'plugin.slimping',
-    defaultLevel => 'WARN',
-    description  => 'SlimPing OpenSubsonic Server',
-});
+my $log = Slim::Utils::Log->addLogCategory(
+    {
+        category     => 'plugin.slimping',
+        defaultLevel => 'WARN',
+        description  => 'SlimPing OpenSubsonic Server',
+    }
+);
 
 # Cache format version.  Increment this to force a transcode cache flush
 # on every installation's next startup.  The hidden pref cache_format_version
@@ -89,18 +91,13 @@ sub initPlugin {
     # protocol spec. All Subsonic clients hardcode this prefix. Auth is handled
     # inside the router before any LMS data is touched.
     require Plugins::SlimPing::API::Router;
-    Slim::Web::Pages->addRawFunction(
-        'rest/',
-        \&Plugins::SlimPing::API::Router::dispatch
-    );
+    Slim::Web::Pages->addRawFunction( 'rest/', \&Plugins::SlimPing::API::Router::dispatch );
 
     # Initialise the response formatter with the server version string.
     # This is "pluginVersion-LMSVersion" so clients can identify the server stack.
     require Plugins::SlimPing::API::ResponseFormatter;
     my $pd = Slim::Utils::PluginManager->dataForPlugin('Plugins::SlimPing::Plugin');
-    Plugins::SlimPing::API::ResponseFormatter->init(
-        ( $pd && $pd->{version} ) ? $pd->{version} : undef
-    );
+    Plugins::SlimPing::API::ResponseFormatter->init( ( $pd && $pd->{version} ) ? $pd->{version} : undef );
 
     # Initialise the client quirks registry.  Quirks are client-specific
     # workarounds gated by a master pref (client_quirks_enabled, default on)
@@ -169,14 +166,18 @@ sub initPlugin {
     require Plugins::SlimPing::Handlers::Stubs;
     Plugins::SlimPing::Handlers::Stubs->registerHandlers();
 
+    require Plugins::SlimPing::Handlers::Sonic;
+    Plugins::SlimPing::Handlers::Sonic->registerHandlers();
+
     # Probe whether the Music & Artist Info plugin is installed so
     # LibraryMapper can enrich artist images from MAI's local store.
     # Plugins cannot be installed or removed mid-session, so a single
     # startup check is sufficient.
-    if (eval { require Plugins::MusicArtistInfo::LocalArtwork; 1 }) {
+    if ( eval { require Plugins::MusicArtistInfo::LocalArtwork; 1 } ) {
         Plugins::SlimPing::Core::LibraryMapper->setMaiAvailable(1);
         $log->info('SlimPing: Music & Artist Info plugin detected -- artist image enrichment available');
-    } else {
+    }
+    else {
         $log->info('SlimPing: Music & Artist Info plugin not present (continuing without it)');
     }
 
@@ -184,39 +185,47 @@ sub initPlugin {
     # feed completed plays into LMS's existing Last.fm / ListenBrainz pipeline.
     # Plugins cannot be installed or removed mid-session, so a single startup
     # check is sufficient.
-    if (eval { require Slim::Plugin::AudioScrobbler::Plugin; 1 }) {
+    if ( eval { require Slim::Plugin::AudioScrobbler::Plugin; 1 } ) {
         require Plugins::SlimPing::Core::Scrobbler;
         Plugins::SlimPing::Core::Scrobbler->setScrobblerAvailable(1);
         $log->info('SlimPing: AudioScrobbler plugin detected -- scrobbling available');
-    } else {
+    }
+    else {
         $log->info('SlimPing: AudioScrobbler plugin not present (continuing without scrobbling)');
     }
 
-    # Probe whether the Alternative Play Count plugin is installed so
-    # plays and skips can be reported through its external reportplayback
-    # dispatch (APC cannot otherwise see plays SlimPing serves to
-    # OpenSubsonic clients, since they never pass through a real player).
-    # Plugins cannot be installed or removed mid-session, so a single
-    # startup check is sufficient.
-    if (eval { require Plugins::AlternativePlayCount::Plugin; 1 }) {
+    # Optional integration probes.  PluginProbe handles the module-to-file
+    # conversion Perl requires (require with a string is a filename, not a
+    # module name) and reads the plugin's declared version, so an older release
+    # is skipped rather than logging a warning per play or rating.
+    require Plugins::SlimPing::Core::PluginProbe;
+
+    # Probe whether the Alternative Play Count plugin is installed so plays and
+    # skips can be reported through its external reportplayback dispatch.  APC
+    # cannot otherwise see plays SlimPing serves to OpenSubsonic clients, since
+    # they never pass through a real LMS player.  v1.9.5 added that dispatch.
+    if ( Plugins::SlimPing::Core::PluginProbe->available( 'Plugins::AlternativePlayCount::Plugin', '1.9.5' ) ) {
         require Plugins::SlimPing::Core::AlternatePlayCount;
         Plugins::SlimPing::Core::AlternatePlayCount->setApcAvailable(1);
         $log->info('SlimPing: Alternative Play Count plugin detected -- external play reporting available');
-    } else {
+    }
+    else {
         $log->info('SlimPing: Alternative Play Count plugin not present (continuing without it)');
     }
 
-    # Probe whether the Ratings Light plugin is installed so track ratings
-    # set/read via the OpenSubsonic API can sync with it (RL cannot see
-    # ratings set by SlimPing's virtual clients, and SlimPing otherwise has
-    # no visibility into ratings set through RL's own UI/CLI/other clients).
-    # Plugins cannot be installed or removed mid-session, so a single
-    # startup check is sufficient.
-    if (eval { require Plugins::RatingsLight::Plugin; 1 }) {
+    # Probe whether the Ratings Light plugin is installed so track ratings set
+    # or read through the OpenSubsonic API stay in step with it.  Ratings Light
+    # keeps its ratings in LMS's own tracks_persistent.rating, which SlimPing
+    # can read directly, but changes go through its dispatch so its own
+    # bookkeeping and notifications run.  v3.1.3 added the noclient variant
+    # SlimPing needs, because a rating set by a Subsonic client never passes
+    # through a real player.
+    if ( Plugins::SlimPing::Core::PluginProbe->available( 'Plugins::RatingsLight::Plugin', '3.1.3' ) ) {
         require Plugins::SlimPing::Core::RatingsLight;
         Plugins::SlimPing::Core::RatingsLight->setAvailable(1);
-        $log->info('SlimPing: Ratings Light plugin detected -- rating sync available');
-    } else {
+        $log->info('SlimPing: Ratings Light plugin detected -- track rating sync available');
+    }
+    else {
         $log->info('SlimPing: Ratings Light plugin not present (continuing without it)');
     }
 
@@ -229,7 +238,8 @@ sub initPlugin {
         my $bridge = Plugins::SlimPing::Core::DynamicPlaylistBridge->getInstance();
         $bridge->init('Plugins::DynamicPlaylists4::Plugin');
         $log->info('SlimPing: DynamicPlaylists4 plugin detected -- dynamic playlist exposure available');
-    } else {
+    }
+    else {
         $log->info('SlimPing: DynamicPlaylists4 plugin not present (continuing without it)');
     }
 
@@ -254,17 +264,27 @@ sub postinitPlugin {
     require Plugins::SlimPing::Core::Container;
     Plugins::SlimPing::Core::Container->registerDefaultServices();
 
+    # DSTM mixer integration: register the built-in sonic provider and
+    # subscribe to virtual-player playlist events for the continual-feed
+    # top-up (MixerBridge::onPlaylistChange filters to SlimPing players).
+    require Plugins::SlimPing::Core::MixerBridge;
+    Plugins::SlimPing::Core::MixerBridge->register();
+
+    Slim::Control::Request::subscribe(
+        \&Plugins::SlimPing::Core::MixerBridge::onPlaylistChange,
+        [ ['playlist'], [ 'cant_open', 'newsong', 'delete' ] ],
+    );
+
     # Slim::Utils::Cache is backed by a persistent SQLite DbCache whose
     # entries survive full process restarts.  Purge the folder cache on
     # every startup so a stale empty array cached by a prior code version
     # is never served to a client.  The fresh first request will recompute
-    # the list from current prefs without any conditional gap.
-    eval {
-        Plugins::SlimPing::Core::Container->get('library_mapper')
-          ->invalidateFolderCache();
-    };
+    # the list from current prefs without any conditional gap.  This is a
+    # deliberate purge-only: the library view itself has not changed, so
+    # clients are not signalled and libraryViewChangedMs is left untouched.
+    eval { Plugins::SlimPing::Core::Container->get('library_mapper')->purgeFolderCache(); };
     if ($@) {
-        $log->warn("SlimPing: startup folder cache invalidation failed: $@");
+        $log->warn("SlimPing: startup folder cache purge failed: $@");
     }
 
     # Audit external binaries (flac, dsdplay) at startup so the
@@ -287,32 +307,22 @@ sub postinitPlugin {
             Plugins::SlimPing::Core::TranscodeCache->forceFlushAll();
         };
         if ($@) {
-            $log->warn(
-"SlimPing: cache flush for format version bump failed: $@"
-            );
+            $log->warn("SlimPing: cache flush for format version bump failed: $@");
         }
 
         # Invalidate the LibraryMapper CHI metadata cache so shaped responses
         # do not reference stale cache keys.  Eval-wrapped so a Container or
         # LibraryMapper failure never prevents plugin loading.
-        eval {
-            Plugins::SlimPing::Core::Container->get('library_mapper')
-              ->invalidateCache();
-        };
+        eval { Plugins::SlimPing::Core::Container->get('library_mapper')->invalidateCache(); };
         if ($@) {
-            $log->warn(
-"SlimPing: LibraryMapper cache invalidation during format flush failed: $@"
-            );
+            $log->warn("SlimPing: LibraryMapper cache invalidation during format flush failed: $@");
         }
 
         # Update the pref AFTER all flush attempts complete — prevents
         # infinite retry on startup.  Slim::Utils::Prefs::set does not
         # throw, so an eval is unnecessary here.
         $prefs->set( 'cache_format_version', CACHE_FORMAT_VERSION );
-        $log->info(
-            'SlimPing: cache flushed for format version '
-              . CACHE_FORMAT_VERSION
-        );
+        $log->info( 'SlimPing: cache flushed for format version ' . CACHE_FORMAT_VERSION );
     }
 
     # Invalidate LibraryMapper cache when LMS completes a library rescan.
@@ -321,9 +331,9 @@ sub postinitPlugin {
     Slim::Control::Request::subscribe(
         sub {
             Plugins::SlimPing::Core::Container->get('library_mapper')->invalidateCache();
-            $prefs->set('lastScanTimestampMs', int(time() * 1000));
+            $prefs->set( 'lastScanTimestampMs', int( time() * 1000 ) );
         },
-        [['rescan'], ['done']]
+        [ ['rescan'], ['done'] ]
     );
 
     # Schedule periodic session TTL cleanup (idle sessions age out after
@@ -383,13 +393,11 @@ sub postinitPlugin {
             if ($@) {
                 $log->warn("SlimPing: scheduled cleanup task 'pruneExpired' failed: $@");
             }
-            eval {
-                Plugins::SlimPing::Core::VirtualPlayer::cleanupDisconnectedPlayers();
-            };
+            eval { Plugins::SlimPing::Core::VirtualPlayer::cleanupDisconnectedPlayers(); };
             if ($@) {
                 $log->warn("SlimPing: scheduled cleanup task 'cleanupDisconnectedPlayers' failed: $@");
             }
-            Slim::Utils::Timers::setTimer(undef, time() + 900, shift);
+            Slim::Utils::Timers::setTimer( undef, time() + 900, shift );
         },
     );
 
@@ -397,9 +405,9 @@ sub postinitPlugin {
 }
 
 sub topLevelMenuHandler {
-    my ($client, $cb, $args) = @_;
+    my ( $client, $cb, $args ) = @_;
     require Plugins::SlimPing::Menu::InfoMenu;
-    Plugins::SlimPing::Menu::InfoMenu::topLevel($client, $cb, $args);
+    Plugins::SlimPing::Menu::InfoMenu::topLevel( $client, $cb, $args );
 }
 
 sub getDisplayName { 'PLUGIN_SLIMPING' }
@@ -409,90 +417,103 @@ sub optionsPage    { 'plugins/SlimPing/settings/slimping_settings.html' }
 # Single source of truth -- do not duplicate defaults elsewhere.
 sub _getDefaultPreferences {
     return {
-        server_name              => 'SlimPing',
-        exposed_libraries_mode   => 'all',
-        radioFolder              => '',
-        radioFolderRecurse       => 0,
-        menu_mode                => 'usage',
-        admin_access             => 'lan_open',
-        trust_xff                => 0,
-        lan_mode                 => 1,
-        allow_plain_password     => 0,
-        proxy_remote_streams     => 1,
-        remote_stream_cap        => 10,
-        remote_stream_rate_limit => 3,
+        server_name               => 'SlimPing',
+        exposed_libraries_mode    => 'all',
+        radioFolder               => '',
+        radioFolderRecurse        => 0,
+        menu_mode                 => 'usage',
+        admin_access              => 'lan_open',
+        trust_xff                 => 0,
+        lan_mode                  => 1,
+        allow_plain_password      => 0,
+        proxy_remote_streams      => 1,
+        remote_stream_cap         => 10,
+        remote_stream_rate_limit  => 3,
         remote_stream_rate_window => 10,
-        feature_internet_radio   => 1,
-        feature_podcasts         => 1,
-        lms_favourites_bridge    => 1,
-        feature_mai_integration  => 'auto',
-        feature_mai_text         => 'on_demand',
-        feature_similar_depth    => 'basic',
-        mai_external_cap         => 20,
-        mai_request_rate         => 10,
-        mai_queue_max            => 500,
-        mai_bio_positive_ttl     => 7776000,
-        mai_bio_negative_ttl     => 2592000,
-        maxAlbumCount            => 0,
-        maxArtistCount           => 0,
-        maxSongCount             => 0,
-        genre_count_per_entity   => 3,
+        feature_internet_radio    => 1,
+        feature_podcasts          => 1,
+        lms_favourites_bridge     => 1,
+        artist_list_mode          => 'lms',
+        feature_mai_integration   => 'auto',
+        feature_mai_text          => 'on_demand',
+        feature_similar_depth     => 'basic',
+        mai_external_cap          => 20,
+        mai_request_rate          => 10,
+        mai_queue_max             => 500,
+        mai_bio_positive_ttl      => 7776000,
+        mai_bio_negative_ttl      => 2592000,
+        maxAlbumCount             => 0,
+        maxArtistCount            => 0,
+        maxSongCount              => 0,
+        genre_count_per_entity    => 3,
         exposed_contributor_roles => 'ARTIST,ALBUMARTIST,COMPOSER,CONDUCTOR,BAND',
-        cache_ttl_seconds        => 300,
-        lastScanTimestampMs      => 0,
-        minimalClients           => '',
-        legacyClients            => 'DSub, Subsonic',
-        star_user_cap            => 5000,
-        star_global_cap          => 500_000,
-        bookmark_user_cap        => 1000,
-        bookmark_global_cap      => 20_000,
-        share_user_cap           => 50,
-        share_global_cap         => 5000,
+        cache_ttl_seconds         => 300,
+        lastScanTimestampMs       => 0,
+        libraryViewChangedMs      => 0,
+        minimalClients            => '',
+        legacyClients             => 'DSub, Subsonic',
+        star_user_cap             => 5000,
+        star_global_cap           => 500_000,
+        bookmark_user_cap         => 1000,
+        bookmark_global_cap       => 20_000,
+        share_user_cap            => 50,
+        share_global_cap          => 5000,
 
         # Dynamic Playlist exposure (DPL4 bridge).  Enabled by default --
         # the feature self-gates at runtime on DPL4 presence (isAvailable),
         # so with DPL4 absent it is a no-op.  An explicit disable in
         # settings turns it off regardless of DPL4 state.
-        dpl_feature_enabled      => 1,
-        dpl_cache_ttl_seconds    => 300,
-        dpl_seed_size            => 50,
+        dpl_feature_enabled   => 1,
+        dpl_cache_ttl_seconds => 300,
+        dpl_seed_size         => 50,
 
         # Transcode cache
-        cache_ram_max_mb         => 100,
-        cache_ram_max_tracks     => 50,
-        cache_disk_enabled       => 0,
-        cache_disk_max_mb        => 2048,
-        cache_disk_path          => '',
-        share_min_ttl            => 3600,
-        share_default_ttl        => 86400,
-        share_max_ttl            => 604800,
-        share_max_bitrate        => 192,
-        radio_max_bitrate        => 192,
-        share_max_listeners      => 5,
-        share_max_unique_ips     => 20,
-        max_share_entries        => 500,
-        radio_token_ttl   => 7776000,
-        feature_sharing          => 1,
-        session_ttl_days         => 7,
-        scrobble_gateway_player  => '',
-        scrobble_source_type     => 'P',
-        scrobble_dedup_window    => 240,
-        client_quirks_enabled    => 1,
+        cache_ram_max_mb          => 100,
+        cache_ram_max_tracks      => 50,
+        cache_disk_enabled        => 0,
+        cache_disk_max_mb         => 2048,
+        cache_disk_path           => '',
+        share_min_ttl             => 3600,
+        share_default_ttl         => 86400,
+        share_max_ttl             => 604800,
+        share_max_bitrate         => 192,
+        radio_max_bitrate         => 192,
+        share_max_listeners       => 5,
+        share_max_unique_ips      => 20,
+        max_share_entries         => 500,
+        radio_token_ttl           => 7776000,
+        feature_sharing           => 1,
+        session_ttl_days          => 7,
+        scrobble_gateway_player   => '',
+        scrobble_source_type      => 'P',
+        scrobble_dedup_window     => 240,
+        client_quirks_enabled     => 1,
         quirk_substreamer_artwork => 1,
 
         # Cache format version — bump CACHE_FORMAT_VERSION to force a
         # transcode cache flush on next startup (hidden, do NOT add to
         # Settings::prefs() — it is an internal mechanism)
-        cache_format_version     => 0,
+        cache_format_version => 0,
 
         # Maximum items per page in LMS menus.  500 items renders comfortably on
         # all LMS clients (Material Skin, Squeezebox, iPeng).  Reduce on
         # low-memory devices; operators with very large libraries can tune it up.
-        menu_page_size           => 500,
+        menu_page_size => 500,
 
-        exotic_target            => 'flac',
-        exotic_target_rate       => 44100,
-        dsd_output_bit_depth     => 24,
+        exotic_target        => 'flac',
+        exotic_target_rate   => 44100,
+        dsd_output_bit_depth => 24,
+
+        # DSTM mixer integration (spec 2026-08-30-dstm-mixer-integration-design).
+        # dstm_mix_level: off = today's behaviour; feed = continual-feed
+        # top-up; similarity = + sonic endpoints and provider queries;
+        # full = + findSonicPath.
+        dstm_mix_level       => 'off',
+        dstm_fallback_db     => 1,
+        dstm_path_hops       => 25,
+        dstm_seed_window     => 5,
+        dstm_topup_threshold => 2,
+        dstm_provider        => '',
     };
 }
 

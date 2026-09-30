@@ -71,15 +71,15 @@ my %ADMIN_ROLES = map { $_ => 1 } keys %USER_ROLES;
 # and the jukebox_player assignment.  The hashref is freshly allocated each call
 # so callers can mutate it safely.
 sub rolesFor {
-    my ($class, $user) = @_;
-    my $roles = $user->{admin} ? { %ADMIN_ROLES } : { %USER_ROLES };
+    my ( $class, $user ) = @_;
+    my $roles = $user->{admin} ? {%ADMIN_ROLES} : {%USER_ROLES};
     $roles->{jukeboxRole} = $user->{jukebox_player} ? 1 : 0;
     return $roles;
 }
 
 # Returns true (1) if $user has $role set.
 sub hasRole {
-    my ($class, $user, $role) = @_;
+    my ( $class, $user, $role ) = @_;
     return $class->rolesFor($user)->{$role} ? 1 : 0;
 }
 
@@ -87,8 +87,8 @@ sub hasRole {
 # Callers can write:  return requireRole(...) // do { ... };
 # Error code 50 = user not authorised, per Subsonic spec.
 sub requireRole {
-    my ($class, $user, $role) = @_;
-    return undef if $class->hasRole($user, $role);
+    my ( $class, $user, $role ) = @_;
+    return undef if $class->hasRole( $user, $role );
     return { error => { code => 50, message => 'User is not authorised for this operation' } };
 }
 

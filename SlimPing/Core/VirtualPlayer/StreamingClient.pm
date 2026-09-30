@@ -42,22 +42,22 @@ my $log = Plugins::SlimPing::Core::Logging->getLogger();
 # a healthy initial burst.  Target is 128 KB of MP3 audio (~3.2 s at 320 kbps).
 # Max retries bounds the phase at 15 polls x 0.4 s RETRY_TIME = 6 s.  On timeout,
 # any buffered data is flushed immediately rather than discarded.
-my $PRIME_BUFFER_BYTES = 131072;                # 128 KB
-my $PRIME_MAX_RETRIES  = 15;                     # 6 s max
+my $PRIME_BUFFER_BYTES = 131072;    # 128 KB
+my $PRIME_MAX_RETRIES  = 15;        # 6 s max
 
 # Pre-buffer priming state.  Keyed by client ID.  Set in _startPlayback
 # before addStreamingResponse starts the write watcher; consumed and deleted
 # by the primed path in nextChunk.  Cleaned up by _cleanupDisconnectedPlayers
 # for clients that disconnect during priming.
-my %_prime_buffer;                               # client_id => accumulated MP3 data
-my %_prime_count;                                # client_id => retry counter
+my %_prime_buffer;    # client_id => accumulated MP3 data
+my %_prime_count;     # client_id => retry counter
 
 # Cross-module accessor: called by VirtualPlayer::_startPlayback to initiate
 # pre-buffer priming for a new transcode stream.
 sub _initPrimeBuffer {
     my ($client_id) = @_;
-    $_prime_buffer{ $client_id } = '';
-    $_prime_count{ $client_id }  = 0;
+    $_prime_buffer{$client_id} = '';
+    $_prime_count{$client_id}  = 0;
     $log->debug( "SlimPing: prime buffer initiated for " . $client_id );
 }
 
@@ -65,8 +65,8 @@ sub _initPrimeBuffer {
 # state for a player that disconnected before priming completed.
 sub _deletePrimeState {
     my ($player_id) = @_;
-    delete $_prime_buffer{ $player_id };
-    delete $_prime_count{ $player_id };
+    delete $_prime_buffer{$player_id};
+    delete $_prime_count{$player_id};
 }
 
 # Inline subclass of Slim::Player::HTTP that properly terminates the HTTP
@@ -146,20 +146,17 @@ sub _deletePrimeState {
 
         # --- Phase 0: cache ingest + pool push (always runs) ---------------
 
-        Plugins::SlimPing::Core::TranscodeCache->getInstance->ingestChunk(
-            $client->id, $chunk );
+        Plugins::SlimPing::Core::TranscodeCache->getInstance->ingestChunk( $client->id, $chunk );
 
         if ( defined($chunk) && length($$chunk) ) {
-            Plugins::SlimPing::Core::PipelinePool::pushChunk(
-                $client->id, $chunk );
+            Plugins::SlimPing::Core::PipelinePool::pushChunk( $client->id, $chunk );
         }
 
-        if (    defined($chunk)
-             && length($$chunk) == 0
-             && !$_is_live_stream{ $client->id } )
+        if (   defined($chunk)
+            && length($$chunk) == 0
+            && !$_is_live_stream{ $client->id } )
         {
-            Plugins::SlimPing::Core::PipelinePool::pushChunk(
-                $client->id, $chunk );
+            Plugins::SlimPing::Core::PipelinePool::pushChunk( $client->id, $chunk );
         }
 
         # --- Phase 1: live stream fast-path ----------------------------------
@@ -178,11 +175,7 @@ sub _deletePrimeState {
                     my $data = delete $_prime_buffer{ $client->id };
                     delete $_prime_count{ $client->id };
                     $log->debug(
-                        sprintf(
-                            'SlimPing: prime flush (full, %d bytes) for %s',
-                            length($data), $client->id
-                        )
-                    );
+                        sprintf( 'SlimPing: prime flush (full, %d bytes) for %s', length($data), $client->id ) );
                     return \$data;
                 }
                 return undef;
@@ -193,13 +186,10 @@ sub _deletePrimeState {
                 delete $_prime_count{ $client->id };
                 if ( length($data) ) {
                     $log->debug(
-                        sprintf(
-                            'SlimPing: prime flush (EOS, %d bytes) for %s',
-                            length($data), $client->id
-                        )
-                    );
+                        sprintf( 'SlimPing: prime flush (EOS, %d bytes) for %s', length($data), $client->id ) );
                     return \$data;
                 }
+
                 # Empty buffer at EOS -- fall through to normal EOS handling
             }
             else {
@@ -210,13 +200,11 @@ sub _deletePrimeState {
                     delete $_prime_count{ $client->id };
                     if ( length($data) ) {
                         $log->debug(
-                            sprintf(
-                                'SlimPing: prime flush (STREAMOUT, %d bytes) for %s',
-                                length($data), $client->id
-                            )
+                            sprintf( 'SlimPing: prime flush (STREAMOUT, %d bytes) for %s', length($data), $client->id )
                         );
                         return \$data;
                     }
+
                     # Empty buffer at STREAMOUT -- fall through to normal EOS
                 }
                 else {
@@ -233,8 +221,7 @@ sub _deletePrimeState {
                             );
                             return \$data;
                         }
-                        $log->debug(
-                            "SlimPing: prime timeout with no data for " . $client->id );
+                        $log->debug( "SlimPing: prime timeout with no data for " . $client->id );
                     }
                 }
             }

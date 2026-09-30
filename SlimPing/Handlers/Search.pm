@@ -32,23 +32,23 @@ require Plugins::SlimPing::Utils::Errors;
 
 sub registerHandlers {
     my $class = shift;
-    Plugins::SlimPing::API::Router->registerHandler('search2', \&search2);
-    Plugins::SlimPing::API::Router->registerHandler('search3', \&search3);
+    Plugins::SlimPing::API::Router->registerHandler( 'search2', \&search2 );
+    Plugins::SlimPing::API::Router->registerHandler( 'search3', \&search3 );
 }
 
-sub search2 { return _search(shift, 2); }
-sub search3 { return _search(shift, 3); }
+sub search2 { return _search( shift, 2 ); }
+sub search3 { return _search( shift, 3 ); }
 
 sub _search {
-    my ($args, $version) = @_;
+    my ( $args, $version ) = @_;
     my $p = $args->{params};
 
     return Plugins::SlimPing::Utils::Errors->missingParam('query')
-        unless defined $p->{query};
+      unless defined $p->{query};
     my $query = $p->{query};
 
     $query = Plugins::SlimPing::Core::LibraryMapper->cleanSearchQuery($query);
-    my $lib   = Plugins::SlimPing::Core::LibraryMapper->decodeLibraryParam($p);
+    my $lib = Plugins::SlimPing::Core::LibraryMapper->resolveLibraryFilter($args);
 
     my $results = Plugins::SlimPing::Core::Container->get('library_mapper')->search(
         query        => $query,
@@ -59,7 +59,7 @@ sub _search {
         songCount    => $p->{songCount}    // 20,
         songOffset   => $p->{songOffset}   // 0,
         library_id   => $lib,
-        ( $version == 2 ? (legacy => 1) : () ),
+        ( $version == 2 ? ( legacy => 1 ) : () ),
     );
 
     my $result_key = $version == 2 ? 'searchResult2' : 'searchResult3';

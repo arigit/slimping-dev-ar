@@ -53,8 +53,8 @@ sub handle {
         my @sync_members;
         if ( $client->isSynced() ) {
 
-    # When synced, only report the sync-master once. Add a group entry
-    # and skip individual member entries (they'll all have the same controller).
+            # When synced, only report the sync-master once. Add a group entry
+            # and skip individual member entries (they'll all have the same controller).
             my $controller    = $client->controller();
             my $controller_id = $controller->can('id') ? $controller->id() : '';
             next if $seen_sync_group{$controller_id};

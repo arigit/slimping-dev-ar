@@ -30,8 +30,8 @@ package Plugins::SlimPing::API::ResponseFormatter;
 use strict;
 use warnings;
 
-use Encode qw(decode_utf8 is_utf8);
-use JSON::XS ();
+use Encode       qw(decode_utf8 is_utf8);
+use JSON::XS     ();
 use Scalar::Util qw(looks_like_number);
 
 use constant SUBSONIC_VERSION => '1.16.1';
@@ -46,8 +46,8 @@ my $json_codec = JSON::XS->new->utf8->canonical(0);
 # Called once at plugin startup with the plugin version string.
 # Sets the serverVersion field to "pluginVersion-LMSVersion".
 sub init {
-    my ($class, $plugin_version) = @_;
-    $SERVER_VERSION = ($plugin_version // 'unknown') . '-' . ($::VERSION // 'unknown');
+    my ( $class, $plugin_version ) = @_;
+    $SERVER_VERSION = ( $plugin_version // 'unknown' ) . '-' . ( $::VERSION // 'unknown' );
 }
 
 # render($class, $data, $format) -> string
@@ -57,27 +57,27 @@ sub init {
 #
 # Returns the serialised Subsonic envelope as a UTF-8 string.
 sub render {
-    my ($class, $data, $format) = @_;
+    my ( $class, $data, $format ) = @_;
     $format //= 'xml';
 
     my $has_error = exists $data->{error};
 
     my $envelope = {
         'subsonic-response' => {
-            status        => ($has_error ? 'failed' : 'ok'),
+            status        => ( $has_error ? 'failed' : 'ok' ),
             version       => SUBSONIC_VERSION,
             type          => SERVER_TYPE,
             serverVersion => $SERVER_VERSION || $::VERSION || 'unknown',
-            openSubsonic  => \1,    # JSON::XS encodes scalar ref \1 as true
+            openSubsonic  => \1,                                           # JSON::XS encodes scalar ref \1 as true
             %$data,
         }
     };
 
     _utf8Normalise($envelope);
 
-    return ($format eq 'json')
-        ? $json_codec->encode(_stripUndef($envelope))
-        : _toXml($envelope);
+    return ( $format eq 'json' )
+      ? $json_codec->encode( _stripUndef($envelope) )
+      : _toXml($envelope);
 }
 
 # _utf8Normalise($data) -> $data
@@ -91,21 +91,24 @@ sub render {
 sub _utf8Normalise {
     my ($data) = @_;
     return $data unless ref $data;
-    if (ref $data eq 'HASH') {
-        for my $k (keys %$data) {
+    if ( ref $data eq 'HASH' ) {
+        for my $k ( keys %$data ) {
             my $v = $data->{$k};
-            if (!ref $v) {
+            if ( !ref $v ) {
                 $data->{$k} = decode_utf8($v) unless is_utf8($v) || looks_like_number($v);
-            } elsif (ref $v ne 'SCALAR') {
+            }
+            elsif ( ref $v ne 'SCALAR' ) {
                 _utf8Normalise($v);
             }
         }
-    } elsif (ref $data eq 'ARRAY') {
-        for my $i (0 .. $#$data) {
+    }
+    elsif ( ref $data eq 'ARRAY' ) {
+        for my $i ( 0 .. $#$data ) {
             my $v = $data->[$i];
-            if (!ref $v) {
+            if ( !ref $v ) {
                 $data->[$i] = decode_utf8($v) unless is_utf8($v) || looks_like_number($v);
-            } elsif (ref $v ne 'SCALAR') {
+            }
+            elsif ( ref $v ne 'SCALAR' ) {
                 _utf8Normalise($v);
             }
         }
@@ -122,16 +125,16 @@ sub _utf8Normalise {
 sub _stripUndef {
     my ($data) = @_;
     return $data unless ref $data;
-    if (ref $data eq 'HASH') {
+    if ( ref $data eq 'HASH' ) {
         my %clean;
-        for my $k (keys %$data) {
+        for my $k ( keys %$data ) {
             my $v = $data->{$k};
             next unless defined $v;
             $clean{$k} = _stripUndef($v);
         }
         return \%clean;
     }
-    if (ref $data eq 'ARRAY') {
+    if ( ref $data eq 'ARRAY' ) {
         return [ map { _stripUndef($_) } grep { defined $_ } @$data ];
     }
     return $data;
@@ -156,28 +159,29 @@ sub _toXml {
     my @attrs = ('xmlns="http://subsonic.org/restapi"');
     my @children;
 
-    for my $key (sort keys %$inner) {
+    for my $key ( sort keys %$inner ) {
         my $val = $inner->{$key};
-        if (ref $val && ref $val ne 'SCALAR') {
-            push @children, _renderElement($key, $val);
-        } else {
-            my $text = ref $val eq 'SCALAR' ? ($$val ? 'true' : 'false') : $val;
+        if ( ref $val && ref $val ne 'SCALAR' ) {
+            push @children, _renderElement( $key, $val );
+        }
+        else {
+            my $text    = ref $val eq 'SCALAR' ? ( $$val ? 'true' : 'false' ) : $val;
             my $escaped = _xmlEscape($text);
             push @attrs, qq{$key="$escaped"};
         }
     }
 
-    my $attr_str = @attrs ? ' ' . join(' ', @attrs) : '';
+    my $attr_str = @attrs ? ' ' . join( ' ', @attrs ) : '';
 
     if (@children) {
-        return qq{<?xml version="1.0" encoding="UTF-8"?>\n}
-             . qq{<subsonic-response$attr_str>\n}
-             . join("\n", @children) . "\n"
-             . qq{</subsonic-response>\n};
+        return
+            qq{<?xml version="1.0" encoding="UTF-8"?>\n}
+          . qq{<subsonic-response$attr_str>\n}
+          . join( "\n", @children ) . "\n"
+          . qq{</subsonic-response>\n};
     }
 
-    return qq{<?xml version="1.0" encoding="UTF-8"?>\n}
-         . qq{<subsonic-response$attr_str />\n};
+    return qq{<?xml version="1.0" encoding="UTF-8"?>\n} . qq{<subsonic-response$attr_str />\n};
 }
 
 # Recursively render a Perl value as an XML element.
@@ -187,43 +191,42 @@ sub _toXml {
 #   SCALAR -- text content: "true" / "false"
 #   undef  -- empty element (rare; callers should skip undef keys before here)
 sub _renderElement {
-    my ($key, $val) = @_;
+    my ( $key, $val ) = @_;
 
     return '' unless defined $key && length $key;
 
-    if (ref $val eq 'ARRAY') {
+    if ( ref $val eq 'ARRAY' ) {
         my @items;
         for my $entry (@$val) {
             next unless defined $entry;
-            push @items, _renderElement($key, $entry);
+            push @items, _renderElement( $key, $entry );
         }
-        return join("\n", @items);
+        return join( "\n", @items );
     }
 
-    if (ref $val eq 'HASH') {
+    if ( ref $val eq 'HASH' ) {
         my @elem_attrs;
         my @elem_children;
-        for my $k (sort keys %$val) {
+        for my $k ( sort keys %$val ) {
             my $v = $val->{$k};
             next unless defined $v;
-            if (ref $v && ref $v ne 'SCALAR') {
-                push @elem_children, _renderElement($k, $v);
-            } else {
-                my $text = ref $v eq 'SCALAR' ? ($$v ? 'true' : 'false') : $v;
+            if ( ref $v && ref $v ne 'SCALAR' ) {
+                push @elem_children, _renderElement( $k, $v );
+            }
+            else {
+                my $text    = ref $v eq 'SCALAR' ? ( $$v ? 'true' : 'false' ) : $v;
                 my $escaped = _xmlEscape($text);
                 push @elem_attrs, qq{$k="$escaped"};
             }
         }
-        my $attr_str = @elem_attrs ? ' ' . join(' ', @elem_attrs) : '';
+        my $attr_str = @elem_attrs ? ' ' . join( ' ', @elem_attrs ) : '';
         if (@elem_children) {
-            return qq{<$key$attr_str>\n}
-                 . join("\n", @elem_children) . "\n"
-                 . qq{</$key>};
+            return qq{<$key$attr_str>\n} . join( "\n", @elem_children ) . "\n" . qq{</$key>};
         }
         return qq{<$key$attr_str />};
     }
 
-    if (ref $val eq 'SCALAR') {
+    if ( ref $val eq 'SCALAR' ) {
         my $text = $$val ? 'true' : 'false';
         return qq{<$key>$text</$key>};
     }
@@ -251,19 +254,19 @@ sub _xmlEscape {
 # Callers that need an FQDN URL pass base_url => $scheme_host as the keyword.
 
 sub coverArtUrl {
-    my ($class, $id, %opts) = @_;
+    my ( $class, $id, %opts ) = @_;
     return undef unless defined $id && length $id;
     my $size = $opts{size};
     my $url  = "/rest/getCoverArt.view?id=$id";
     $url .= "&size=$size" if defined $size;
-    return ($opts{base_url} // '') . $url;
+    return ( $opts{base_url} // '' ) . $url;
 }
 
 sub streamUrl {
-    my ($class, $id, %opts) = @_;
+    my ( $class, $id, %opts ) = @_;
     return undef unless defined $id && length $id;
-    my $url = ($opts{base_url} // '') . '/rest/stream.view?id=' . $id;
-    if ($opts{token}) {
+    my $url = ( $opts{base_url} // '' ) . '/rest/stream.view?id=' . $id;
+    if ( $opts{token} ) {
         $url .= '&t_stream=' . $opts{token};
         $url .= '&token_expires=' . $opts{token_expires}
           if defined $opts{token_expires};
@@ -275,10 +278,10 @@ sub streamUrl {
 # radioStream.view endpoint.  t_stream and token_expires are always embedded
 # because radioStream.view requires an HMAC credential.
 sub radioStreamUrl {
-    my ($class, $id, %opts) = @_;
+    my ( $class, $id, %opts ) = @_;
     return undef unless defined $id && length $id;
-    my $url = ($opts{base_url} // '') . '/rest/radioStream.view?sq_id=' . $id;
-    if ($opts{token}) {
+    my $url = ( $opts{base_url} // '' ) . '/rest/radioStream.view?sq_id=' . $id;
+    if ( $opts{token} ) {
         $url .= '&t_stream=' . $opts{token};
         $url .= '&token_expires=' . $opts{token_expires}
           if defined $opts{token_expires};

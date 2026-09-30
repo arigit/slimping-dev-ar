@@ -39,7 +39,7 @@ package Plugins::SlimPing::Core::LibraryMapper::RelatedSongs;
 use strict;
 use warnings;
 
-use List::Util qw(shuffle);
+use List::Util  qw(shuffle);
 use Time::HiRes qw(time);
 use Slim::Schema;
 use Plugins::SlimPing::Core::Logging;
@@ -51,24 +51,73 @@ my $log = Plugins::SlimPing::Core::Logging->getLogger();
 # ---------------------------------------------------------------------------
 
 sub getSimilarSongs {
-    my ($self, $sq_id, %args) = @_;
+    my ( $self, $sq_id, %args ) = @_;
 
-    my $count  = $args{count} // 50;
+    my $count = $args{count} // 50;
+
+    # DSTM integration (spec 2026-08-30): at similarity/full levels the
+    # registered sonic provider answers first; the DB engine below is the
+    # fallback when the provider returns nothing and dstm_fallback_db is on.
+    my $prefs = Plugins::SlimPing::Core::Logging->getPrefs();
+    my $level = $prefs->get('dstm_mix_level') || 'off';
+
+    if ( $level eq 'similarity' || $level eq 'full' ) {
+        my $provider_consulted = 0;
+
+        require Plugins::SlimPing::Core::SonicRegistry;
+        my $provider = Plugins::SlimPing::Core::SonicRegistry->bestProvider();
+
+        # A deferred provider answers from a callback, and this mapper method is
+        # synchronous.  Skip it rather than calling it in a mode it cannot
+        # serve, so the classic engine answers instead.
+        if ( $provider && $provider->{deferred} ) {
+            $log->debug( 'SlimPing: skipping deferred sonic provider ' . $provider->{id}
+                  . ' for the synchronous getSimilarSongs path' );
+            $provider = undef;
+        }
+
+        if ($provider) {
+            $provider_consulted = 1;
+            my $seed_tracks = _providerSeed( $self, $sq_id );
+            if ( $seed_tracks && @$seed_tracks ) {
+                my $results = eval { $provider->{similarTracks}->( undef, $count, { seed_tracks => $seed_tracks } ) };
+                if ($@) {
+                    $log->warn( 'SlimPing: sonic provider ' . $provider->{id} . " failed: $@" );
+                }
+                if ( !$@ && $results && @$results ) {
+                    $log->debug( 'SlimPing: getSimilarSongs served by provider ' . $provider->{id} );
+                    return [
+                        map {
+                            my $t = $_->{track};
+                            $t ? $self->shapeTrack($t) : ();
+                        } @$results
+                    ];
+                }
+            }
+        }
+
+        return [] if $provider_consulted && !$prefs->get('dstm_fallback_db');
+    }
+
     my $depth  = _readDepth();
-    my $artist = _resolveArtist($self, $sq_id);
+    my $artist = _resolveArtist( $self, $sq_id );
     return [] unless $artist;
 
     my $t0 = time();
 
-    my $pool = _similarArtistPool($self, $artist, $depth, $count);
+    my $pool = _similarArtistPool( $self, $artist, $depth, $count );
 
-    my $tracks = _pickWeightedTracks($self, $pool, $artist, $count, $depth);
+    my $tracks = _pickWeightedTracks( $self, $pool, $artist, $count, $depth );
 
-    $log->debug(sprintf(
-        'SlimPing: getSimilarSongs depth=%s artist=%s pool=%d tracks=%d (%.1fms)',
-        $depth, $artist->name(), scalar keys %$pool, scalar @$tracks,
-        (time() - $t0) * 1000
-    ));
+    $log->debug(
+        sprintf(
+            'SlimPing: getSimilarSongs depth=%s artist=%s pool=%d tracks=%d (%.1fms)',
+            $depth, $artist->name(),
+            scalar keys %$pool,
+            scalar @$tracks,
+            ( time() - $t0 ) * 1000
+        )
+    );
 
     return $tracks;
 }
@@ -80,29 +129,49 @@ sub getSimilarSongs {
 # Decode the sq_ ID and resolve to a Contributor object.  Accepts artist,
 # album, and song IDs; for albums and songs the primary artist is returned.
 sub _resolveArtist {
-    my ($self, $sq_id) = @_;
+    my ( $self, $sq_id ) = @_;
     return undef unless defined $sq_id;
 
-    my ($type, $raw_id) = $self->decodeId($sq_id);
+    my ( $type, $raw_id ) = $self->decodeId($sq_id);
     return undef unless defined $type && defined $raw_id;
 
-    if ($type eq 'artist') {
-        return Slim::Schema->find('Contributor', $raw_id);
+    if ( $type eq 'artist' ) {
+        return Slim::Schema->find( 'Contributor', $raw_id );
     }
 
-    if ($type eq 'album') {
-        my $album = Slim::Schema->find('Album', $raw_id);
+    if ( $type eq 'album' ) {
+        my $album = Slim::Schema->find( 'Album', $raw_id );
         return undef unless $album;
         return $album->artist();
     }
 
-    if ($type eq 'track') {
-        my $track = Slim::Schema->find('Track', $raw_id);
+    if ( $type eq 'track' ) {
+        my $track = Slim::Schema->find( 'Track', $raw_id );
         return undef unless $track;
         return $track->artist();
     }
 
     return undef;
+}
+
+# Seed tracks for the sonic provider: up to dstm_seed_window tracks of the
+# seed artist (same artist pool the DB engine draws from).
+sub _providerSeed {
+    my ( $self, $sq_id ) = @_;
+
+    my $artist = _resolveArtist( $self, $sq_id );
+    return undef unless $artist;
+
+    my $prefs  = Plugins::SlimPing::Core::Logging->getPrefs();
+    my $window = $prefs->get('dstm_seed_window') || 5;
+
+    my $rs = Slim::Schema->search(
+        'Track',
+        { 'primary_artist.id' => $artist->id(),    audio => 1 },
+        { join                => 'primary_artist', rows  => $window }
+    );
+    my @tracks = $rs->all();
+    return \@tracks;
 }
 
 # ---------------------------------------------------------------------------
@@ -123,37 +192,37 @@ sub _readDepth {
 # Returns a hashref of { artist_id => weight } for artists similar to the seed.
 # The seed artist is always included at weight 1.0.
 sub _similarArtistPool {
-    my ($self, $artist, $depth, $count) = @_;
+    my ( $self, $artist, $depth, $count ) = @_;
 
     # Always include the seed artist
     my %pool = ( $artist->id() => 1.0 );
 
     # Basic: genre overlap only
-    my @genre_ids = $self->_genreArtistIds($artist, $count);
+    my @genre_ids = $self->_genreArtistIds( $artist, $count );
     for my $gid (@genre_ids) {
-        $pool{$gid} = ($pool{$gid} // 0) + 0.6;
+        $pool{$gid} = ( $pool{$gid} // 0 ) + 0.6;
     }
 
     return \%pool if $depth eq 'basic';
 
     # Enhanced: add shared-album artists
-    my @shared_ids = _sharedAlbumArtistIds($self, $artist, $count);
+    my @shared_ids = _sharedAlbumArtistIds( $self, $artist, $count );
     for my $sid (@shared_ids) {
-        $pool{$sid} = ($pool{$sid} // 0) + 0.6;
+        $pool{$sid} = ( $pool{$sid} // 0 ) + 0.6;
     }
 
     return \%pool if $depth eq 'enhanced';
 
     # Full: one-hop graph walk from the current pool
     my @current_ids = keys %pool;
-    my $hop_count = 0;
+    my $hop_count   = 0;
     for my $cid (@current_ids) {
         last if ++$hop_count > 20;    # cap graph-walk input size
-        my $hop_artist = Slim::Schema->find('Contributor', $cid);
+        my $hop_artist = Slim::Schema->find( 'Contributor', $cid );
         next unless $hop_artist;
-        my @hop_ids = _sharedAlbumArtistIds($self, $hop_artist, int($count / 3));
+        my @hop_ids = _sharedAlbumArtistIds( $self, $hop_artist, int( $count / 3 ) );
         for my $hid (@hop_ids) {
-            $pool{$hid} = ($pool{$hid} // 0) + 0.3;   # decayed weight
+            $pool{$hid} = ( $pool{$hid} // 0 ) + 0.3;    # decayed weight
         }
     }
 
@@ -165,21 +234,20 @@ sub _similarArtistPool {
 # ---------------------------------------------------------------------------
 
 sub _sharedAlbumArtistIds {
-    my ($self, $artist, $count) = @_;
+    my ( $self, $artist, $count ) = @_;
 
     my $dbh = Slim::Schema->dbh;
-    my $sth = $dbh->prepare_cached(
-        'SELECT DISTINCT ca2.contributor FROM contributor_album ca1'
-      . ' JOIN contributor_album ca2 ON ca2.album = ca1.album'
-      . ' WHERE ca1.contributor = ? AND ca2.contributor != ?'
-    );
-    $sth->execute($artist->id(), $artist->id());
+    my $sth =
+      $dbh->prepare_cached( 'SELECT DISTINCT ca2.contributor FROM contributor_album ca1'
+          . ' JOIN contributor_album ca2 ON ca2.album = ca1.album'
+          . ' WHERE ca1.contributor = ? AND ca2.contributor != ?' );
+    $sth->execute( $artist->id(), $artist->id() );
     my @ids = map { $_->[0] } @{ $sth->fetchall_arrayref() };
     $sth->finish();
     return () unless @ids;
 
     my @picked = shuffle(@ids);
-    splice(@picked, $count) if @picked > $count;
+    splice( @picked, $count ) if @picked > $count;
     return @picked;
 }
 
@@ -191,21 +259,20 @@ sub _sharedAlbumArtistIds {
 # from TrackPersistent is used as a secondary weight; at lower depths a
 # simple shuffle is used.
 sub _pickWeightedTracks {
-    my ($self, $pool, $seed_artist, $count, $depth) = @_;
+    my ( $self, $pool, $seed_artist, $count, $depth ) = @_;
 
     my @artist_ids = keys %$pool;
     return [] unless @artist_ids;
 
     # Fetch candidate tracks: fetch all track IDs from pool artists, shuffle,
     # take the first N.
-    my $placeholders = join(',', ('?') x scalar @artist_ids);
-    my $dbh = Slim::Schema->dbh;
-    my $sth = $dbh->prepare(
-        "SELECT t.id FROM tracks t"
-      . " JOIN contributor_track ct ON ct.track = t.id"
-      . " WHERE ct.contributor IN ($placeholders) AND ct.role = 1"
-      . " AND t.audio = 1"
-    );
+    my $placeholders = join( ',', ('?') x scalar @artist_ids );
+    my $dbh          = Slim::Schema->dbh;
+    my $sth =
+      $dbh->prepare( "SELECT t.id FROM tracks t"
+          . " JOIN contributor_track ct ON ct.track = t.id"
+          . " WHERE ct.contributor IN ($placeholders) AND ct.role = 1"
+          . " AND t.audio = 1" );
     $sth->execute(@artist_ids);
     my @track_ids = map { $_->[0] } @{ $sth->fetchall_arrayref() };
     $sth->finish();
@@ -214,16 +281,17 @@ sub _pickWeightedTracks {
     @track_ids = shuffle(@track_ids);
 
     # At 'full' depth, apply play-count weighted shuffle.
-    if ($depth eq 'full' && scalar(@track_ids) > $count) {
-        @track_ids = _playCountWeightedSort($self, \@track_ids, $count);
+    if ( $depth eq 'full' && scalar(@track_ids) > $count ) {
+        @track_ids = _playCountWeightedSort( $self, \@track_ids, $count );
     }
 
     # Take up to $count, resolve and shape
-    splice(@track_ids, $count) if @track_ids > $count;
+    splice( @track_ids, $count ) if @track_ids > $count;
 
-    my $rs = Slim::Schema->search('Track',
-        { 'me.id' => { -in => \@track_ids } },
-        { prefetch => ['album', 'primary_artist'] }
+    my $rs = Slim::Schema->search(
+        'Track',
+        { 'me.id'  => { -in => \@track_ids } },
+        { prefetch => [ 'album', 'primary_artist' ] }
     );
     my %track_by_id = map { $_->id() => $_ } $rs->all();
 
@@ -241,20 +309,20 @@ sub _pickWeightedTracks {
 # Weighted shuffle: sort by TrackPersistent.playCount (higher = earlier),
 # then take the top $scan_limit, then shuffle to preserve some randomness.
 sub _playCountWeightedSort {
-    my ($self, $track_ids, $count) = @_;
+    my ( $self, $track_ids, $count ) = @_;
 
-    my $scan_limit = $count * 3;
-    my $placeholders = join(',', ('?') x scalar @$track_ids);
-    my $dbh = Slim::Schema->dbh;
+    my $scan_limit   = $count * 3;
+    my $placeholders = join( ',', ('?') x scalar @$track_ids );
+    my $dbh          = Slim::Schema->dbh;
+
     # Plain prepare() -- not prepare_cached() -- because the variable-length IN
     # clause produces a different SQL string per batch size.
-    my $sth = $dbh->prepare(
-        "SELECT t.id, COALESCE(tp.playCount, 0) AS pc FROM tracks t"
-      . " LEFT JOIN tracks_persistent tp ON tp.urlmd5 = t.urlmd5"
-      . " WHERE t.id IN ($placeholders)"
-      . " ORDER BY pc DESC LIMIT ?"
-    );
-    $sth->execute(@$track_ids, $scan_limit);
+    my $sth =
+      $dbh->prepare( "SELECT t.id, COALESCE(tp.playCount, 0) AS pc FROM tracks t"
+          . " LEFT JOIN tracks_persistent tp ON tp.urlmd5 = t.urlmd5"
+          . " WHERE t.id IN ($placeholders)"
+          . " ORDER BY pc DESC LIMIT ?" );
+    $sth->execute( @$track_ids, $scan_limit );
     my @weighted = map { $_->[0] } @{ $sth->fetchall_arrayref() };
     $sth->finish();
 

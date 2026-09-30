@@ -37,11 +37,11 @@ require Plugins::SlimPing::Utils::Params;
 
 sub registerHandlers {
     my $class = shift;
-    Plugins::SlimPing::API::Router->registerHandler('getPlaylists',   \&getPlaylists);
-    Plugins::SlimPing::API::Router->registerHandler('getPlaylist',    \&getPlaylist);
-    Plugins::SlimPing::API::Router->registerHandler('createPlaylist', \&createPlaylist);
-    Plugins::SlimPing::API::Router->registerHandler('updatePlaylist', \&updatePlaylist);
-    Plugins::SlimPing::API::Router->registerHandler('deletePlaylist', \&deletePlaylist);
+    Plugins::SlimPing::API::Router->registerHandler( 'getPlaylists',   \&getPlaylists );
+    Plugins::SlimPing::API::Router->registerHandler( 'getPlaylist',    \&getPlaylist );
+    Plugins::SlimPing::API::Router->registerHandler( 'createPlaylist', \&createPlaylist );
+    Plugins::SlimPing::API::Router->registerHandler( 'updatePlaylist', \&updatePlaylist );
+    Plugins::SlimPing::API::Router->registerHandler( 'deletePlaylist', \&deletePlaylist );
 }
 
 my $mapper     = sub { Plugins::SlimPing::Core::Container->get('library_mapper') };
@@ -51,7 +51,7 @@ my $dpl_bridge = sub { Plugins::SlimPing::Core::DynamicPlaylistBridge->getInstan
 sub getPlaylists {
     my ($args) = @_;
     require Plugins::SlimPing::Auth::Permissions;
-    if (my $err = Plugins::SlimPing::Auth::Permissions->requireRole($args->{user}, 'playlistRole')) {
+    if ( my $err = Plugins::SlimPing::Auth::Permissions->requireRole( $args->{user}, 'playlistRole' ) ) {
         return $err;
     }
 
@@ -59,14 +59,14 @@ sub getPlaylists {
 
     # Provider 2: DPL4 dynamic playlists (read-only)
     if ( $dpl_bridge->()->isAvailable() && $dpl_bridge->()->isEnabled() ) {
-        my @dpl_playlists = $dpl_bridge->()->getExposedPlaylists($args->{user}{username});
+        my @dpl_playlists = $dpl_bridge->()->getExposedPlaylists( $args->{user}{username} );
         push @playlists, @dpl_playlists;
     }
 
     # Provider 1: LMS static/SSP playlists
     my @pl_objs = $store->()->getAllPlaylists();
     for my $pl (@pl_objs) {
-        push @playlists, $mapper->()->shapePlaylist($pl, 0);
+        push @playlists, $mapper->()->shapePlaylist( $pl, 0 );
     }
 
     return { playlists => { playlist => \@playlists } };
@@ -75,71 +75,71 @@ sub getPlaylists {
 sub getPlaylist {
     my ($args) = @_;
     require Plugins::SlimPing::Auth::Permissions;
-    if (my $err = Plugins::SlimPing::Auth::Permissions->requireRole($args->{user}, 'playlistRole')) {
+    if ( my $err = Plugins::SlimPing::Auth::Permissions->requireRole( $args->{user}, 'playlistRole' ) ) {
         return $err;
     }
     my $id = $args->{params}{id}
-        or return Plugins::SlimPing::Utils::Errors->missingParam('id');
+      or return Plugins::SlimPing::Utils::Errors->missingParam('id');
 
-    my ($type, $raw_id) = Plugins::SlimPing::Core::LibraryMapper->decodeId($id);
+    my ( $type, $raw_id ) = Plugins::SlimPing::Core::LibraryMapper->decodeId($id);
     return Plugins::SlimPing::Utils::Errors->notFound('Playlist') unless defined $raw_id;
 
     # Provider 2: DPL4 dynamic playlist
     if ( $type && $type eq 'dynamic_playlist' ) {
-        return { playlist => $dpl_bridge->()->getPlaylistWithTracks($raw_id, $args->{user}{username}) };
+        return { playlist => $dpl_bridge->()->getPlaylistWithTracks( $raw_id, $args->{user}{username} ) };
     }
 
     # Provider 1: LMS static/SSP playlist
     my $pl = $store->()->getPlaylist($raw_id);
     return Plugins::SlimPing::Utils::Errors->notFound('Playlist') unless $pl;
 
-    return { playlist => $mapper->()->shapePlaylist($pl, 1) };
+    return { playlist => $mapper->()->shapePlaylist( $pl, 1 ) };
 }
 
 sub createPlaylist {
     my ($args) = @_;
     require Plugins::SlimPing::Auth::Permissions;
-    if (my $err = Plugins::SlimPing::Auth::Permissions->requireRole($args->{user}, 'playlistRole')) {
+    if ( my $err = Plugins::SlimPing::Auth::Permissions->requireRole( $args->{user}, 'playlistRole' ) ) {
         return $err;
     }
     my $p    = $args->{params};
     my $name = $p->{name}
-        or return Plugins::SlimPing::Utils::Errors->missingParam('name');
+      or return Plugins::SlimPing::Utils::Errors->missingParam('name');
 
-    my @song_ids = Plugins::SlimPing::Utils::Params->multiParam($p->{songId});
-    my ($pl, $err) = $store->()->createPlaylist($name, \@song_ids);
-    return Plugins::SlimPing::Utils::Errors->error(0, $err) if $err;
+    my @song_ids = Plugins::SlimPing::Utils::Params->multiParam( $p->{songId} );
+    my ( $pl, $err ) = $store->()->createPlaylist( $name, \@song_ids );
+    return Plugins::SlimPing::Utils::Errors->error( 0, $err ) if $err;
 
-    return { playlist => $mapper->()->shapePlaylist($pl, 1) };
+    return { playlist => $mapper->()->shapePlaylist( $pl, 1 ) };
 }
 
 sub updatePlaylist {
     my ($args) = @_;
     require Plugins::SlimPing::Auth::Permissions;
-    if (my $err = Plugins::SlimPing::Auth::Permissions->requireRole($args->{user}, 'playlistRole')) {
+    if ( my $err = Plugins::SlimPing::Auth::Permissions->requireRole( $args->{user}, 'playlistRole' ) ) {
         return $err;
     }
     my $p  = $args->{params};
     my $id = $p->{playlistId}
-        or return Plugins::SlimPing::Utils::Errors->missingParam('playlistId');
+      or return Plugins::SlimPing::Utils::Errors->missingParam('playlistId');
 
-    my ($type, $raw_id) = Plugins::SlimPing::Core::LibraryMapper->decodeId($id);
+    my ( $type, $raw_id ) = Plugins::SlimPing::Core::LibraryMapper->decodeId($id);
     return Plugins::SlimPing::Utils::Errors->notFound('Playlist') unless defined $raw_id;
 
     # Guard: DPL playlists are read-only
-    return Plugins::SlimPing::Utils::Errors->error(50, 'Dynamic playlists are read-only')
-        if $type && $type eq 'dynamic_playlist';
+    return Plugins::SlimPing::Utils::Errors->error( 50, 'Dynamic playlists are read-only' )
+      if $type && $type eq 'dynamic_playlist';
 
     my $changes = {
-        remove_indices => [ Plugins::SlimPing::Utils::Params->multiParam($p->{songIndexToRemove}) ],
-        add_song_ids   => [ Plugins::SlimPing::Utils::Params->multiParam($p->{songIdToAdd}) ],
+        remove_indices => [ Plugins::SlimPing::Utils::Params->multiParam( $p->{songIndexToRemove} ) ],
+        add_song_ids   => [ Plugins::SlimPing::Utils::Params->multiParam( $p->{songIdToAdd} ) ],
     };
-    $changes->{name}    = $p->{name}    if defined $p->{name}    && length $p->{name};
+    $changes->{name}    = $p->{name}    if defined $p->{name} && length $p->{name};
     $changes->{comment} = $p->{comment} if defined $p->{comment};
 
-    my ($pl, $err) = $store->()->updatePlaylist($raw_id, $changes);
-    return Plugins::SlimPing::Utils::Errors->error(50, $err) if $err && $err =~ /read-only/;
-    return Plugins::SlimPing::Utils::Errors->error(0, $err)  if $err;
+    my ( $pl, $err ) = $store->()->updatePlaylist( $raw_id, $changes );
+    return Plugins::SlimPing::Utils::Errors->error( 50, $err ) if $err && $err =~ /read-only/;
+    return Plugins::SlimPing::Utils::Errors->error( 0,  $err ) if $err;
 
     return {};
 }
@@ -147,22 +147,22 @@ sub updatePlaylist {
 sub deletePlaylist {
     my ($args) = @_;
     require Plugins::SlimPing::Auth::Permissions;
-    if (my $err = Plugins::SlimPing::Auth::Permissions->requireRole($args->{user}, 'playlistRole')) {
+    if ( my $err = Plugins::SlimPing::Auth::Permissions->requireRole( $args->{user}, 'playlistRole' ) ) {
         return $err;
     }
     my $id = $args->{params}{id}
-        or return Plugins::SlimPing::Utils::Errors->missingParam('id');
+      or return Plugins::SlimPing::Utils::Errors->missingParam('id');
 
-    my ($type, $raw_id) = Plugins::SlimPing::Core::LibraryMapper->decodeId($id);
+    my ( $type, $raw_id ) = Plugins::SlimPing::Core::LibraryMapper->decodeId($id);
     return Plugins::SlimPing::Utils::Errors->notFound('Playlist') unless defined $raw_id;
 
     # Guard: DPL playlists are read-only
-    return Plugins::SlimPing::Utils::Errors->error(50, 'Dynamic playlists are read-only')
-        if $type && $type eq 'dynamic_playlist';
+    return Plugins::SlimPing::Utils::Errors->error( 50, 'Dynamic playlists are read-only' )
+      if $type && $type eq 'dynamic_playlist';
 
     my $err = $store->()->deletePlaylist($raw_id);
-    return Plugins::SlimPing::Utils::Errors->error(50, $err) if $err && $err =~ /read-only/;
-    return Plugins::SlimPing::Utils::Errors->error(0, $err)  if $err;
+    return Plugins::SlimPing::Utils::Errors->error( 50, $err ) if $err && $err =~ /read-only/;
+    return Plugins::SlimPing::Utils::Errors->error( 0,  $err ) if $err;
 
     return {};
 }

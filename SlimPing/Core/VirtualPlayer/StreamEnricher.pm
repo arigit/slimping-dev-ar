@@ -67,13 +67,13 @@ my %_local_meta_state;
 # periodically to stop the player once the segment duration elapses.
 # Separate from the ICY enrichment timer -- CUE stop is purely a
 # local-file concern and must not depend on remote/ICY conditions.
-my %_cue_stop_state;                             # client_id => { sq_id, cue_duration_s, cue_started_at }
+my %_cue_stop_state;    # client_id => { sq_id, cue_duration_s, cue_started_at }
 
 # Cross-module accessor: called by PlayerCleanup to drop CUE stop state
 # for a player that disconnected before its segment elapsed.
 sub _deleteCueStopState {
     my ($player_id) = @_;
-    delete $_cue_stop_state{ $player_id };
+    delete $_cue_stop_state{$player_id};
 }
 
 sub _scheduleEnrichment {
@@ -98,7 +98,7 @@ sub _scheduleEnrichment {
         last_cover_url    => undef,
         retries           => 0,
     };
-    $log->debug( "SlimPing: enrichment timer scheduled for $args->{sq_id} (in 6s)" );
+    $log->debug("SlimPing: enrichment timer scheduled for $args->{sq_id} (in 6s)");
     Slim::Utils::Timers::setTimer( $client, time() + 6.0, \&_enrichTick );
 }
 
@@ -280,12 +280,13 @@ sub _enrichTick {
             # "Station Name - " with a trailing dash.
             if ( $remote_meta->{artist} && $remote_meta->{title} ) {
                 $title = $remote_meta->{artist} . ' - ' . $remote_meta->{title};
-            } elsif ( $remote_meta->{title} ) {
+            }
+            elsif ( $remote_meta->{title} ) {
                 $title = $remote_meta->{title};
-            } else {
+            }
+            else {
                 require Slim::Music::Info;
-                $title = Slim::Music::Info::getCurrentTitle(
-                    $client, $track_url, 0, $remote_meta );
+                $title = Slim::Music::Info::getCurrentTitle( $client, $track_url, 0, $remote_meta );
             }
 
             # Artwork: protocol-handler-resolved image URL.
@@ -349,17 +350,14 @@ sub _enrichTick {
                         my $http     = shift;
                         my $art_data = $http->content();
                         if ( length($art_data) ) {
-                            Plugins::SlimPing::Core::VirtualPlayer::ArtworkBridge::_setArtworkCache(
-                                $cache_key, $art_data, 'image/jpeg' );
-                            $log->debug(
-                                "SlimPing: artwork fetched for $sq_id ("
-                                  . length($art_data)
-                                  . " bytes)" );
+                            Plugins::SlimPing::Core::VirtualPlayer::ArtworkBridge::_setArtworkCache( $cache_key,
+                                $art_data, 'image/jpeg' );
+                            $log->debug( "SlimPing: artwork fetched for $sq_id (" . length($art_data) . " bytes)" );
                         }
                     },
                     sub {
-                        $log->warn(
-                            "SlimPing: artwork fetch failed for $sq_id");
+                        $log->warn("SlimPing: artwork fetch failed for $sq_id");
+
                         # Let the next tick retry.
                         $state->{last_cover_url} = undef;
                     },
@@ -367,8 +365,7 @@ sub _enrichTick {
                 )->get($cover_url);
             }
             else {
-                $log->debug(
-                    "SlimPing: artwork URL unchanged for $state->{sq_id}, skipping fetch");
+                $log->debug("SlimPing: artwork URL unchanged for $state->{sq_id}, skipping fetch");
             }
         }
         else {
@@ -379,10 +376,9 @@ sub _enrichTick {
                 $log->warn("SlimPing: artwork coverArt error for $state->{sq_id}: $@");
             }
             if ($art_data) {
-                Plugins::SlimPing::Core::VirtualPlayer::ArtworkBridge::_setArtworkCache(
-                    $state->{artwork_cache_key}, $art_data, $art_type || 'image/jpeg' );
-                $log->debug(
-                    "SlimPing: artwork cached for $state->{artwork_cache_key} ("
+                Plugins::SlimPing::Core::VirtualPlayer::ArtworkBridge::_setArtworkCache( $state->{artwork_cache_key},
+                    $art_data, $art_type || 'image/jpeg' );
+                $log->debug( "SlimPing: artwork cached for $state->{artwork_cache_key} ("
                       . length($art_data)
                       . " bytes, $art_type)" );
             }
@@ -439,8 +435,8 @@ sub _localMetadataTimer {
             $log->warn("SlimPing: artwork coverArt error for $artwork_cache_key (non-remote): $@");
         }
         elsif ($art_data) {
-            Plugins::SlimPing::Core::VirtualPlayer::ArtworkBridge::_setArtworkCache(
-                $artwork_cache_key, $art_data, $art_type || 'image/jpeg' );
+            Plugins::SlimPing::Core::VirtualPlayer::ArtworkBridge::_setArtworkCache( $artwork_cache_key, $art_data,
+                $art_type || 'image/jpeg' );
             $log->debug("SlimPing: artwork cached for $artwork_cache_key");
         }
     }

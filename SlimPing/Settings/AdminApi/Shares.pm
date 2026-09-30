@@ -52,19 +52,19 @@ sub handle {
         $result = { shares => { share => Plugins::SlimPing::Handlers::Sharing->getAllShares() } };
     }
     elsif ( $method eq 'POST' ) {
-        my $body   = eval { $json->decode( $request->content() || '{}' ) };
+        my $body = eval { $json->decode( $request->content() || '{}' ) };
         if ($@) {
             $log->warn("AdminApi: JSON decode failed: $@");
-            my $err = { error => 'Invalid JSON body' };
+            my $err       = { error => 'Invalid JSON body' };
             my $resp_body = $json->encode($err);
-            $response->header('Content-Type'   => 'application/json; charset=utf-8');
-            $response->header('Content-Length' => length($resp_body));
+            $response->header( 'Content-Type'   => 'application/json; charset=utf-8' );
+            $response->header( 'Content-Length' => length($resp_body) );
             $response->code(400);
-            Slim::Web::HTTP::addHTTPResponse($httpClient, $response, \$resp_body);
+            Slim::Web::HTTP::addHTTPResponse( $httpClient, $response, \$resp_body );
             return;
         }
         $body //= {};
-        my $action = $body->{action}                                     // '';
+        my $action = $body->{action} // '';
 
         if ( $action eq 'revoke' ) {
             my $id = $body->{id};
@@ -76,7 +76,11 @@ sub handle {
                 my $ok = Plugins::SlimPing::Handlers::Sharing->revokeShare($id);
                 if ($ok) {
                     Plugins::SlimPing::Core::Audit::record(
-                        actor => $actor, ip => $ip, action => 'revoke_share', target => $id );
+                        actor  => $actor,
+                        ip     => $ip,
+                        action => 'revoke_share',
+                        target => $id
+                    );
                     $result = { ok => 1 };
                 }
                 else {
@@ -88,21 +92,30 @@ sub handle {
         elsif ( $action eq 'revoke_all' ) {
             my $count = Plugins::SlimPing::Handlers::Sharing->revokeAllShares();
             Plugins::SlimPing::Core::Audit::record(
-                actor => $actor, ip => $ip, action => 'revoke_all_shares',
-                target => 'shares', detail => "count=$count" );
+                actor  => $actor,
+                ip     => $ip,
+                action => 'revoke_all_shares',
+                target => 'shares',
+                detail => "count=$count"
+            );
             $result = { ok => 1, revoked => $count };
         }
         elsif ( $action eq 'save_settings' ) {
+
             # Numeric prefs with no cross-validation
-            for my $pref (qw(share_max_bitrate radio_max_bitrate share_user_cap share_global_cap
-                             share_max_listeners share_max_unique_ips)) {
+            for my $pref (
+                qw(share_max_bitrate radio_max_bitrate share_user_cap share_global_cap
+                share_max_listeners share_max_unique_ips)
+              )
+            {
                 if ( exists $body->{$pref} ) {
                     $prefs->set( $pref, int( $body->{$pref} ) );
                 }
             }
+
             # TTL values: UI sends hours, store as seconds.  Clamp server-side.
-            my $min = int( $body->{share_min_ttl}   // 1 );
-            my $max = int( $body->{share_max_ttl}   // 168 );
+            my $min = int( $body->{share_min_ttl}     // 1 );
+            my $max = int( $body->{share_max_ttl}     // 168 );
             my $def = int( $body->{share_default_ttl} // 24 );
             $min = 1   if $min < 1;
             $max = 168 if $max > 168;
@@ -113,8 +126,11 @@ sub handle {
             $prefs->set( 'share_default_ttl', $def * 3600 );
             $prefs->set( 'share_max_ttl',     $max * 3600 );
             Plugins::SlimPing::Core::Audit::record(
-                actor => $actor, ip => $ip, action => 'save_sharing_settings',
-                target => 'shares' );
+                actor  => $actor,
+                ip     => $ip,
+                action => 'save_sharing_settings',
+                target => 'shares'
+            );
             $result = { ok => 1 };
         }
         else {

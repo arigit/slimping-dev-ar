@@ -57,20 +57,20 @@ use Plugins::SlimPing::Core::Logging;
 my $log   = Plugins::SlimPing::Core::Logging->getLogger();
 my $prefs = Plugins::SlimPing::Core::Logging->getPrefs();
 
-my $_in_flight   = 0;
-my $_dropped     = 0;
-my $_deferred    = 0;
-my @_timestamps  = ();             # sliding window for rate limit (epoch seconds)
-my $_last_grant  = 0;              # epoch seconds of last slot grant (inter-request spacing)
-my $_last_log    = 0;              # last time we logged a drop warning
+my $_in_flight  = 0;
+my $_dropped    = 0;
+my $_deferred   = 0;
+my @_timestamps = ();    # sliding window for rate limit (epoch seconds)
+my $_last_grant = 0;     # epoch seconds of last slot grant (inter-request spacing)
+my $_last_log   = 0;     # last time we logged a drop warning
 
 # Deferred request queue — entries are { params, on_result, timeout_secs, cache_key }
 my $_deferred_queue = [];
-my $_queue_coalesce = {};         # cache_key => 1 for dedup
+my $_queue_coalesce = {};    # cache_key => 1 for dedup
 my $_drain_active   = 0;
 
-use constant RATE_WINDOW => 60;   # seconds
-use constant LOG_COOLDOWN => 30;   # seconds between drop log messages
+use constant RATE_WINDOW  => 60;    # seconds
+use constant LOG_COOLDOWN => 30;    # seconds between drop log messages
 
 # Try to acquire a concurrency + rate-limit slot.  Returns 1 on success, 0 when
 # at either cap or when the inter-request spacing check fails.  Callers must call
@@ -140,7 +140,7 @@ sub releaseSlot {
 #
 # Returns 1 when enqueued, 0 when dropped (full queue or coalesced).
 sub _enqueueDeferred {
-    my ($class, $params, $on_result_coderef, $timeout_secs, $cache_key) = @_;
+    my ( $class, $params, $on_result_coderef, $timeout_secs, $cache_key ) = @_;
 
     my $max = $prefs->get('mai_queue_max') // 500;
     $max = 500 if $max < 10;
@@ -148,13 +148,13 @@ sub _enqueueDeferred {
     # Coalesce: skip if a request with the same cache_key is already queued.
     if ( defined $cache_key && length $cache_key && $_queue_coalesce->{$cache_key} ) {
         $log->debug("MaiThrottle coalesced duplicate queue entry for $cache_key")
-            if $log->is_debug;
+          if $log->is_debug;
         return 0;
     }
 
     if ( scalar(@$_deferred_queue) >= $max ) {
         $_dropped++;
-        _maybeLogDrop('queue-full', scalar(@$_deferred_queue), $max);
+        _maybeLogDrop( 'queue-full', scalar(@$_deferred_queue), $max );
         return 0;
     }
 
@@ -191,10 +191,7 @@ sub _startDrainTimer {
 
     $_drain_active = 1;
     my $interval = $class->_drainInterval();
-    Slim::Utils::Timers::setTimer(
-        undef, time() + $interval,
-        sub { $class->_drainOne() }
-    );
+    Slim::Utils::Timers::setTimer( undef, time() + $interval, sub { $class->_drainOne() } );
 
     $log->info(
         sprintf(
@@ -221,17 +218,14 @@ sub _drainOne {
     if ( !@$_deferred_queue ) {
         $_drain_active = 0;
         $log->info('SlimPing: MaiThrottle drain stopped (queue empty)')
-            if $log->is_info;
+          if $log->is_info;
         return;
     }
 
     # Try to acquire a slot.  If none available, back off and retry later.
     unless ( $class->acquireSlot() ) {
         my $interval = $class->_drainInterval();
-        Slim::Utils::Timers::setTimer(
-            undef, time() + $interval,
-            sub { $class->_drainOne() }
-        );
+        Slim::Utils::Timers::setTimer( undef, time() + $interval, sub { $class->_drainOne() } );
         return;
     }
 
@@ -243,16 +237,18 @@ sub _drainOne {
     }
 
     # Process the request — same logic as asyncRequest body.
-    my $request = Slim::Control::Request::executeRequest(undef, $entry->{params});
+    my $request = Slim::Control::Request::executeRequest( undef, $entry->{params} );
 
     if ( !$request->isStatusProcessing() ) {
+
         # Sync completion.
         if ( $entry->{on_result} ) {
             eval { $entry->{on_result}->($request) };
             $log->warn("MaiThrottle drain sync coderef error: $@") if $@;
         }
         $class->releaseSlot();
-    } else {
+    }
+    else {
         # Async — wire callback + safety timer.
         my $state = { slot_released => 0 };
 
@@ -269,7 +265,8 @@ sub _drainOne {
         );
 
         Slim::Utils::Timers::setTimer(
-            undef, time() + $entry->{timeout_secs},
+            undef,
+            time() + $entry->{timeout_secs},
             sub {
                 unless ( $state->{slot_released}++ ) {
                     $class->releaseSlot();
@@ -279,16 +276,14 @@ sub _drainOne {
     }
 
     # Schedule next drain if more entries remain.
-    if ( @$_deferred_queue ) {
+    if (@$_deferred_queue) {
         my $interval = $class->_drainInterval();
-        Slim::Utils::Timers::setTimer(
-            undef, time() + $interval,
-            sub { $class->_drainOne() }
-        );
-    } else {
+        Slim::Utils::Timers::setTimer( undef, time() + $interval, sub { $class->_drainOne() } );
+    }
+    else {
         $_drain_active = 0;
         $log->info('SlimPing: MaiThrottle drain stopped (queue empty)')
-            if $log->is_info;
+          if $log->is_info;
     }
 
     return;
@@ -309,16 +304,17 @@ sub _drainOne {
 # Returns { sync => 0 } on async dispatch (coderef will fire in callback).
 # Returns undef when the throttle rejects AND the deferred queue is full.
 sub asyncRequest {
-    my ($class, $params, $on_result_coderef, $timeout_secs, $cache_key) = @_;
+    my ( $class, $params, $on_result_coderef, $timeout_secs, $cache_key ) = @_;
     $timeout_secs //= 30;
 
     unless ( $class->acquireSlot() ) {
+
         # Rate-limited or at concurrency cap — queue for later processing.
-        $class->_enqueueDeferred($params, $on_result_coderef, $timeout_secs, $cache_key);
+        $class->_enqueueDeferred( $params, $on_result_coderef, $timeout_secs, $cache_key );
         return undef;
     }
 
-    my $request = Slim::Control::Request::executeRequest(undef, $params);
+    my $request = Slim::Control::Request::executeRequest( undef, $params );
 
     # Sync completion — MAI had the result inline (local file, disk cache, memory).
     if ( !$request->isStatusProcessing() ) {
@@ -346,7 +342,8 @@ sub asyncRequest {
     );
 
     Slim::Utils::Timers::setTimer(
-        undef, time() + $timeout_secs,
+        undef,
+        time() + $timeout_secs,
         sub {
             unless ( $state->{slot_released}++ ) {
                 $class->releaseSlot();
@@ -365,7 +362,7 @@ sub queueDepth    { return scalar(@$_deferred_queue); }
 
 # Log drop events, at most once per LOG_COOLDOWN seconds to avoid log spam.
 sub _maybeLogDrop {
-    my ($reason, $current, $limit) = @_;
+    my ( $reason, $current, $limit ) = @_;
     my $now = time();
     return if $now - $_last_log < LOG_COOLDOWN;
     $_last_log = $now;

@@ -52,18 +52,17 @@ sub getInstance {
 # Expired rows (fetched_at + ttl < now) are deleted on read.  Rows with NULL ttl
 # never expire.
 sub get {
-    my ($self, $cache_key) = @_;
+    my ( $self, $cache_key ) = @_;
     return undef unless defined $cache_key && length $cache_key;
 
     my $dbh = Plugins::SlimPing::Schema->dbh();
-    my ($content, $fetched_at, $ttl) = $dbh->selectrow_array(
-        'SELECT content, fetched_at, ttl FROM text_cache WHERE cache_key = ?',
-        undef, $cache_key,
-    );
+    my ( $content, $fetched_at, $ttl ) =
+      $dbh->selectrow_array( 'SELECT content, fetched_at, ttl FROM text_cache WHERE cache_key = ?',
+        undef, $cache_key, );
     return undef unless defined $content;
 
-    if (defined $ttl && $fetched_at + $ttl < time()) {
-        $dbh->do('DELETE FROM text_cache WHERE cache_key = ?', undef, $cache_key);
+    if ( defined $ttl && $fetched_at + $ttl < time() ) {
+        $dbh->do( 'DELETE FROM text_cache WHERE cache_key = ?', undef, $cache_key );
         return undef;
     }
 
@@ -74,15 +73,13 @@ sub get {
 # artist overwrite the old entry.  $ttl_seconds is optional — undef means the
 # row never expires, preserving backward compatibility with existing callers.
 sub put {
-    my ($self, $cache_key, $content, $ttl_seconds) = @_;
+    my ( $self, $cache_key, $content, $ttl_seconds ) = @_;
     return undef unless defined $cache_key && length $cache_key;
     return undef unless defined $content;
 
     my $dbh = Plugins::SlimPing::Schema->dbh();
-    $dbh->do(
-        'INSERT OR REPLACE INTO text_cache (cache_key, content, fetched_at, ttl) VALUES (?, ?, ?, ?)',
-        undef, $cache_key, $content, time(), $ttl_seconds,
-    );
+    $dbh->do( 'INSERT OR REPLACE INTO text_cache (cache_key, content, fetched_at, ttl) VALUES (?, ?, ?, ?)',
+        undef, $cache_key, $content, time(), $ttl_seconds, );
     return 1;
 }
 
@@ -92,10 +89,7 @@ sub purge {
 
     my $dbh   = Plugins::SlimPing::Schema->dbh();
     my $now   = time();
-    my $count = $dbh->do(
-        'DELETE FROM text_cache WHERE ttl IS NOT NULL AND fetched_at + ttl < ?',
-        undef, $now,
-    );
+    my $count = $dbh->do( 'DELETE FROM text_cache WHERE ttl IS NOT NULL AND fetched_at + ttl < ?', undef, $now, );
     return $count;
 }
 

@@ -37,22 +37,19 @@ my $prefs = Plugins::SlimPing::Core::Logging->getPrefs();
 
 sub registerHandlers {
     my $class = shift;
-    Plugins::SlimPing::API::Router->registerHandler(
-        'getInternetRadioStations', \&getInternetRadioStations);
-    Plugins::SlimPing::API::Router->registerStreamHandler(
-        'radioMetadata', \&radioMetadata );
-    Plugins::SlimPing::API::Router->registerStreamHandler(
-        'radioStream', \&radioStream );
+    Plugins::SlimPing::API::Router->registerHandler( 'getInternetRadioStations', \&getInternetRadioStations );
+    Plugins::SlimPing::API::Router->registerStreamHandler( 'radioMetadata', \&radioMetadata );
+    Plugins::SlimPing::API::Router->registerStreamHandler( 'radioStream',   \&radioStream );
 }
 
 sub getInternetRadioStations {
     my ($args) = @_;
 
     return { internetRadioStations => { internetRadioStation => [] } }
-        unless Plugins::SlimPing::Core::Logging->isFeatureEnabled('feature_internet_radio');
+      unless Plugins::SlimPing::Core::Logging->isFeatureEnabled('feature_internet_radio');
 
-    my $stations = Plugins::SlimPing::Core::Container->get('library_mapper')
-        ->getInternetRadioStations($args->{user}{username});
+    my $stations =
+      Plugins::SlimPing::Core::Container->get('library_mapper')->getInternetRadioStations( $args->{user}{username} );
 
     return {
         internetRadioStations => {
@@ -69,31 +66,35 @@ sub radioMetadata {
 
     # Gate 1: Feature toggle
     return
-      if Plugins::SlimPing::Core::StreamGate->requireFeature(
-        $httpClient, $response, 'feature_internet_radio', 'radioMetadata' );
+      if Plugins::SlimPing::Core::StreamGate->requireFeature( $httpClient, $response, 'feature_internet_radio',
+        'radioMetadata' );
 
     # Gate 2: Rate-limit gate
-    my ($ip) =
-      Plugins::SlimPing::Core::StreamGate->gateIp( $httpClient, $response,
-        $response->request() )
+    my ($ip) = Plugins::SlimPing::Core::StreamGate->gateIp( $httpClient, $response, $response->request() )
       or return;
 
     # Gate 3: Required parameters
-    my ($sq_id) =
-      Plugins::SlimPing::Core::StreamGate->requireParam(
-        httpClient => $httpClient, response => $response,
-        ip => $ip, value => $p->{sq_id}, param_name => 'sq_id' )
-      or return;
-    my ($token) =
-      Plugins::SlimPing::Core::StreamGate->requireParam(
-        httpClient => $httpClient, response => $response,
-        ip => $ip, value => $p->{t_stream}, param_name => 't_stream' )
-      or return;
-    my ($expiry) =
-      Plugins::SlimPing::Core::StreamGate->requireParam(
-        httpClient => $httpClient, response => $response,
-        ip => $ip, value => $p->{token_expires}, param_name => 'token_expires' )
-      or return;
+    my ($sq_id) = Plugins::SlimPing::Core::StreamGate->requireParam(
+        httpClient => $httpClient,
+        response   => $response,
+        ip         => $ip,
+        value      => $p->{sq_id},
+        param_name => 'sq_id'
+    ) or return;
+    my ($token) = Plugins::SlimPing::Core::StreamGate->requireParam(
+        httpClient => $httpClient,
+        response   => $response,
+        ip         => $ip,
+        value      => $p->{t_stream},
+        param_name => 't_stream'
+    ) or return;
+    my ($expiry) = Plugins::SlimPing::Core::StreamGate->requireParam(
+        httpClient => $httpClient,
+        response   => $response,
+        ip         => $ip,
+        value      => $p->{token_expires},
+        param_name => 'token_expires'
+    ) or return;
 
     # Gate 4: Validate HMAC stream token
     return unless _validateStreamToken( $sq_id, $expiry, $token, 'radioMetadata', $httpClient, $response, $ip );
@@ -113,26 +114,21 @@ sub radioMetadata {
     # streaming virtual player, including plugin-injected artwork (BBC Sounds,
     # etc.) that LMS resolved through its native chain.
     ( $body, $content_type ) =
-      Plugins::SlimPing::Core::VirtualPlayer->getArtworkFromLivePlayer(
-        "slimping-$sq_id", "irs:$sq_id:0" );
+      Plugins::SlimPing::Core::VirtualPlayer->getArtworkFromLivePlayer( "slimping-$sq_id", "irs:$sq_id:0" );
 
     # Path B: Timer-populated cache -- same $song->coverArt() data from the
     # streaming timer callback (pre-stream or post-disconnect).
     unless ($body) {
-        ( $body, $content_type ) =
-          Plugins::SlimPing::Core::VirtualPlayer->getArtworkFromCache(
-            "irs:$sq_id:0" );
+        ( $body, $content_type ) = Plugins::SlimPing::Core::VirtualPlayer->getArtworkFromCache("irs:$sq_id:0");
     }
 
     # Path C: Shipped default radio icon -- absolute last resort.
     unless ($body) {
-        ( $body, $content_type ) =
-          Plugins::SlimPing::Core::VirtualPlayer->readDefaultArtwork('radio');
+        ( $body, $content_type ) = Plugins::SlimPing::Core::VirtualPlayer->readDefaultArtwork('radio');
     }
 
     unless ($body) {
-        Plugins::SlimPing::Core::VirtualPlayer->sendStreamError(
-            $httpClient, $response, 70, 'Cover art not found' );
+        Plugins::SlimPing::Core::VirtualPlayer->sendStreamError( $httpClient, $response, 70, 'Cover art not found' );
         return;
     }
 
@@ -144,11 +140,8 @@ sub radioMetadata {
     $response->header( 'Cache-Control'  => 'private, max-age=60' );
     Slim::Web::HTTP::addHTTPResponse( $httpClient, $response, \$body );
 
-    Plugins::SlimPing::Core::DebugThrottle->debugRateLimited(
-        "radio_meta_$sq_id",
-        sprintf( "SlimPing: radio metadata served for %s ip=%s", $sq_id, $ip ),
-        60
-    );
+    Plugins::SlimPing::Core::DebugThrottle->debugRateLimited( "radio_meta_$sq_id",
+        sprintf( "SlimPing: radio metadata served for %s ip=%s", $sq_id, $ip ), 60 );
 }
 
 # --- Stream handler (no auth gate -- stream token is the credential) ---
@@ -159,43 +152,44 @@ sub radioStream {
 
     # Gate 1: Feature toggle
     return
-      if Plugins::SlimPing::Core::StreamGate->requireFeature(
-        $httpClient, $response, 'feature_internet_radio', 'radioStream' );
+      if Plugins::SlimPing::Core::StreamGate->requireFeature( $httpClient, $response, 'feature_internet_radio',
+        'radioStream' );
 
     # Gate 2: Rate-limit gate
-    my ($ip) =
-      Plugins::SlimPing::Core::StreamGate->gateIp( $httpClient, $response,
-        $response->request() )
+    my ($ip) = Plugins::SlimPing::Core::StreamGate->gateIp( $httpClient, $response, $response->request() )
       or return;
 
     # Gate 3: Required parameters
-    my ($sq_id) =
-      Plugins::SlimPing::Core::StreamGate->requireParam(
-        httpClient => $httpClient, response => $response,
-        ip => $ip, value => $p->{sq_id}, param_name => 'sq_id' )
-      or return;
-    my ($token) =
-      Plugins::SlimPing::Core::StreamGate->requireParam(
-        httpClient => $httpClient, response => $response,
-        ip => $ip, value => $p->{t_stream}, param_name => 't_stream' )
-      or return;
-    my ($expiry) =
-      Plugins::SlimPing::Core::StreamGate->requireParam(
-        httpClient => $httpClient, response => $response,
-        ip => $ip, value => $p->{token_expires}, param_name => 'token_expires' )
-      or return;
+    my ($sq_id) = Plugins::SlimPing::Core::StreamGate->requireParam(
+        httpClient => $httpClient,
+        response   => $response,
+        ip         => $ip,
+        value      => $p->{sq_id},
+        param_name => 'sq_id'
+    ) or return;
+    my ($token) = Plugins::SlimPing::Core::StreamGate->requireParam(
+        httpClient => $httpClient,
+        response   => $response,
+        ip         => $ip,
+        value      => $p->{t_stream},
+        param_name => 't_stream'
+    ) or return;
+    my ($expiry) = Plugins::SlimPing::Core::StreamGate->requireParam(
+        httpClient => $httpClient,
+        response   => $response,
+        ip         => $ip,
+        value      => $p->{token_expires},
+        param_name => 'token_expires'
+    ) or return;
 
     # Gate 4: Validate HMAC stream token
     return unless _validateStreamToken( $sq_id, $expiry, $token, 'radioStream', $httpClient, $response, $ip );
 
     # Gate 5: proxy_remote_streams must be enabled for radio
-    unless (
-        Plugins::SlimPing::Core::Logging->isFeatureEnabled('proxy_remote_streams')
-      )
-    {
+    unless ( Plugins::SlimPing::Core::Logging->isFeatureEnabled('proxy_remote_streams') ) {
         require Plugins::SlimPing::Core::VirtualPlayer;
-        Plugins::SlimPing::Core::VirtualPlayer->sendStreamError(
-            $httpClient, $response, 0, 'Not implemented: radio streaming' );
+        Plugins::SlimPing::Core::VirtualPlayer->sendStreamError( $httpClient, $response, 0,
+            'Not implemented: radio streaming' );
         return;
     }
 
@@ -203,23 +197,23 @@ sub radioStream {
     Plugins::SlimPing::Core::StreamGate->clearGate($ip);
 
     # Resolve stream URL
-    my $mapper = Plugins::SlimPing::Core::Container->get('library_mapper');
+    my $mapper      = Plugins::SlimPing::Core::Container->get('library_mapper');
     my $stream_info = $mapper->resolveStreamUrl($sq_id);
     unless ($stream_info) {
         require Plugins::SlimPing::Core::VirtualPlayer;
-        Plugins::SlimPing::Core::VirtualPlayer->sendStreamError(
-            $httpClient, $response, 70, 'Station not found' );
+        Plugins::SlimPing::Core::VirtualPlayer->sendStreamError( $httpClient, $response, 70, 'Station not found' );
         return;
     }
 
     # Build station metadata and an unauth'd radioMetadata URL for the
     # icy-url ICY header so clients (VLC, mpv) can fetch cover art.
-    my $name = $mapper->getRadioName($sq_id);
+    my $name        = $mapper->getRadioName($sq_id);
     my $meta        = {};
     my $stream_name = 'Unknown Radio Station';
     my $icy_url;
     if ($name) {
         $stream_name = $name;
+
         # Strip control characters from station names to prevent
         # CRLF injection in HTTP response headers (icy-*).
         $stream_name =~ s/[\x00-\x1f\x7f]//g;
@@ -229,14 +223,13 @@ sub radioStream {
 
     {
         require URI::Escape;
-        my $base =
-          Plugins::SlimPing::Core::LibraryMapper::_requestBaseUrl() || '';
-        $icy_url = "$base/rest/radioMetadata.view?sq_id="
+        my $base = Plugins::SlimPing::Core::LibraryMapper::_requestBaseUrl() || '';
+        $icy_url =
+            "$base/rest/radioMetadata.view?sq_id="
           . URI::Escape::uri_escape_utf8($sq_id)
           . '&t_stream='
           . URI::Escape::uri_escape_utf8($token);
-        $icy_url .= '&token_expires='
-          . URI::Escape::uri_escape_utf8($expiry);
+        $icy_url .= '&token_expires=' . URI::Escape::uri_escape_utf8($expiry);
     }
 
     # Pool check: if another listener is already streaming this underlying
@@ -246,8 +239,7 @@ sub radioStream {
     require Plugins::SlimPing::Core::Container;
     {
         my $br   = $prefs->get('radio_max_bitrate');
-        my $mime = Plugins::SlimPing::Core::Container->get('library_mapper')
-          ->outputMime();
+        my $mime = Plugins::SlimPing::Core::Container->get('library_mapper')->outputMime();
 
         my $request  = $response->request();
         my $want_icy = $request && $request->header('Icy-MetaData') ? 1 : 0;
@@ -258,12 +250,11 @@ sub radioStream {
         $response->header( 'icy-name'            => $stream_name );
         $response->header( 'icy-br'              => $br );
         $response->header( 'icy-url'             => $icy_url ) if $want_icy;
-        $response->header( 'icy-metaint'         => 32768 )   if $want_icy;
+        $response->header( 'icy-metaint'         => 32768 )    if $want_icy;
         $response->header( 'Content-Disposition' => 'inline' );
 
         require Slim::Web::HTTP;
-        my $headers =
-          Slim::Web::HTTP::_stringifyHeaders($response) . "\x0d\x0a";
+        my $headers = Slim::Web::HTTP::_stringifyHeaders($response) . "\x0d\x0a";
 
         my $attached = Plugins::SlimPing::Core::PipelinePool->registerListener(
             pool_type   => 'radio',
@@ -274,6 +265,7 @@ sub radioStream {
             time_offset => undef,
             enable_icy  => $want_icy,
         );
+
         if ($attached) {
             return;
         }
@@ -299,11 +291,11 @@ sub radioStream {
         artwork_cache_key => "irs:$sq_id:0",
     );
     if ( defined $started && $started <= 0 ) {
-        my $msg = $started == -1
+        my $msg =
+          $started == -1
           ? 'Too many remote stream requests - wait before retrying'
           : 'Too many concurrent remote streams - try again later';
-        Plugins::SlimPing::Core::VirtualPlayer->sendStreamError(
-            $httpClient, $response, 40, $msg );
+        Plugins::SlimPing::Core::VirtualPlayer->sendStreamError( $httpClient, $response, 40, $msg );
         return;
     }
 }
@@ -316,14 +308,14 @@ sub _validateStreamToken {
     my ( $sq_id, $expiry, $token, $context, $httpClient, $response, $ip ) = @_;
     require Plugins::SlimPing::Core::Container;
     my $mgr = Plugins::SlimPing::Core::Container->get('auth_manager');
-    my ( $valid_id ) = $mgr->validateStreamToken( $sq_id, $expiry, $token );
+    my ($valid_id) = $mgr->validateStreamToken( $sq_id, $expiry, $token );
     unless ($valid_id) {
         $log->warn("SlimPing: $context invalid token for $sq_id ip=$ip");
         require Plugins::SlimPing::Auth::RateLimit;
         Plugins::SlimPing::Auth::RateLimit->recordFailure( $ip, '_anon' );
         require Plugins::SlimPing::Core::VirtualPlayer;
-        Plugins::SlimPing::Core::VirtualPlayer->sendStreamError(
-            $httpClient, $response, 40, 'Invalid or expired stream token' );
+        Plugins::SlimPing::Core::VirtualPlayer->sendStreamError( $httpClient, $response, 40,
+            'Invalid or expired stream token' );
         return 0;
     }
     return 1;

@@ -127,9 +127,11 @@ sub serveFile {
     # time-offset seeks (which need duration to compute the proportional
     # byte offset) but allow bare Range headers through regardless.
     my $is_byte_range = $http_range && $http_range =~ /^bytes=(\d+)-/;
-    if ( defined $effective_byte_start && $effective_byte_start > 0
-         && ( $is_byte_range || ( $duration && $duration > 0 ) )
-         && $file_size > 0 ) {
+    if (   defined $effective_byte_start
+        && $effective_byte_start > 0
+        && ( $is_byte_range || ( $duration && $duration > 0 ) )
+        && $file_size > 0 )
+    {
 
         # Inject a synthetic Range header and delegate to LMS's
         # sendStreamingFile, which handles regular-file seeking
@@ -150,13 +152,13 @@ sub serveFile {
         if ($is_download) {
             my $fname = ( split /\//, $path )[-1];
             setContentDisposition( $response, $fname );
-        } else {
+        }
+        else {
             $response->header( 'Content-Disposition' => 'inline' );
         }
 
         Slim::Web::HTTP::sendStreamingFile( $httpClient, $response,
-            $content_type
-              || Plugins::SlimPing::Core::Container->get('library_mapper')->outputMime(),
+            $content_type || Plugins::SlimPing::Core::Container->get('library_mapper')->outputMime(),
             $path, undef, !$is_download );
         return;
     }
@@ -164,19 +166,22 @@ sub serveFile {
     # Range bytes=0- (or time_offset=0): the client requested from the
     # start of the file.  Respond 206 with full Content-Range but don't
     # seek — serve the complete file.
-    if ( defined $effective_byte_start && $effective_byte_start == 0
-         && $http_range && $http_range =~ /^bytes=(\d+)-/ )
+    if (   defined $effective_byte_start
+        && $effective_byte_start == 0
+        && $http_range
+        && $http_range =~ /^bytes=(\d+)-/ )
     {
         $response->code(206);
         $response->header( 'Accept-Ranges'  => 'bytes' );
         $response->header( 'Content-Range'  => "bytes 0-" . ( $file_size - 1 ) . "/$file_size" );
         $response->header( 'Content-Length' => $file_size );
-        $response->header( 'Content-Type'   => $content_type
+        $response->header( 'Content-Type' => $content_type
               || Plugins::SlimPing::Core::Container->get('library_mapper')->outputMime() );
         if ($is_download) {
             my $fname = ( split /\//, $path )[-1];
             setContentDisposition( $response, $fname );
-        } else {
+        }
+        else {
             $response->header( 'Content-Disposition' => 'inline' );
         }
 
@@ -201,7 +206,8 @@ sub serveFile {
         if ($is_download) {
             my $fname = ( split /\//, $path )[-1];
             setContentDisposition( $response, $fname );
-        } else {
+        }
+        else {
             $response->header( 'Content-Disposition' => 'inline' );
         }
         Slim::Web::HTTP::sendStreamingFile( $httpClient, $response, $content_type, $path, undef, !$is_download );
@@ -217,7 +223,8 @@ sub serveFile {
     if ($is_download) {
         my $fname = ( split /\//, $path )[-1];
         setContentDisposition( $response, $fname );
-    } else {
+    }
+    else {
         $response->header( 'Content-Disposition' => 'inline' );
     }
 

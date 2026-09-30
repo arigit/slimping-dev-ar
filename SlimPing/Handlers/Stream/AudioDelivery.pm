@@ -99,10 +99,10 @@ sub resolveTrack {
         return;
     }
 
-    my $format             = $params_override->{format}      // $p->{format}      // '';
-    my $max_bitrate        = $params_override->{max_bitrate}  // $p->{maxBitRate}  // 0;
-    my $time_offset        = $params_override->{time_offset}  // $p->{timeOffset}  // 0;
-    my $client_time_offset = $time_offset;  # original, before Range parsing mutates it
+    my $format             = $params_override->{format}      // $p->{format}     // '';
+    my $max_bitrate        = $params_override->{max_bitrate} // $p->{maxBitRate} // 0;
+    my $time_offset        = $params_override->{time_offset} // $p->{timeOffset} // 0;
+    my $client_time_offset = $time_offset;           # original, before Range parsing mutates it
     my $client_name        = $p->{c} || 'unknown';
 
     my $ecl_raw = $p->{estimateContentLength};
@@ -128,6 +128,7 @@ sub resolveTrack {
         );
         if ($parsed) {
             $range_byte_start = $parsed->{byte_start};
+
             # time_offset stays at the client's declared timeOffset value.
             # The parsed Range→time conversion assumes MP3 output (via
             # TranscodeEstimate) which does not match the actual file layout
@@ -138,8 +139,10 @@ sub resolveTrack {
             $log->debug(
                 sprintf(
                     'SlimPing: Range %s -> byte=%d (out_br=%dkbps size=%d)',
-                    $req->header('Range'),       $range_byte_start,
-                    $estimate->{output_br_kbps}, $estimate->{size_bytes}
+                    $req->header('Range'),
+                    $range_byte_start,
+                    $estimate->{output_br_kbps},
+                    $estimate->{size_bytes}
                 )
             );
         }
@@ -149,9 +152,10 @@ sub resolveTrack {
     # value (including 0 for the first segment) on CUE-split tracks, while
     # standalone files leave it NULL.  The is_cue_source flag is set by
     # resolveStreamUrl based on defined-ness of audio_offset(), not its value.
-    my $cue_offset_bytes = $stream_info->{audio_offset} // 0;
-    my $cue_duration_s   = 0;
+    my $cue_offset_bytes  = $stream_info->{audio_offset} // 0;
+    my $cue_duration_s    = 0;
     my $cue_start_seconds = 0;
+
     # is_cue_source is determined by resolveStreamUrl via a sibling-count
     # query — the only reliable CUE detector.  audio_offset > 0 is normal
     # for standalone files (ID3 tags, encoder headers) and produces false
@@ -161,12 +165,12 @@ sub resolveTrack {
     if ($is_cue_track) {
         $cue_duration_s = $track->{duration} // 0;
         if ( $cue_duration_s > 0 ) {
+
             # Compute start time from preceding track durations within the
             # same container.  Byte-offset / bitrate is unreliable for VBR
             # formats (FLAC) and breaks entirely when bitrate is null.
-            $cue_start_seconds = $mapper->getCueStartTime(
-                $sq_id, $stream_info->{url}, $cue_offset_bytes
-            ) // $cue_start_seconds;
+            $cue_start_seconds = $mapper->getCueStartTime( $sq_id, $stream_info->{url}, $cue_offset_bytes )
+              // $cue_start_seconds;
 
             # Recompute the estimate with the CUE segment duration.
             $estimate = Plugins::SlimPing::Core::TranscodeEstimate->estimate(
@@ -240,7 +244,9 @@ sub _needsProcessing {
         if ( $source_br && $source_br > $max_bitrate ) {
             $source_exceeds_cap = 1;
         }
-        elsif ( !$source_br && Plugins::SlimPing::Core::Container->get('library_mapper')->isLosslessFormat( $track->{suffix} ) ) {
+        elsif ( !$source_br
+            && Plugins::SlimPing::Core::Container->get('library_mapper')->isLosslessFormat( $track->{suffix} ) )
+        {
             $source_exceeds_cap = 1;
         }
     }
@@ -270,7 +276,8 @@ sub serve {
 
     require Plugins::SlimPing::Auth::Permissions;
     if ( Plugins::SlimPing::Auth::Permissions->requireRole( $args->{user}, 'streamRole' ) ) {
-        Plugins::SlimPing::API::Router->sendError( $httpClient, $response, $p, 50, 'User is not authorised for this operation' );
+        Plugins::SlimPing::API::Router->sendError( $httpClient, $response, $p, 50,
+            'User is not authorised for this operation' );
         return;
     }
 
@@ -281,7 +288,7 @@ sub serve {
     # when the stream request itself specified no limit.  Least-authoritative
     # fallback: explicit override > request param > remembered cap > no limit.
     $d->{max_bitrate} = $cached_cap_kbps
-        if !$d->{max_bitrate} && $cached_cap_kbps;
+      if !$d->{max_bitrate} && $cached_cap_kbps;
 
     my $sq_id            = $d->{sq_id};
     my $track            = $d->{track};
@@ -293,23 +300,24 @@ sub serve {
     my $client_name      = $d->{client_name};
     my $want_cl          = $d->{want_cl};
     my $range_byte_start = $d->{range_byte_start};
-    my $cue_offset_bytes = $d->{cue_offset_bytes} // 0;
-    my $cue_duration_s   = $d->{cue_duration_s}   // 0;
+    my $cue_offset_bytes = $d->{cue_offset_bytes}  // 0;
+    my $cue_duration_s   = $d->{cue_duration_s}    // 0;
     my $cue_start_secs   = $d->{cue_start_seconds} // 0;
     my $is_cue_track     = $d->{is_cue_track}      // 0;
 
     my $t_resolve = time();
 
-    if ( $range_byte_start
+    if (   $range_byte_start
         && $stream_info->{is_remote}
         && $estimate
         && $estimate->{size_bytes}
         && ( $range_byte_start / $estimate->{size_bytes} ) > 0.95 )
     {
         $log->debug("SlimPing: ignoring near-end Range probe for $sq_id");
-        $time_offset       = $p->{timeOffset} // 0;
-        $range_byte_start  = undef;
+        $time_offset      = $p->{timeOffset} // 0;
+        $range_byte_start = undef;
     }
+
     # Cache lookup -- serve complete entries directly, skipping the pipeline.
     # Downloads may read from cache but never populate it.
     # CUE tracks with a client-requested seek must not return a cached MP3
@@ -320,15 +328,18 @@ sub serve {
     # slicing block is skipped for CUE tracks).  Cache errors fall through
     # to the normal pipeline path.
     my $cached;
-    unless ( $is_download || ( Plugins::SlimPing::Core::ExternalProcess::haveFlac()
+    unless (
+        $is_download
+        || (   Plugins::SlimPing::Core::ExternalProcess::haveFlac()
             && $is_cue_track
-            && $d->{client_time_offset} > 0 ) ) {
+            && $d->{client_time_offset} > 0 )
+      )
+    {
         my $output_br = $estimate ? $estimate->{output_br_kbps} : 0;
         if ( $output_br > 0 ) {
             $cached = eval {
                 require Plugins::SlimPing::Core::TranscodeCache;
-                Plugins::SlimPing::Core::TranscodeCache->getInstance
-                  ->lookup( $sq_id, $output_br );
+                Plugins::SlimPing::Core::TranscodeCache->getInstance->lookup( $sq_id, $output_br );
             };
             if ($@) {
                 $log->warn("SlimPing: cache lookup error: $@");
@@ -338,8 +349,8 @@ sub serve {
     }
 
     if ( $cached && $cached->{status} eq 'complete' ) {
-        my $body_ref = $cached->{data};
-        my $size     = $cached->{populated};
+        my $body_ref       = $cached->{data};
+        my $size           = $cached->{populated};
         my $track_duration = $track->{duration} // 0;
 
         # The cache stores the full CBR MP3 transcode output.  When seeking,
@@ -349,15 +360,17 @@ sub serve {
         # CUE entries are positioned segments -- their time_offset is
         # container-absolute, so byte-slicing would land in the wrong
         # place.  Serve them whole instead (the entry IS the segment).
-        if ( $time_offset > 0 && $track_duration > 0 && $size > 0
+        if (   $time_offset > 0
+            && $track_duration > 0
+            && $size > 0
             && !$is_cue_track )
         {
             my $byte_offset = int( ( $time_offset / $track_duration ) * $size );
             if ( $byte_offset < $size ) {
-                my $data      = $$body_ref;
-                my $pos       = $byte_offset;
-                my $scan_end  = $byte_offset + 65536;
-                $scan_end     = $size - 2 if $scan_end >= $size;
+                my $data     = $$body_ref;
+                my $pos      = $byte_offset;
+                my $scan_end = $byte_offset + 65536;
+                $scan_end = $size - 2 if $scan_end >= $size;
                 while ( $pos < $scan_end ) {
                     my $b0 = ord( substr( $data, $pos,     1 ) );
                     my $b1 = ord( substr( $data, $pos + 1, 1 ) );
@@ -369,11 +382,7 @@ sub serve {
                 }
                 else {
                     $log->warn(
-                        sprintf(
-                            'SlimPing: no MPEG sync word within 64KB of byte %d for %s',
-                            $byte_offset, $sq_id
-                        )
-                    );
+                        sprintf( 'SlimPing: no MPEG sync word within 64KB of byte %d for %s', $byte_offset, $sq_id ) );
                 }
                 my $seeked = substr( $data, $byte_offset );
                 $body_ref = \$seeked;
@@ -381,10 +390,10 @@ sub serve {
                 $log->debug(
                     sprintf(
                         'SlimPing: stream cache HIT+SEEK %s br=%d offset=%ds byte=%d/%d '
-                      . '(%.1fms resolve, %d bytes served)',
-                        $sq_id, $estimate->{output_br_kbps}, $time_offset,
-                        $byte_offset, $cached->{populated},
-                        ( $t_resolve - $t0 ) * 1000, $size
+                          . '(%.1fms resolve, %d bytes served)',
+                        $sq_id,       $estimate->{output_br_kbps}, $time_offset,
+                        $byte_offset, $cached->{populated}, ( $t_resolve - $t0 ) * 1000,
+                        $size
                     )
                 );
             }
@@ -393,15 +402,15 @@ sub serve {
             $log->debug(
                 sprintf(
                     'SlimPing: stream cache HIT %s br=%d (%.1fms resolve, %d bytes)',
-                    $sq_id, $estimate->{output_br_kbps},
+                    $sq_id,
+                    $estimate->{output_br_kbps},
                     ( $t_resolve - $t0 ) * 1000, $size
                 )
             );
         }
 
         $response->code(200);
-        $response->header( 'Content-Type',
-            Plugins::SlimPing::Core::Container->get('library_mapper')->outputMime() );
+        $response->header( 'Content-Type', Plugins::SlimPing::Core::Container->get('library_mapper')->outputMime() );
         $response->header( 'Content-Length' => $size );
         $response->header( 'Connection'     => 'close' );
         $response->header( 'Accept-Ranges'  => 'bytes' );
@@ -425,27 +434,23 @@ sub serve {
         require Plugins::SlimPing::Core::PipelinePool;
         my $br = $estimate->{output_br_kbps};
         if ($br) {
-            my $output_mime =
-              Plugins::SlimPing::Core::Container->get('library_mapper')
-              ->outputMime();
+            my $output_mime = Plugins::SlimPing::Core::Container->get('library_mapper')->outputMime();
 
             $response->code(200);
             $response->header( 'Content-Type' => $output_mime );
             $response->header( 'Connection'   => 'close' );
 
             require Slim::Web::HTTP;
-            my $headers =
-              Slim::Web::HTTP::_stringifyHeaders($response) . "\x0d\x0a";
+            my $headers = Slim::Web::HTTP::_stringifyHeaders($response) . "\x0d\x0a";
 
-            my $attached =
-              Plugins::SlimPing::Core::PipelinePool->registerListener(
+            my $attached = Plugins::SlimPing::Core::PipelinePool->registerListener(
                 pool_type   => 'track',
                 source_url  => $stream_info->{url},
                 br_kbps     => $br,
                 httpClient  => $httpClient,
                 headers     => $headers,
                 time_offset => $time_offset,
-              );
+            );
             if ($attached) {
                 $log->debug("SlimPing: attached pooled track listener for $sq_id");
                 return;
@@ -471,7 +476,7 @@ sub serve {
             $stream_info->{is_remote},
             $is_download,
             ( $format eq 'raw' && $needs_pipeline ) ? ' RAW-OVERRIDE' : '',
-            $is_cue_track ? ' CUE' : ''
+            $is_cue_track                           ? ' CUE'          : ''
         )
     );
 
@@ -482,7 +487,8 @@ sub serve {
     # requested.  Once the FLAC is cached the MP3 path also benefits: LMS
     # reads the cached FLAC via file:// URL and the MP3 output enters the
     # standard transcode RAM+disk cache.
-    if ( $needs_pipeline && Plugins::SlimPing::Core::Container->get('library_mapper')->isDsdFormat( $track->{suffix} ) ) {
+    if ( $needs_pipeline && Plugins::SlimPing::Core::Container->get('library_mapper')->isDsdFormat( $track->{suffix} ) )
+    {
         my $dsd_path = Slim::Utils::Misc::pathFromFileURL( $stream_info->{url} );
         unless ( defined $dsd_path && length $dsd_path ) {
             $log->error("SlimPing: DSD track with non-file URL: $stream_info->{url}");
@@ -492,8 +498,7 @@ sub serve {
 
         unless ( Plugins::SlimPing::Core::ExternalProcess::haveDsdplay() ) {
             $log->error("SlimPing: dsdplay not found — DSDPlayer plugin required");
-            _send500( $httpClient, $response,
-                'DSD decoder (dsdplay) not found — install the DSDPlayer plugin' );
+            _send500( $httpClient, $response, 'DSD decoder (dsdplay) not found — install the DSDPlayer plugin' );
             return;
         }
 
@@ -506,8 +511,11 @@ sub serve {
         # Cache hit — FLAC already on disk.  Serve directly or pipeline to MP3.
         if ( $prepared && $prepared->{ready} ) {
             $log->debug(
-                sprintf( 'SlimPing: stream DSD FLAC cache HIT %s rate=%d offset=%d (%d bytes)',
-                    $sq_id, $target_rate, $time_offset, $prepared->{size} ) );
+                sprintf(
+                    'SlimPing: stream DSD FLAC cache HIT %s rate=%d offset=%d (%d bytes)',
+                    $sq_id, $target_rate, $time_offset, $prepared->{size}
+                )
+            );
             _deliverExoticFlac(
                 httpClient  => $httpClient,
                 response    => $response,
@@ -530,8 +538,7 @@ sub serve {
         my $dsdplay_bin = Plugins::SlimPing::Core::ExternalProcess::dsdplayPath();
         my $flac_bin    = Plugins::SlimPing::Core::ExternalProcess::flacPath();
 
-        my $bps = Plugins::SlimPing::Core::Logging->getPrefs()
-                    ->get('dsd_output_bit_depth') // 24;
+        my $bps = Plugins::SlimPing::Core::Logging->getPrefs()->get('dsd_output_bit_depth') // 24;
 
         my $cache_key = join( ':', $sq_id, 'dsd-flac', $target_rate );
 
@@ -541,14 +548,14 @@ sub serve {
         # doomed command with an empty output path.
         unless ($we_claimed) {
             my $waiter = Plugins::SlimPing::Core::ExternalProcess->spawnPipeline(
-                cmd_decode       => [],
-                cmd_encode       => [],
-                tmp_path         => '',
-                cache_key        => $cache_key,
-                cache_sq_id      => $rate_key,
-                cache_suffix     => $cache_suffix,
-                timeout_s        => 120,
-                on_complete      => sub {
+                cmd_decode   => [],
+                cmd_encode   => [],
+                tmp_path     => '',
+                cache_key    => $cache_key,
+                cache_sq_id  => $rate_key,
+                cache_suffix => $cache_suffix,
+                timeout_s    => 120,
+                on_complete  => sub {
                     my ($serve_path) = @_;
                     my $size = -s $serve_path;
                     unless ($size) {
@@ -581,9 +588,10 @@ sub serve {
                 httpClient => $httpClient,
                 response   => $response,
             );
-            if ($waiter == 2) {
-                return;   # registered as waiter
+            if ( $waiter == 2 ) {
+                return;    # registered as waiter
             }
+
             # TranscodeCache inflight was set but ExternalProcess entry
             # has gone (race: transcode just completed).  Retry the
             # cache lookup — the RAM/disk cache should now be populated.
@@ -619,17 +627,13 @@ sub serve {
         # raw PCM, so a direct dsdplay | flac -5 would fail.
         # --bps is encode-only and only on the final flac -5 stage.
 
-        my $cmd_decode = [
-            $dsdplay_bin, '-r', $target_rate, $dsd_path,
-        ];
-        my $cmd_intermediate = [
-            $flac_bin, '-dc', '--silent', '--force-raw-format',
-            '--endian=little', '--sign=signed', '-',
-        ];
+        my $cmd_decode = [ $dsdplay_bin, '-r', $target_rate, $dsd_path, ];
+        my $cmd_intermediate =
+          [ $flac_bin, '-dc', '--silent', '--force-raw-format', '--endian=little', '--sign=signed', '-', ];
         my $cmd_encode = [
-            $flac_bin, '-5', '--silent', '--force-raw-format',
-            '--endian=little', '--sign=signed', '--channels=2',
-            "--bps=$bps", '--sample-rate', $target_rate,
+            $flac_bin,         '-5',            '--silent',     '--force-raw-format',
+            '--endian=little', '--sign=signed', '--channels=2', "--bps=$bps",
+            '--sample-rate',   $target_rate,
         ];
 
         # Inject metadata tags so LMS can resolve track identity when it
@@ -650,11 +654,11 @@ sub serve {
             cmd_intermediate => $cmd_intermediate,
             cmd_encode       => $cmd_encode,
             tmp_path         => $output_path,
-            cache_key    => $cache_key,
-            cache_sq_id  => $rate_key,
-            cache_suffix => $cache_suffix,
-            timeout_s    => 120,
-            on_complete  => sub {
+            cache_key        => $cache_key,
+            cache_sq_id      => $rate_key,
+            cache_suffix     => $cache_suffix,
+            timeout_s        => 120,
+            on_complete      => sub {
                 my ($serve_path) = @_;
                 my $size = -s $serve_path;
                 unless ($size) {
@@ -688,8 +692,8 @@ sub serve {
             response   => $response,
         );
 
-        if ($dsd_started == 2) {
-            return;   # waiter — callback will fire when transcode completes
+        if ( $dsd_started == 2 ) {
+            return;    # waiter — callback will fire when transcode completes
         }
         unless ($dsd_started) {
             if ($we_claimed) {
@@ -702,8 +706,11 @@ sub serve {
         }
 
         $log->debug(
-            sprintf( 'SlimPing: stream DSD %s rate=%d (%.1fms resolve, %s)',
-                $sq_id, $target_rate, ( $t_resolve - $t0 ) * 1000, $client_name ) );
+            sprintf(
+                'SlimPing: stream DSD %s rate=%d (%.1fms resolve, %s)',
+                $sq_id, $target_rate, ( $t_resolve - $t0 ) * 1000, $client_name
+            )
+        );
         return;
     }
 
@@ -712,7 +719,7 @@ sub serve {
     # on_complete callback uses _deliverExoticFlac to serve the FLAC
     # directly or pipe it through the LMS FLAC->MP3 pipeline depending on
     # client format/cap settings.
-    if ( Plugins::SlimPing::Core::ExternalProcess::haveFlac()
+    if (   Plugins::SlimPing::Core::ExternalProcess::haveFlac()
         && $needs_pipeline
         && $is_cue_track )
     {
@@ -733,16 +740,15 @@ sub serve {
         $log->debug(
             sprintf(
                 'SlimPing: stream CUE lossless %s start=%s dur=%d client_off=%d (%.1fms resolve, %s)',
-                $sq_id, $cue_start_secs, $cue_duration_s, $client_to,
-                ( $t_resolve - $t0 ) * 1000, $client_name
+                $sq_id, $cue_start_secs, $cue_duration_s, $client_to, ( $t_resolve - $t0 ) * 1000, $client_name
             )
         );
         return;
     }
 
     if ( !$needs_pipeline ) {
-        my $file_url = $stream_info->{url};
-        my $req = $response->request();
+        my $file_url     = $stream_info->{url};
+        my $req          = $response->request();
         my $range_header = $req ? $req->header('Range') : undef;
         Plugins::SlimPing::Handlers::Stream::AudioDelivery::FileServe::serveFile(
             httpClient   => $httpClient,
@@ -789,7 +795,7 @@ sub serve {
         # fragment is redundant for the pipeline path.
         my $pipeline_url = $stream_info->{url};
         $pipeline_url =~ s/#\d+(?:\.\d+)?-\d+(?:\.\d+)?$//
-            if $is_cue_track;
+          if $is_cue_track;
 
         my $started = Plugins::SlimPing::Core::VirtualPlayer::streamViaPipeline(
             httpClient       => $httpClient,
@@ -812,7 +818,8 @@ sub serve {
             cue_duration_s   => $cue_duration_s,
         );
         if ( defined $started && $started <= 0 ) {
-            my $msg = $started == -1
+            my $msg =
+              $started == -1
               ? 'Too many remote stream requests - wait before retrying'
               : 'Too many concurrent remote streams - try again later';
             Plugins::SlimPing::API::Router->sendError( $httpClient, $response, $p, 0, $msg );
@@ -832,16 +839,19 @@ sub serve {
 # --- Emergency error path ------------------------------------------------------
 #
 # _send500 sends a raw HTTP 500 response.  This violates the Subsonic spec
-# (which requires HTTP 200 with an error in the JSON/XML envelope).  We
-# accept this violation because _send500 is only called from ExternalProcess
-# callbacks — by the time the callback fires, the Router's dispatch eval{}
-# has already returned and the normal Subsonic envelope path is unavailable.
+# (which requires HTTP 200 with an error in the JSON/XML envelope).
 #
-# The alternative (threading a response buffer through the async machinery)
-# would add significant complexity.  In practice, all major Subsonic clients
-# handle HTTP 5xx gracefully by displaying a generic error.  If a future
-# client breaks, the fix is to buffer the error response through
-# ResponseFormatter from within the callback — not to eliminate _send500.
+# The reason previously given here -- that the normal envelope path is
+# unavailable once an ExternalProcess callback fires -- is not correct.
+# Router->sendError runs the full envelope path (ResponseFormatter and
+# addHTTPResponse) and is called from exactly these callbacks; see the DSD
+# on_complete/on_error handlers in the audio pipeline above.  What is gone by
+# then is the local $result in dispatch, not the machinery.
+#
+# So this helper is a legacy of an earlier reading rather than a constraint.
+# Converting these call sites to Router->sendError would restore spec
+# compliance for the exotic-transcode failure path; it is left as-is here to
+# keep this change to the comment alone.
 sub _send500 {
     my ( $httpClient, $response, $msg ) = @_;
     $msg //= 'Internal server error';
@@ -884,27 +894,29 @@ sub _cacheSeekedFlac {
 #   4. Otherwise → serve FLAC directly via FileServe
 #
 # Called from DSD and CUE spawnPipeline completion callbacks, which fire after
-# the Router dispatch eval{} has returned.  Uses _send500 for error delivery
-# because the normal Subsonic envelope path is unavailable by that point.
+# the Router dispatch eval{} has returned.  Errors go through _send500 (see the
+# note on that helper: the envelope path is in fact reachable from these
+# callbacks, so this is a legacy choice rather than a constraint).
 sub _deliverExoticFlac {
-    my %args = @_;
-    my $format      = $args{format}      || '';
+    my %args        = @_;
+    my $format      = $args{format} || '';
     my $max_bitrate = $args{max_bitrate} // 0;
 
     my $want_mp3 = ( $format && lc($format) eq 'mp3' )
-                || ( !$format && $max_bitrate && $max_bitrate > 0 );
+      || ( !$format && $max_bitrate && $max_bitrate > 0 );
 
     unless ( $format || ( $max_bitrate && $max_bitrate > 0 ) ) {
-        my $target = Plugins::SlimPing::Core::Logging->getPrefs()
-                       ->get('exotic_target') || 'flac';
+        my $target = Plugins::SlimPing::Core::Logging->getPrefs()->get('exotic_target') || 'flac';
         $want_mp3 = ( $target eq 'mp3' );
     }
 
     $log->debug(
         sprintf(
             'SlimPing: _deliverExoticFlac %s fmt=%s cap=%d offset=%d dur=%d -> %s',
-            $args{sq_id}, $format || 'auto', $max_bitrate,
-            ( $args{time_offset} // 0 ), ( $args{duration} // 0 ),
+            $args{sq_id}, $format || 'auto',
+            $max_bitrate,
+            ( $args{time_offset} // 0 ),
+            ( $args{duration}    // 0 ),
             $want_mp3 ? 'MP3-via-pipeline' : 'FLAC-via-serveFile'
         )
     );
@@ -917,6 +929,7 @@ sub _deliverExoticFlac {
         require Plugins::SlimPing::Core::Container;
         my $mapper = eval { Plugins::SlimPing::Core::Container->get('library_mapper') };
         unless ($@) {
+
             # Shaped metadata for Now Playing injection (artist / title needed
             # for CUE segments where the container Track carries different values).
             my $track_data = eval { $mapper->getTrackById( $args{sq_id} ) };
@@ -931,7 +944,7 @@ sub _deliverExoticFlac {
     }
 
     if ($want_mp3) {
-        my $br = ( $max_bitrate && $max_bitrate > 0 ) ? $max_bitrate : 320;
+        my $br     = ( $max_bitrate && $max_bitrate > 0 ) ? $max_bitrate : 320;
         my $offset = $args{time_offset} // 0;
         my $dur    = $args{duration}    // 0;
 
@@ -939,28 +952,28 @@ sub _deliverExoticFlac {
         # Seeked outputs are partial (the offset is baked into the FLAC
         # segment) and would pollute the full-track cache key.  The CBR
         # size estimate lets registerStream track expected_bytes.
-        my $size_bytes = ( $dur > 0 && $offset == 0 )
+        my $size_bytes =
+          ( $dur > 0 && $offset == 0 )
           ? int( $dur * $br * 1000 / 8 )
           : undef;
 
         Plugins::SlimPing::Core::VirtualPlayer::streamViaPipeline(
-            httpClient        => $args{httpClient},
-            response          => $args{response},
-            source_url        => 'slimping://'
-              . $args{sq_id} . '/cache/'
-              . ( $args{flac_path} =~ m{/([^/]+)$} )[0],
-            sq_id             => $args{sq_id},
-            client_name       => $args{client_name} || 'exotic',
-            format            => 'mp3',
-            time_offset       => $offset,
-            is_download       => $args{is_download},
-            is_remote         => 0,
-            output_br_kbps    => $br,
-            size_bytes        => $size_bytes,
-            duration_s        => $dur,
-            meta              => $meta,
+            httpClient     => $args{httpClient},
+            response       => $args{response},
+            source_url     => 'slimping://' . $args{sq_id} . '/cache/' . ( $args{flac_path} =~ m{/([^/]+)$} )[0],
+            sq_id          => $args{sq_id},
+            client_name    => $args{client_name} || 'exotic',
+            format         => 'mp3',
+            time_offset    => $offset,
+            is_download    => $args{is_download},
+            is_remote      => 0,
+            output_br_kbps => $br,
+            size_bytes     => $size_bytes,
+            duration_s     => $dur,
+            meta           => $meta,
         );
-    } else {
+    }
+    else {
         my $offset = $args{time_offset} // 0;
 
         # offset=0: serve the complete cached FLAC directly — zero extra cost.
@@ -972,7 +985,7 @@ sub _deliverExoticFlac {
                 content_type  => 'audio/flac',
                 is_download   => $args{is_download},
                 time_offset   => $args{time_offset} // 0,
-                duration      => $args{duration} // 0,
+                duration      => $args{duration}    // 0,
                 file_size     => $args{flac_size},
                 sq_id         => $args{sq_id},
             );
@@ -1003,46 +1016,41 @@ sub _deliverExoticFlac {
             delete $_seek_cache{$cache_key};
         }
 
-        my $seeked_path = Slim::Utils::Misc::getTempDir() . '/slimping_seek_'
-          . time() . '_' . int( rand(999999) ) . '.flac';
+        my $seeked_path =
+          Slim::Utils::Misc::getTempDir() . '/slimping_seek_' . time() . '_' . int( rand(999999) ) . '.flac';
 
         my $flac_bin = Plugins::SlimPing::Core::ExternalProcess::flacPath();
-        my $skip_str =
-          Plugins::SlimPing::Handlers::Stream::AudioDelivery::CueLossless::formatFlacTime($offset);
+        my $skip_str = Plugins::SlimPing::Handlers::Stream::AudioDelivery::CueLossless::formatFlacTime($offset);
 
         # Match the sample rate of the initial DSD→FLAC transcode.
-        my $target_rate =
-          Plugins::SlimPing::Handlers::Stream::AudioDelivery::DsdTranscode::selectOutputRate(undef);
+        my $target_rate = Plugins::SlimPing::Handlers::Stream::AudioDelivery::DsdTranscode::selectOutputRate(undef);
 
         my $cmd_decode = [
-            $flac_bin, '-dc', '--silent',
-            "--skip=$skip_str",
-            '--force-raw-format', '--endian=little', '--sign=signed',
-            '--', $args{flac_path},
+            $flac_bin,            '-dc',             '--silent',      "--skip=$skip_str",
+            '--force-raw-format', '--endian=little', '--sign=signed', '--',
+            $args{flac_path},
         ];
         my $cmd_encode = [
-            $flac_bin, '-5', '--silent', '--force-raw-format',
-            '--endian=little', '--sign=signed',
-            '--channels=2', '--bps=24',
-            '--sample-rate', $target_rate,
-            '-o', $seeked_path, '-',
+            $flac_bin,         '-5',            '--silent',     '--force-raw-format',
+            '--endian=little', '--sign=signed', '--channels=2', '--bps=24',
+            '--sample-rate',   $target_rate,    '-o',           $seeked_path,
+            '-',
         ];
 
         $log->debug("SlimPing: seek re-encode $cache_key offset=$offset rate=$target_rate");
 
         Plugins::SlimPing::Core::ExternalProcess->spawnPipeline(
-            cmd_decode => $cmd_decode,
-            cmd_encode => $cmd_encode,
-            tmp_path   => $seeked_path,
-            cache_key  => $cache_key,
-            timeout_s  => 60,
+            cmd_decode  => $cmd_decode,
+            cmd_encode  => $cmd_encode,
+            tmp_path    => $seeked_path,
+            cache_key   => $cache_key,
+            timeout_s   => 60,
             on_complete => sub {
                 my ($result_path) = @_;
                 my $size = -s $result_path;
                 unless ( $size && $size > 0 ) {
                     $log->error("SlimPing: seek re-encode produced empty output for $cache_key");
-                    Plugins::SlimPing::Handlers::Stream::AudioDelivery::_send500(
-                        $args{httpClient}, $args{response} );
+                    Plugins::SlimPing::Handlers::Stream::AudioDelivery::_send500( $args{httpClient}, $args{response} );
                     return;
                 }
                 _cacheSeekedFlac( $cache_key, $result_path, $size );
@@ -1059,8 +1067,7 @@ sub _deliverExoticFlac {
             on_error => sub {
                 my ($reason) = @_;
                 $log->warn("SlimPing: seek re-encode failed for $cache_key: $reason");
-                Plugins::SlimPing::Handlers::Stream::AudioDelivery::_send500(
-                    $args{httpClient}, $args{response} );
+                Plugins::SlimPing::Handlers::Stream::AudioDelivery::_send500( $args{httpClient}, $args{response} );
             },
             httpClient => $args{httpClient},
             response   => $args{response},

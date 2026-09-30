@@ -41,7 +41,7 @@ use warnings;
 
 use Slim::Utils::ImageResizer;
 use Slim::Web::HTTP;
-use Time::HiRes  qw(time);
+use Time::HiRes qw(time);
 require Plugins::SlimPing::API::Router;
 require Plugins::SlimPing::Core::LibraryMapper;
 require Plugins::SlimPing::Core::Logging;
@@ -79,16 +79,16 @@ sub registerHandlers {
 
 sub _serveAudio {
     my ( $httpClient, $response, $args, $is_download ) = @_;
-    my $p = $args->{params};
-    my $user       = $args->{user}{username} || '_anon';
-    my $client     = $p->{c} || 'unknown';
-    my $key        = "$user:$client";
+    my $p      = $args->{params};
+    my $user   = $args->{user}{username} || '_anon';
+    my $client = $p->{c}                 || 'unknown';
+    my $key    = "$user:$client";
 
     # Read remembered caps, bump the access timestamp so the sweep
     # evicts least-recently-used entries rather than low-bitrate ones.
-    my $now        = time();
-    my $audio_br   = $_client_max_audio_br{$key};
-    my $transcode_br = $_client_max_transcode_br{$key};
+    my $now             = time();
+    my $audio_br        = $_client_max_audio_br{$key};
+    my $transcode_br    = $_client_max_transcode_br{$key};
     my $cached_cap_kbps = 0;
     if ($audio_br) {
         $_client_max_audio_br{$key}{ts} = $now;
@@ -99,9 +99,8 @@ sub _serveAudio {
         $cached_cap_kbps = $transcode_br->{br} if !$cached_cap_kbps;
     }
 
-    Plugins::SlimPing::Handlers::Stream::AudioDelivery::serve(
-        $httpClient, $response, $args, $is_download, $cached_cap_kbps
-    );
+    Plugins::SlimPing::Handlers::Stream::AudioDelivery::serve( $httpClient, $response, $args, $is_download,
+        $cached_cap_kbps );
 }
 
 sub _serveStream   { _serveAudio( $_[0], $_[1], $_[2], 0 ); }
@@ -123,12 +122,12 @@ sub _serveDownload { _serveAudio( $_[0], $_[1], $_[2], 1 ); }
 # persist).  When a field was absent from the body, the remembered cap is left
 # untouched — the client simply didn't state a preference this time.
 sub _rememberClientBitrateCap {
-    my ($opts) = @_;
-    my $user             = $opts->{user};
-    my $client_name      = $opts->{client_name};
-    my $max_audio_br     = $opts->{max_audio_br}     // 0;
-    my $max_transcode_br = $opts->{max_transcode_br} // 0;
-    my $explicit_audio   = $opts->{explicit_audio};
+    my ($opts)             = @_;
+    my $user               = $opts->{user};
+    my $client_name        = $opts->{client_name};
+    my $max_audio_br       = $opts->{max_audio_br}     // 0;
+    my $max_transcode_br   = $opts->{max_transcode_br} // 0;
+    my $explicit_audio     = $opts->{explicit_audio};
     my $explicit_transcode = $opts->{explicit_transcode};
 
     return unless $explicit_audio || $explicit_transcode;
@@ -160,7 +159,7 @@ sub _rememberClientBitrateCap {
         for my $hash ( \( %_client_max_audio_br, %_client_max_transcode_br ) ) {
             if ( keys(%$hash) > $max ) {
                 my @sorted = sort { $hash->{$a}{ts} <=> $hash->{$b}{ts} } keys %$hash;
-                my $cut = int( $max * 0.8 );
+                my $cut    = int( $max * 0.8 );
                 delete @$hash{ @sorted[ $cut .. $#sorted ] };
             }
         }
@@ -177,7 +176,8 @@ sub _coverArtRaw {
 
     require Plugins::SlimPing::Auth::Permissions;
     if ( Plugins::SlimPing::Auth::Permissions->requireRole( $args->{user}, 'coverArtRole' ) ) {
-        Plugins::SlimPing::API::Router->sendError( $httpClient, $response, $p, 50, 'User is not authorised for this operation' );
+        Plugins::SlimPing::API::Router->sendError( $httpClient, $response, $p, 50,
+            'User is not authorised for this operation' );
         return;
     }
 
@@ -186,7 +186,7 @@ sub _coverArtRaw {
         return;
     }
 
-    my ( $type ) = Plugins::SlimPing::Core::LibraryMapper->decodeId($sq_id);
+    my ($type) = Plugins::SlimPing::Core::LibraryMapper->decodeId($sq_id);
     unless ( defined $type ) {
         Plugins::SlimPing::API::Router->sendError( $httpClient, $response, $p, 70, 'Cover art not found' );
         return;
@@ -196,7 +196,8 @@ sub _coverArtRaw {
 
     if ( $type eq 'radio' ) {
         unless ( Plugins::SlimPing::Core::Logging->isFeatureEnabled('feature_internet_radio') ) {
-            Plugins::SlimPing::API::Router->sendError( $httpClient, $response, $p, 0, 'Not implemented: internet radio cover art' );
+            Plugins::SlimPing::API::Router->sendError( $httpClient, $response, $p, 0,
+                'Not implemented: internet radio cover art' );
             return;
         }
         my $mapper   = Plugins::SlimPing::Core::Container->get('library_mapper');
@@ -248,6 +249,7 @@ sub _coverArtRaw {
         }
     }
     elsif ( $type eq 'dynamic_playlist' ) {
+
         # Serve the search icon for DPL playlists so they are visually distinct
         # from user-created SSP playlists in OpenSubsonic clients.
         ( $body, $content_type ) = Plugins::SlimPing::Core::VirtualPlayer->readDefaultArtwork('dpl');

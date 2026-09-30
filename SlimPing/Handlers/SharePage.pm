@@ -41,7 +41,7 @@ sub serveSharePage {
     my $entries = $share->{entry};
     my $count   = scalar @$entries;
     my $first   = $entries->[0];
-    my $base = _escapeHtml(Plugins::SlimPing::Core::LibraryMapper->_requestBaseUrl() || '');
+    my $base    = _escapeHtml( Plugins::SlimPing::Core::LibraryMapper->_requestBaseUrl() || '' );
 
     # Header derivation
     my ( $type_label, $title, $subtitle );
@@ -81,10 +81,7 @@ sub serveSharePage {
         }
     }
 
-    my $meta_line = _buildMetaLine(
-        ( $count == 1 ? $first : undef ), $share,
-        ( $count > 1  ? $count : undef )
-    );
+    my $meta_line = _buildMetaLine( ( $count == 1 ? $first : undef ), $share, ( $count > 1 ? $count : undef ) );
 
     # URLs -- $base is entity-escaped above; $token is hex-only
     my $cover_url    = "$base/rest/shareMetadata.view?share=$token&track=0";
@@ -95,21 +92,21 @@ sub serveSharePage {
     for my $i ( 0 .. $#$entries ) {
         my $e       = $entries->[$i];
         my $num     = $i + 1;
-        my $t       = _escapeHtml( $e->{title} || 'Untitled' );
+        my $t       = _escapeHtml( $e->{title}  || 'Untitled' );
         my $artist  = _escapeHtml( $e->{artist} || '' );
         my $album   = _escapeHtml( $e->{album}  || '' );
         my $dur     = $e->{duration} // 0;
         my $min     = int( $dur / 60 );
         my $sec     = $dur % 60;
         my $dur_str = sprintf( '%d:%02d', $min, $sec );
-        my $url = "$base/rest/shareStream.view?share=$token&track=$i";
-        $track_rows
-          .= qq{<tr><td class="num">$num</td><td class="title"><a class="track-link" href="$url" data-title="$t" data-artist="$artist" data-album="$album" data-duration="$dur">$t</a></td><td class="dur">$dur_str</td></tr>\n};
+        my $url     = "$base/rest/shareStream.view?share=$token&track=$i";
+        $track_rows .=
+qq{<tr><td class="num">$num</td><td class="title"><a class="track-link" href="$url" data-title="$t" data-artist="$artist" data-album="$album" data-duration="$dur">$t</a></td><td class="dur">$dur_str</td></tr>\n};
     }
 
     # Description block (if present).  + signs have already been
     # converted to spaces at the input boundary in Handlers::Sharing.
-    my $desc = _escapeHtml( $share->{description} || '' );
+    my $desc       = _escapeHtml( $share->{description} || '' );
     my $desc_block = '';
     if ( length $desc ) {
         $desc_block = qq{<p class="description">Share Note: $desc</p>};
@@ -295,11 +292,11 @@ PAGE
     $html .= qq{<div class="header-inner">\n};
 
     # Cover art with fallback to submarine SVG placeholder
-    $html
-      .= qq{<img class="cover-art" src="$cover_url" alt="Cover art" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">\n};
+    $html .=
+qq{<img class="cover-art" src="$cover_url" alt="Cover art" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">\n};
     $html .= qq{<div class="cover-art-placeholder" style="display:none">\n};
-    $html
-      .= qq{<svg width="48" height="48" viewBox="0 0 24 24"><rect x="5" y="13" width="14" height="5" rx="2.5" fill="rgba(255,255,255,0.85)"/><rect x="10" y="10.5" width="4" height="2.5" rx="0.8" fill="rgba(255,255,255,0.85)"/><circle cx="9" cy="15.5" r="0.7" fill="#667eea"/><circle cx="12" cy="15.5" r="0.7" fill="#667eea"/><circle cx="15" cy="15.5" r="0.7" fill="#667eea"/></svg>\n};
+    $html .=
+qq{<svg width="48" height="48" viewBox="0 0 24 24"><rect x="5" y="13" width="14" height="5" rx="2.5" fill="rgba(255,255,255,0.85)"/><rect x="10" y="10.5" width="4" height="2.5" rx="0.8" fill="rgba(255,255,255,0.85)"/><circle cx="9" cy="15.5" r="0.7" fill="#667eea"/><circle cx="12" cy="15.5" r="0.7" fill="#667eea"/><circle cx="15" cy="15.5" r="0.7" fill="#667eea"/></svg>\n};
     $html .= qq{</div>\n};
 
     # Text block
@@ -307,7 +304,7 @@ PAGE
     $html .= qq{<div class="type-badge">$type_label</div>\n};
     $html .= qq{<h2>$title</h2>\n};
     $html .= qq{<p class="subtitle">$subtitle</p>\n} if length $subtitle;
-    $html .= qq{<p class="meta">$meta_line</p>\n} if $meta_line;
+    $html .= qq{<p class="meta">$meta_line</p>\n}    if $meta_line;
     $html .= $desc_block;
     $html .= qq{</div>\n</div>\n};
 
@@ -334,13 +331,11 @@ PAGE
 
     # Track listing
     $html .= qq{<div class="tracklist">\n<table>\n};
-    $html
-      .= qq{<thead><tr><th class="num">#</th><th>Title</th><th class="dur">Duration</th></tr></thead>\n};
+    $html .= qq{<thead><tr><th class="num">#</th><th>Title</th><th class="dur">Duration</th></tr></thead>\n};
     $html .= qq{<tbody>\n$track_rows</tbody>\n</table>\n</div>\n};
 
     # Footer
-    my $footer_line
-      = "SlimPing | Shared by $username_esc | For private streaming only";
+    my $footer_line = "SlimPing | Shared by $username_esc | For private streaming only";
     $html .= qq{<div class="footer">$footer_line</div>\n};
 
     $html .= qq{</div>\n};
@@ -590,7 +585,7 @@ sub _escapeHtml {
 sub _formatExpiryDate {
     my ($epoch) = @_;
     return '' unless $epoch;
-    my @lt = localtime($epoch);
+    my @lt     = localtime($epoch);
     my @months = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
     return sprintf( '%d %s %d', $lt[3], $months[ $lt[4] ], $lt[5] + 1900 );
 }

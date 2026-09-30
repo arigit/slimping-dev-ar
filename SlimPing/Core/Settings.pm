@@ -53,6 +53,7 @@ require Plugins::SlimPing::Settings::AdminApi::NowPlaying;
 require Plugins::SlimPing::Settings::AdminApi::Shares;
 require Plugins::SlimPing::Settings::AdminApi::Data;
 require Plugins::SlimPing::Settings::AdminApi::DynamicPlaylists;
+require Plugins::SlimPing::Settings::AdminApi::RuntimeTests;
 require Slim::Music::VirtualLibraries;
 require Slim::Utils::Misc;
 
@@ -74,7 +75,7 @@ sub prefs {
     return (
         $prefs,
         qw(
-          server_name exposed_libraries_mode radioFolder radioFolderRecurse
+          server_name exposed_libraries_mode artist_list_mode radioFolder radioFolderRecurse
           menu_mode admin_access trust_xff lan_mode allow_plain_password
           proxy_remote_streams feature_internet_radio feature_podcasts
           lms_favourites_bridge
@@ -133,6 +134,9 @@ sub new {
 
     Slim::Web::Pages->addRawFunction( 'plugins/SlimPing/settings/dynamic_playlists',
         \&Plugins::SlimPing::Settings::AdminApi::DynamicPlaylists::handle );
+
+    Slim::Web::Pages->addRawFunction( 'plugins/SlimPing/settings/runtime_tests',
+        \&Plugins::SlimPing::Settings::AdminApi::RuntimeTests::handle );
 }
 
 # --- Handler ---
@@ -145,8 +149,7 @@ sub handler {
     # the user list (usernames, jukebox bindings, exposure settings) to anyone
     # who can reach the LMS port.
     my $request = $response->request();
-    my ( $auth_ok, $err_code, $err_msg ) =
-      Plugins::SlimPing::Auth::AdminGate::requireAdmin( $httpClient, $request );
+    my ( $auth_ok, $err_code, $err_msg ) = Plugins::SlimPing::Auth::AdminGate::requireAdmin( $httpClient, $request );
     unless ($auth_ok) {
         return Plugins::SlimPing::Auth::AdminGate::renderAdminRequired( $err_code, $err_msg );
     }
@@ -164,16 +167,67 @@ sub handler {
     # who have JavaScript disabled; AJAX is preferred).
     if ( $params->{server_name} ) {
         $prefs->set( 'server_name', $params->{server_name} );
-        $log->info( 'SlimPing: server_name updated to \''
-              . $params->{server_name}
-              . '\'' );
+        $log->info( 'SlimPing: server_name updated to \'' . $params->{server_name} . '\'' );
     }
 
     if ( defined $params->{radio_folder} ) {
         $prefs->set( 'radioFolder', $params->{radio_folder} // '' );
-        $log->info( 'SlimPing: radioFolder updated to \''
-              . ( $params->{radio_folder} // '' )
-              . '\'' );
+        $log->info( 'SlimPing: radioFolder updated to \'' . ( $params->{radio_folder} // '' ) . '\'' );
+    }
+
+    if ( defined $params->{dstm_mix_level} ) {
+        my $level = $params->{dstm_mix_level};
+        if ( $level eq 'off' || $level eq 'feed' || $level eq 'similarity' || $level eq 'full' ) {
+            $prefs->set( 'dstm_mix_level', $level );
+            $log->info("SlimPing: dstm_mix_level updated to '$level'");
+        }
+    }
+
+    if ( defined $params->{dstm_fallback_db} ) {
+        $prefs->set( 'dstm_fallback_db', $params->{dstm_fallback_db} ? 1 : 0 );
+    }
+
+    if ( defined $params->{dstm_path_hops} ) {
+        my $hops = int( $params->{dstm_path_hops} );
+        $hops = 5   if $hops < 5;
+        $hops = 500 if $hops > 500;
+        $prefs->set( 'dstm_path_hops', $hops );
+    }
+
+    if ( defined $params->{dstm_seed_window} ) {
+        my $window = int( $params->{dstm_seed_window} );
+        $window = 1  if $window < 1;
+        $window = 20 if $window > 20;
+        $prefs->set( 'dstm_seed_window', $window );
+    }
+
+    if ( defined $params->{dstm_topup_threshold} ) {
+        my $threshold = int( $params->{dstm_topup_threshold} );
+        $threshold = 0  if $threshold < 0;
+        $threshold = 10 if $threshold > 10;
+        $prefs->set( 'dstm_topup_threshold', $threshold );
+    }
+
+    if ( defined $params->{dstm_provider} ) {
+        my $provider = $params->{dstm_provider} // '';
+        my $valid    = $provider eq '' ? 1 : 0;
+        if ( !$valid ) {
+            eval {
+                require Slim::Plugin::DontStopTheMusic::Plugin;
+
+                # Function-style call: DSTM's signature is ($client), not
+                # ($class, $client).
+                my $tokens = Slim::Plugin::DontStopTheMusic::Plugin::getSortedHandlerTokens($client);
+                for my $t ( @{ $tokens || [] } ) {
+                    $valid = 1 if $t eq $provider;
+                }
+            };
+            $@ && $log->warn("SlimPing: dstm_provider validation failed: $@");
+        }
+        if ($valid) {
+            $prefs->set( 'dstm_provider', $provider );
+            $log->info("SlimPing: dstm_provider updated to '$provider'");
+        }
     }
 
     if ( defined $params->{exposed_libraries_mode} ) {
@@ -189,8 +243,7 @@ sub handler {
         else {
             $prefs->remove('exposed_library_ids');
         }
-        Plugins::SlimPing::Core::Container->get('library_mapper')
-          ->invalidateFolderCache();
+        Plugins::SlimPing::Core::Container->get('library_mapper')->invalidateFolderCache();
         $log->info("SlimPing: exposure mode updated to '$mode'");
     }
 
@@ -206,8 +259,7 @@ sub handler {
     }
 
     # Populate template parameters
-    my $pluginData =
-      Slim::Utils::PluginManager->dataForPlugin('Plugins::SlimPing::Plugin');
+    my $pluginData = Slim::Utils::PluginManager->dataForPlugin('Plugins::SlimPing::Plugin');
 
     # Virtual library list for the exposure settings UI
     my $vlibraries  = Slim::Music::VirtualLibraries->getLibraries() || {};
@@ -219,12 +271,20 @@ sub handler {
         {
             id      => $vlibraries->{$_}->{id},
             name    => $vlibraries->{$_}->{name},
-            exposed => $exposed{ $vlibraries->{$_}->{id} } ? \1 : \0,
+            exposed => $exposed{ $vlibraries->{$_}->{id} } ? 1 : 0,
         }
     } keys %$vlibraries;
 
-    my $sessions =
-      Plugins::SlimPing::Core::Container->get('session_state')->getActiveSessions();
+    # Music folder options for the per-user default dropdown.  Only folders the
+    # global exposure setting actually advertises may be chosen, so layer 2
+    # can never select outside layer 1.
+    my $mapper_for_ui = Plugins::SlimPing::Core::Container->get('library_mapper');
+    my @default_folder_options =
+      sort { $a->{name} cmp $b->{name} }
+      grep { $mapper_for_ui->isLibraryExposed( $_->{id} ) }
+      map  { { id => $vlibraries->{$_}->{id}, name => $vlibraries->{$_}->{name} } } keys %$vlibraries;
+
+    my $sessions     = Plugins::SlimPing::Core::Container->get('session_state')->getActiveSessions();
     my @sessions_fmt = map {
         {
             %$_,
@@ -232,19 +292,24 @@ sub handler {
         }
     } @$sessions;
 
-    my $mgr       = Plugins::SlimPing::Core::Container->get('auth_manager');
-    my $raw_users = $mgr->getUsers();
+    my $mgr        = Plugins::SlimPing::Core::Container->get('auth_manager');
+    my $raw_users  = $mgr->getUsers();
     my @safe_users = map {
         my %u = %$_;
         $u{alias} = $mgr->getAlias( $u{username} );
+
         # dpl_access lives in plugin prefs, not the DB
         my $dpl_val = $prefs->get("sq_dpl_access_$u{username}");
         $u{dpl_access} = defined $dpl_val ? $dpl_val : 1;    # default: enabled
+            # Default folder set but no longer exposed -- render it as stale rather
+            # than silently dropping it from the dropdown.
+        $u{default_folder_stale} =
+          ( $u{default_music_folder} && !$mapper_for_ui->isLibraryExposed( $u{default_music_folder} ) ) ? 1 : 0;
         \%u;
     } @$raw_users;
 
-    $params->{slimping_users}          = \@safe_users;
-    $params->{slimping_sessions}       = \@sessions_fmt;
+    $params->{slimping_users}    = \@safe_users;
+    $params->{slimping_sessions} = \@sessions_fmt;
 
     my $as_available = eval { require Slim::Plugin::AudioScrobbler::Plugin; 1 };
 
@@ -263,7 +328,7 @@ sub handler {
         }
     }
 
-    @players         = sort { $a->{name} cmp $b->{name} } @players;
+    @players          = sort { $a->{name} cmp $b->{name} } @players;
     @scrobble_players = sort { $a->{name} cmp $b->{name} } @scrobble_players;
 
     $params->{slimping_players}          = \@players;
@@ -279,25 +344,26 @@ sub handler {
         unless ( $scrobble_ids{$gateway_id} ) {
             $params->{scrobble_gateway_stale} = 1;
             my $client = Slim::Player::Client::getClient($gateway_id);
-            $params->{scrobble_gateway_player_name} =
-              $client ? $client->name() : $gateway_id;
+            $params->{scrobble_gateway_player_name} = $client ? $client->name() : $gateway_id;
         }
     }
 
-    $params->{slimping_server_name}    = $prefs->get('server_name') || 'SlimPing';
-    $params->{slimping_exposure_mode}  = $prefs->get('exposed_libraries_mode');
-    $params->{slimping_radio_folder}   = $prefs->get('radioFolder');
-    $params->{radio_folder_recurse}    = $prefs->get('radioFolderRecurse') ? 1 : 0;
-    $params->{slimping_vlibraries}     = \@vlibrary_list;
+    $params->{slimping_server_name}            = $prefs->get('server_name') || 'SlimPing';
+    $params->{slimping_exposure_mode}          = $prefs->get('exposed_libraries_mode');
+    $params->{slimping_artist_list_mode}       = $prefs->get('artist_list_mode');
+    $params->{slimping_radio_folder}           = $prefs->get('radioFolder');
+    $params->{radio_folder_recurse}            = $prefs->get('radioFolderRecurse') ? 1 : 0;
+    $params->{slimping_vlibraries}             = \@vlibrary_list;
+    $params->{slimping_default_folder_options} = \@default_folder_options;
     $params->{plugin_version} =
       ( $pluginData && $pluginData->{version} )
       ? $pluginData->{version}
       : 'unknown';
-    $params->{lms_version} = $::VERSION;
-    $params->{subsonic_api_version} =
-      Plugins::SlimPing::API::ResponseFormatter::SUBSONIC_VERSION;
+    $params->{lms_version}           = $::VERSION;
+    $params->{subsonic_api_version}  = Plugins::SlimPing::API::ResponseFormatter::SUBSONIC_VERSION;
     $params->{slimping_admin_access} = $prefs->get('admin_access');
     $params->{slimping_trust_xff}    = $prefs->get('trust_xff') ? 1 : 0;
+
     # lan_mode defaults to ON (undef = on) so upgrades don't break
     # token+salt clients.  allow_plain_password defaults to OFF (undef =
     # off) -- operator must explicitly opt in to plain-password support.
@@ -307,98 +373,151 @@ sub handler {
     }
     {
         my $raw = $prefs->get('allow_plain_password');
-        $params->{slimping_allow_plain_password} =
-          defined $raw ? ( $raw ? 1 : 0 ) : 0;
+        $params->{slimping_allow_plain_password} = defined $raw ? ( $raw ? 1 : 0 ) : 0;
     }
-    $params->{proxy_remote_streams}    = $prefs->get('proxy_remote_streams');
-    $params->{remote_stream_cap}       = $prefs->get('remote_stream_cap');
-    $params->{remote_stream_rate_limit} = $prefs->get('remote_stream_rate_limit');
+    $params->{proxy_remote_streams}      = $prefs->get('proxy_remote_streams');
+    $params->{remote_stream_cap}         = $prefs->get('remote_stream_cap');
+    $params->{remote_stream_rate_limit}  = $prefs->get('remote_stream_rate_limit');
     $params->{remote_stream_rate_window} = $prefs->get('remote_stream_rate_window');
-    $params->{feature_internet_radio}  = $prefs->get('feature_internet_radio');
-    $params->{feature_podcasts}       = $prefs->get('feature_podcasts');
-    $params->{lms_favourites_bridge}  = $prefs->get('lms_favourites_bridge');
+    $params->{feature_internet_radio}    = $prefs->get('feature_internet_radio');
+    $params->{feature_podcasts}          = $prefs->get('feature_podcasts');
+    $params->{lms_favourites_bridge}     = $prefs->get('lms_favourites_bridge');
 
     # Dynamic Playlist Exposure
     {
         require Plugins::SlimPing::Core::DynamicPlaylistBridge;
         my $bridge = Plugins::SlimPing::Core::DynamicPlaylistBridge->getInstance();
-        $params->{dpl4_available}          = $bridge->isAvailable();
-        $params->{dpl_feature_enabled}     = $prefs->get('dpl_feature_enabled') ? 1 : 0;
-        $params->{dpl_eligible_count}      = $bridge->getExposureCount();
-        $params->{dpl_eligible_names}      = $bridge->getExposureNames();
-        $params->{dpl_source_counts}       = $bridge->getExposureCountBySource();
-        $params->{dpl_discovery_stats}     = $bridge->getDiscoveryStats();
-        $params->{dpl_cache_ttl}           = $prefs->get('dpl_cache_ttl_seconds') // 300;
-        $params->{dpl_seed_size}          = $prefs->get('dpl_seed_size') // 100;
+        $params->{dpl4_available}      = $bridge->isAvailable();
+        $params->{dpl_feature_enabled} = $prefs->get('dpl_feature_enabled') ? 1 : 0;
+        $params->{dpl_eligible_count}  = $bridge->getExposureCount();
+        $params->{dpl_eligible_names}  = $bridge->getExposureNames();
+        $params->{dpl_source_counts}   = $bridge->getExposureCountBySource();
+        $params->{dpl_discovery_stats} = $bridge->getDiscoveryStats();
+        $params->{dpl_cache_ttl}       = $prefs->get('dpl_cache_ttl_seconds') // 300;
+        $params->{dpl_seed_size}       = $prefs->get('dpl_seed_size')         // 100;
     }
-    $params->{feature_mai_integration} = $prefs->get('feature_mai_integration');
-    $params->{feature_mai_text}        = $prefs->get('feature_mai_text');
-    $params->{mai_external_cap} = $prefs->get('mai_external_cap');
-    $params->{mai_request_rate}   = $prefs->get('mai_request_rate');
-    $params->{mai_queue_max}    = $prefs->get('mai_queue_max');
-    $params->{mai_bio_positive_ttl} = $prefs->get('mai_bio_positive_ttl');
-    $params->{mai_bio_negative_ttl} = $prefs->get('mai_bio_negative_ttl');
+
+    # DSTM mixer integration (spec 2026-08-30): pref values, registered
+    # sonic providers, registered Lyrion DSTM tokens, and the compact
+    # overview status.  All DSTM calls are eval-guarded (DSTM may be absent).
+    $params->{dstm_mix_level}       = $prefs->get('dstm_mix_level') || 'off';
+    $params->{dstm_fallback_db}     = $prefs->get('dstm_fallback_db') ? 1 : 0;
+    $params->{dstm_path_hops}       = $prefs->get('dstm_path_hops')       // 25;
+    $params->{dstm_seed_window}     = $prefs->get('dstm_seed_window')     // 5;
+    $params->{dstm_topup_threshold} = $prefs->get('dstm_topup_threshold') // 2;
+    $params->{dstm_provider}        = $prefs->get('dstm_provider') || '';
+
+    require Plugins::SlimPing::Core::SonicRegistry;
+    my $dstm_providers = Plugins::SlimPing::Core::SonicRegistry->listProviders() || [];
+    $params->{dstm_providers} = $dstm_providers;
+
+    my $dstm_tokens = [];
+    eval {
+        require Slim::Plugin::DontStopTheMusic::Plugin;
+
+        # Function-style call: DSTM's signature is ($client), not
+        # ($class, $client).
+        $dstm_tokens = Slim::Plugin::DontStopTheMusic::Plugin::getSortedHandlerTokens($client);
+        $dstm_tokens ||= [];
+    };
+
+    # Debug level: a die here is the expected path when DSTM is absent, and
+    # this runs on every settings page render.
+    $@ && $log->debug("SlimPing: DSTM token fetch failed: $@");
+    $params->{dstm_tokens} = $dstm_tokens;
+
+    my ( $dstm_source, $dstm_source_name ) = ( 'classic', '' );
+    for my $p (@$dstm_providers) {
+        if ( $p->{id} ne Plugins::SlimPing::Core::SonicRegistry::BUILTIN_ID() ) {
+            ( $dstm_source, $dstm_source_name ) = ( 'provider', $p->{name} );
+            last;
+        }
+    }
+    if ( $dstm_source eq 'classic' ) {
+        for my $p (@$dstm_providers) {
+            if ( $p->{id} eq Plugins::SlimPing::Core::SonicRegistry::BUILTIN_ID() ) {
+                ( $dstm_source, $dstm_source_name ) = ( 'dstm', 'Lyrion DSTM' );
+                last;
+            }
+        }
+    }
+    $params->{dstm_overview} = {
+        level     => $params->{dstm_mix_level},
+        source    => $dstm_source,
+        name      => $dstm_source_name,
+        providers => scalar(@$dstm_providers),
+        tokens    => scalar(@$dstm_tokens),
+    };
+
+    $params->{feature_mai_integration}   = $prefs->get('feature_mai_integration');
+    $params->{feature_mai_text}          = $prefs->get('feature_mai_text');
+    $params->{mai_external_cap}          = $prefs->get('mai_external_cap');
+    $params->{mai_request_rate}          = $prefs->get('mai_request_rate');
+    $params->{mai_queue_max}             = $prefs->get('mai_queue_max');
+    $params->{mai_bio_positive_ttl}      = $prefs->get('mai_bio_positive_ttl');
+    $params->{mai_bio_negative_ttl}      = $prefs->get('mai_bio_negative_ttl');
     $params->{slimping_max_album_count}  = $prefs->get('maxAlbumCount');
     $params->{slimping_max_artist_count} = $prefs->get('maxArtistCount');
     $params->{slimping_max_song_count}   = $prefs->get('maxSongCount');
-    $params->{slimping_genre_count}     = $prefs->get('genre_count_per_entity') // 3;
-    $params->{slimping_exposed_roles}   = $prefs->get('exposed_contributor_roles')
-        // 'ARTIST,COMPOSER,CONDUCTOR,BAND,ALBUMARTIST,TRACKARTIST';
+    $params->{slimping_genre_count}      = $prefs->get('genre_count_per_entity') // 3;
+    $params->{slimping_exposed_roles}    = $prefs->get('exposed_contributor_roles')
+      // 'ARTIST,COMPOSER,CONDUCTOR,BAND,ALBUMARTIST,TRACKARTIST';
     $params->{slimping_minimal_clients}  = $prefs->get('minimalClients');
     $params->{slimping_legacy_clients}   = $prefs->get('legacyClients');
     $params->{client_quirks_enabled}     = $prefs->get('client_quirks_enabled');
     $params->{quirk_substreamer_artwork} = $prefs->get('quirk_substreamer_artwork');
 
     # Store caps
-    $params->{star_user_cap}            = $prefs->get('star_user_cap');
-    $params->{star_global_cap}          = $prefs->get('star_global_cap');
-    $params->{bookmark_user_cap}        = $prefs->get('bookmark_user_cap');
-    $params->{bookmark_global_cap}      = $prefs->get('bookmark_global_cap');
+    $params->{star_user_cap}       = $prefs->get('star_user_cap');
+    $params->{star_global_cap}     = $prefs->get('star_global_cap');
+    $params->{bookmark_user_cap}   = $prefs->get('bookmark_user_cap');
+    $params->{bookmark_global_cap} = $prefs->get('bookmark_global_cap');
 
     # Sharing settings — TTL values are stored in seconds and divided here
     # for display in hours.  The // fallback protects against a missing or
     # corrupt preference (e.g. undef, zero, or a tiny float left behind by a
     # double-division cycle).  sprintf formatting avoids scientific notation
     # in the HTML input, which would defeat parseInt on the JS save path.
-    $params->{feature_sharing}       = $prefs->get('feature_sharing') // 1;
-    $params->{share_min_ttl}         = sprintf('%.0f', ( $prefs->get('share_min_ttl')     // 3600 ) / 3600 );
-    $params->{share_default_ttl}     = sprintf('%.0f', ( $prefs->get('share_default_ttl') // 86400 ) / 3600 );
-    $params->{share_max_ttl}         = sprintf('%.0f', ( $prefs->get('share_max_ttl')     // 604800 ) / 3600 );
-    $params->{share_max_bitrate}     = $prefs->get('share_max_bitrate');
-    $params->{share_user_cap}        = $prefs->get('share_user_cap');
-    $params->{share_global_cap}      = $prefs->get('share_global_cap');
-    $params->{share_max_listeners}   = $prefs->get('share_max_listeners');
-    $params->{share_max_unique_ips}  = $prefs->get('share_max_unique_ips');
-    $params->{session_ttl_days}      = $prefs->get('session_ttl_days') // 7;
-    $params->{radio_token_ttl}       = $prefs->get('radio_token_ttl') // 7776000;
+    $params->{feature_sharing}      = $prefs->get('feature_sharing') // 1;
+    $params->{share_min_ttl}        = sprintf( '%.0f', ( $prefs->get('share_min_ttl')     // 3600 ) / 3600 );
+    $params->{share_default_ttl}    = sprintf( '%.0f', ( $prefs->get('share_default_ttl') // 86400 ) / 3600 );
+    $params->{share_max_ttl}        = sprintf( '%.0f', ( $prefs->get('share_max_ttl')     // 604800 ) / 3600 );
+    $params->{share_max_bitrate}    = $prefs->get('share_max_bitrate');
+    $params->{share_user_cap}       = $prefs->get('share_user_cap');
+    $params->{share_global_cap}     = $prefs->get('share_global_cap');
+    $params->{share_max_listeners}  = $prefs->get('share_max_listeners');
+    $params->{share_max_unique_ips} = $prefs->get('share_max_unique_ips');
+    $params->{session_ttl_days}     = $prefs->get('session_ttl_days') // 7;
+    $params->{radio_token_ttl}      = $prefs->get('radio_token_ttl')  // 7776000;
 
     # Transcode cache configuration
-    $params->{cache_ram_max_mb}      = $prefs->get('cache_ram_max_mb');
-    $params->{cache_ram_max_tracks}  = $prefs->get('cache_ram_max_tracks');
-    $params->{cache_disk_enabled}    = $prefs->get('cache_disk_enabled');
-    $params->{cache_disk_max_mb}     = $prefs->get('cache_disk_max_mb');
-    $params->{cache_disk_path}       = $prefs->get('cache_disk_path');
-    $params->{exotic_target}         = $prefs->get('exotic_target');
-    $params->{exotic_target_rate}    = $prefs->get('exotic_target_rate');
+    $params->{cache_ram_max_mb}     = $prefs->get('cache_ram_max_mb');
+    $params->{cache_ram_max_tracks} = $prefs->get('cache_ram_max_tracks');
+    $params->{cache_disk_enabled}   = $prefs->get('cache_disk_enabled');
+    $params->{cache_disk_max_mb}    = $prefs->get('cache_disk_max_mb');
+    $params->{cache_disk_path}      = $prefs->get('cache_disk_path');
+    $params->{exotic_target}        = $prefs->get('exotic_target');
+    $params->{exotic_target_rate}   = $prefs->get('exotic_target_rate');
 
     # Check for external transcoding binaries so the settings panel can warn
     # the operator when a required helper (e.g. LAME, FLAC) is missing.
     my @prereqs;
     for my $spec (
-        { name => 'lame',   label => 'LAME MP3 Encoder' },
-        { name => 'flac',   label => 'FLAC' },
-        { name => 'sox',    label => 'SoX' },
-    )
+        { name => 'lame', label => 'LAME MP3 Encoder' },
+        { name => 'flac', label => 'FLAC' },
+        { name => 'sox',  label => 'SoX' },
+      )
     {
         my $path = Slim::Utils::Misc::findbin( $spec->{name} );
-        push @prereqs, {
+        push @prereqs,
+          {
             name     => $spec->{name},
             label    => $spec->{label},
             critical => 1,
             found    => $path ? 1 : 0,
             path     => $path || '',
             status   => $path ? 'ok' : 'error',
-        };
+          };
     }
     for my $spec (
         { name => 'faad',     label => 'FAAD2 (AAC Decoder)' },
@@ -407,17 +526,18 @@ sub handler {
         { name => 'mac',      label => "Monkey's Audio" },
         { name => 'wvunpack', label => 'WavPack' },
         { name => 'dsdplay',  label => 'DSDPlayer (DSD Decoder)' },
-    )
+      )
     {
         my $path = Slim::Utils::Misc::findbin( $spec->{name} );
-        push @prereqs, {
+        push @prereqs,
+          {
             name     => $spec->{name},
             label    => $spec->{label},
             critical => 0,
             found    => $path ? 1 : 0,
             path     => $path || '',
             status   => $path ? 'ok' : 'warning',
-        };
+          };
     }
     $params->{slimping_prereqs} = \@prereqs;
 
@@ -434,14 +554,14 @@ sub handler {
         eval {
             require Plugins::SlimPing::Core::TranscodeCache;
             my $stats = Plugins::SlimPing::Core::TranscodeCache->getInstance->stats();
-            my $ram = $stats->{ram};
+            my $ram   = $stats->{ram};
             $params->{cache_ram_track_count} = $ram->{track_count} // 0;
             $params->{cache_ram_hits}        = $ram->{hits}        // 0;
             $params->{cache_ram_misses}      = $ram->{misses}      // 0;
             $params->{cache_ram_evictions}   = $ram->{evictions}   // 0;
             $params->{cache_ram_max_tracks}  = $ram->{max_tracks}  // 0;
             $params->{cache_ram_bytes_fmt}   = $class->_formatBytes( $ram->{bytes_used} // 0 );
-            $params->{cache_ram_max_fmt}     = $class->_formatBytes( $ram->{max_bytes}   // 0 );
+            $params->{cache_ram_max_fmt}     = $class->_formatBytes( $ram->{max_bytes}  // 0 );
 
             if ( $stats->{disk} ) {
                 my $disk = $stats->{disk};
@@ -457,15 +577,14 @@ sub handler {
     # Delegate rendering to the base class, which provides the settings
     # navigation context (additionalLinks, orderedLinks, topLevelItems) and
     # renders the template via filltemplatefile.
-    return $class->SUPER::handler( $client, $params, $callback, $httpClient,
-        $response );
+    return $class->SUPER::handler( $client, $params, $callback, $httpClient, $response );
 }
 
 sub _formatBytes {
     my ( $class, $bytes ) = @_;
     return '0 B' unless $bytes && $bytes > 0;
     my @units = qw(B KB MB GB);
-    my $i = 0;
+    my $i     = 0;
     while ( $bytes >= 1024 && $i < 3 ) {
         $bytes /= 1024;
         $i++;

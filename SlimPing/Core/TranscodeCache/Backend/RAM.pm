@@ -38,18 +38,21 @@ use Time::HiRes qw(time);
 # Try to load the plugin logger; fall back to a silent stand-in when
 # running without the LMS runtime (e.g. unit tests).
 my $log;
+
 BEGIN {
     $log = eval {
         require Plugins::SlimPing::Core::Logging;
         Plugins::SlimPing::Core::Logging->getLogger();
     };
     if ($@) {
+
         # No-op logger for environments where LMS is not available.
         $log = bless( {}, 'Plugins::SlimPing::Core::TranscodeCache::Backend::RAM::_NullLog' );
     }
 }
 
 {
+
     package Plugins::SlimPing::Core::TranscodeCache::Backend::RAM::_NullLog;
     our $AUTOLOAD;
     sub AUTOLOAD { }
@@ -66,7 +69,7 @@ sub new {
         max_tracks    => $max_tracks,
         target_bytes  => int( $max_bytes * 0.8 ),
         per_entry_max => int( $max_bytes * 0.5 ),
-        on_evict      => undef,    # $coderef->($key, $entry) — set by facade
+        on_evict      => undef,                     # $coderef->($key, $entry) — set by facade
         entries       => {},
         lru_order     => [],
         stats         => {
@@ -228,8 +231,8 @@ sub stats {
         max_bytes   => $self->{max_bytes},
         max_tracks  => $self->{max_tracks},
         entries     => [
-            map { { key => $_, %{ $self->{entries}{$_} } } }
-              grep { exists $self->{entries}{$_} } @{ $self->{lru_order} }
+            map  { { key => $_, %{ $self->{entries}{$_} } } }
+            grep { exists $self->{entries}{$_} } @{ $self->{lru_order} }
         ],
     };
 }

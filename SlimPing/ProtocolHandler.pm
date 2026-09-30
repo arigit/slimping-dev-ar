@@ -122,7 +122,34 @@ sub formatOverride {
         $log->warn('SlimPing: formatOverride has no current track - cannot resolve format');
         return 'unk';
     }
-    return $class->_formatForUrl( $track->url );
+
+    my $url = $track->url;
+
+    # After getNextTrack() handed the track to a remote service handler the
+    # track URL is the service's URL, and the service owns its format:
+    # Spotty returns 'spt', SpotOn 'son'/'soc', TIDAL 'aac'.  Delegating
+    # also runs the service's own format bookkeeping (Spotty registers its
+    # transcoding table for the player).
+    my ( $sq_id, $source ) = _parseSlimpingUrl($url);
+    unless ( $sq_id && $source ) {
+        require Slim::Player::ProtocolHandlers;
+        my $delegate = Slim::Player::ProtocolHandlers->handlerForURL($url);
+        if ( $delegate && $delegate ne __PACKAGE__ && $delegate->can('formatOverride') ) {
+
+            # Third-party handler code can throw (Spotty's runs transcode-
+            # table and audio-cache side effects); never let it escape into
+            # Song::open.  Fall back to the local resolution below.
+            my $format = eval { $delegate->formatOverride($song) };
+            if ($@) {
+                $log->warn("SlimPing: delegate formatOverride failed for $url: $@");
+            }
+            elsif ($format) {
+                return $format;
+            }
+        }
+    }
+
+    return $class->_formatForUrl($url);
 }
 
 # Resolve the format for a slimping:// URL.
@@ -232,23 +259,43 @@ sub getNextTrack {
             my $stream_info = eval { $mapper->resolveStreamUrl($sq_id) };
             unless ( $@ || !$stream_info || !$stream_info->{url} ) {
                 $song->streamUrl( $stream_info->{url} );
+
+                # Point the track at its resolved source.  convert.conf rules
+                # that run without a handler socket (capabilities lacking I)
+                # get $FILE$ from $track->path, which a slimping:// URL cannot
+                # provide.  Remote service handlers also crack the track ID
+                # from this URL.
+                $track->url( $stream_info->{url} );
                 $log->debug( "SlimPing: getNextTrack $sq_id library -> " . $stream_info->{url} );
 
-                # Remote service schemes (qobuz://, tidal://, deezer://...)
-                # are handled by their own protocol handlers, which resolve
-                # the signed stream URL in their getNextTrack() and open it
-                # in their new().  Hand them the track with the service URL
-                # set so they can crack the track ID from
-                # $song->currentTrack()->url.  File sources are handled
-                # directly below.
                 my $scheme = $stream_info->{scheme} // '';
                 if ( length $scheme && $scheme ne 'file' ) {
                     require Slim::Player::ProtocolHandlers;
                     my $delegate = Slim::Player::ProtocolHandlers->handlerForURL( $stream_info->{url} );
-                    if ( $delegate && $delegate ne __PACKAGE__ && $delegate->can('getNextTrack') ) {
-                        $track->url( $stream_info->{url} );
-                        $log->debug("SlimPing: delegating getNextTrack $sq_id to $delegate");
-                        return $delegate->getNextTrack( $song, $successCb, $errorCb );
+                    if ( $delegate && $delegate ne __PACKAGE__ ) {
+                        if ( $delegate->can('getNextTrack') ) {
+                            $log->debug("SlimPing: delegating getNextTrack $sq_id to $delegate");
+                            return $delegate->getNextTrack( $song, $successCb, $errorCb );
+                        }
+
+                        # Handlers without a two-phase resolution (e.g. Spotty):
+                        # their convert.conf rule pulls the audio itself via the
+                        # $URL$ token (streamUrl is already set) and their
+                        # formatOverride reports the source format.  Nothing
+                        # further to resolve - fall through to success.
+                        if ( $delegate->can('formatOverride') ) {
+                            $log->debug(
+                                "SlimPing: handler $delegate has no getNextTrack - using streamUrl directly ($sq_id)");
+                        }
+                        else {
+                            # A registered handler with neither hook cannot
+                            # resolve its format later; warn so a late
+                            # convert failure has a diagnosable cause.
+                            $log->warn(
+"SlimPing: handler $delegate has no getNextTrack or formatOverride - playback may fail for scheme '$scheme' ($sq_id)"
+                            );
+                        }
+                        return $successCb->();
                     }
 
                     $log->warn("SlimPing: no protocol handler registered for scheme '$scheme' ($sq_id)");

@@ -39,15 +39,15 @@ package Plugins::SlimPing::API::Router;
 use strict;
 use warnings;
 
-use Encode qw(encode_utf8 is_utf8);
-use POSIX qw(strftime);
+use Encode      qw(encode_utf8 is_utf8);
+use POSIX       qw(strftime);
 use URI::Escape qw(uri_unescape);
 use Time::HiRes qw(time);
 
 use Plugins::SlimPing::Core::Logging;
 require Plugins::SlimPing::Core::DebugThrottle;
 
-my $log = Plugins::SlimPing::Core::Logging->getLogger();
+my $log   = Plugins::SlimPing::Core::Logging->getLogger();
 my $prefs = Plugins::SlimPing::Core::Logging->getPrefs();
 
 # Hard cap on accepted POST body size for /rest/ endpoints.  Generous enough
@@ -60,12 +60,12 @@ use constant MAX_POST_BODY_BYTES => 1 * 1024 * 1024;
 # reachable before authentication; share-stream endpoints carry their own
 # credential in the URL.
 my %_unauth_endpoints = map { $_ => 1 } qw(
-    ping
-    getOpenSubsonicExtensions
-    shareStream
-    shareMetadata
-    radioStream
-    radioMetadata
+  ping
+  getOpenSubsonicExtensions
+  shareStream
+  shareMetadata
+  radioStream
+  radioMetadata
 );
 
 # Endpoints whose responses carry Cache-Control and Last-Modified headers.
@@ -78,6 +78,7 @@ my %_unauth_endpoints = map { $_ => 1 } qw(
 # See docs/testing.md for the rationale behind this list and the decision not
 # to extend ifModifiedSince beyond getIndexes.
 my %_cacheable_endpoints = (
+
     # Library listings -- invalidate on rescan
     getMusicFolders => 'library',
     getIndexes      => 'library',
@@ -86,14 +87,16 @@ my %_cacheable_endpoints = (
     getAlbumList    => 'library',
     getAlbumList2   => 'library',
     getTopSongs     => 'library',
+
     # Static metadata -- practically never changes
-    ping                       => 'static',
-    getLicense                 => 'static',
-    getOpenSubsonicExtensions  => 'static',
+    ping                      => 'static',
+    getLicense                => 'static',
+    getOpenSubsonicExtensions => 'static',
+
     # User collections -- can change between rescans
-    getStarred  => 'user',
-    getStarred2 => 'user',
-    getPlaylists  => 'user',
+    getStarred   => 'user',
+    getStarred2  => 'user',
+    getPlaylists => 'user',
 );
 
 # Each Handlers:: module calls registerHandler() at initPlugin time.
@@ -108,9 +111,9 @@ my %_stream_handlers;
 # would silently overwrite the first, masking dispatch-table bugs.  Fail fast
 # at plugin init time per the project's fail-fast-on-init convention.
 sub registerHandler {
-    my ($class, $endpoint, $coderef) = @_;
+    my ( $class, $endpoint, $coderef ) = @_;
     die "SlimPing: duplicate handler registration for endpoint '$endpoint'"
-        if exists $_handlers{$endpoint};
+      if exists $_handlers{$endpoint};
     $_handlers{$endpoint} = $coderef;
 }
 
@@ -118,15 +121,15 @@ sub registerHandler {
 # Stream handlers receive ($httpClient, $response, $args) and are responsible
 # for writing binary content directly without going through ResponseFormatter.
 sub registerStreamHandler {
-    my ($class, $endpoint, $coderef) = @_;
+    my ( $class, $endpoint, $coderef ) = @_;
     die "SlimPing: duplicate stream handler registration for endpoint '$endpoint'"
-        if exists $_stream_handlers{$endpoint};
+      if exists $_stream_handlers{$endpoint};
     $_stream_handlers{$endpoint} = $coderef;
 }
 
 # Main dispatch entry point -- called by LMS for every /rest/*.view request.
 sub dispatch {
-    my ($httpClient, $response) = @_;
+    my ( $httpClient, $response ) = @_;
 
     my $t_start = time();
 
@@ -138,28 +141,29 @@ sub dispatch {
 
     # Extract endpoint from path: /rest/getAlbum.view or /rest/getAlbum -> getAlbum
     my $path = $request->uri->path();
-    my ($endpoint) = ($path =~ m{/rest/(\w+)(?:\.view)?$});
+    my ($endpoint) = ( $path =~ m{/rest/(\w+)(?:\.view)?$} );
 
     unless ($endpoint) {
         $log->warn("SlimPing: unrecognised path: $path");
-        return _sendResponse($httpClient, $response, $format,
-            Plugins::SlimPing::Utils::Errors->error(0, 'Invalid request path'), 'invalid');
+        return _sendResponse( $httpClient, $response, $format,
+            Plugins::SlimPing::Utils::Errors->error( 0, 'Invalid request path' ), 'invalid' );
     }
 
     my $t_parse = time();
 
     my $user;
-    unless ($_unauth_endpoints{$endpoint}) {
+    unless ( $_unauth_endpoints{$endpoint} ) {
+
         # Standard auth gate for all other endpoints
         require Plugins::SlimPing::Auth::Middleware;
         my $auth_error;
-        ($user, $auth_error) =
-            Plugins::SlimPing::Auth::Middleware->authenticate($params, $httpClient, $request);
+        ( $user, $auth_error ) = Plugins::SlimPing::Auth::Middleware->authenticate( $params, $httpClient, $request );
         unless ($user) {
             $log->warn("SlimPing: auth failure for endpoint $endpoint");
-            return _sendResponse($httpClient, $response, $format, $auth_error, $endpoint);
+            return _sendResponse( $httpClient, $response, $format, $auth_error, $endpoint );
         }
-    } else {
+    }
+    else {
         # Unauthenticated endpoints get a sentinel user with basic permissions
         # so that LibraryMapper->setRequestUser() and permission checks work
         # without special-casing.
@@ -170,15 +174,19 @@ sub dispatch {
 
     # Let LibraryMapper shape methods look up the current user's star/rating
     # annotations without every handler having to pass username explicitly.
-    Plugins::SlimPing::Core::LibraryMapper->setRequestUser($user->{username});
+    Plugins::SlimPing::Core::LibraryMapper->setRequestUser( $user->{username} );
 
     # Extract the request base URL so handlers can construct FQDN URLs that
-    # account for proxies, forwarding, and non-standard ports.
+    # account for proxies, forwarding, and non-standard ports.  Kept in
+    # $base_url as well: a deferred response restores it before building its
+    # payload (see _contextRestorer).
+    my $base_url;
     {
         my $scheme = $request->header('X-Forwarded-Proto') || 'http';
         my $host   = $request->header('Host');
         if ( $host && $host =~ /\A[A-Za-z0-9\-\.:\[\]]+\z/ ) {
-            Plugins::SlimPing::Core::LibraryMapper->setRequestBaseUrl("$scheme://$host");
+            $base_url = "$scheme://$host";
+            Plugins::SlimPing::Core::LibraryMapper->setRequestBaseUrl($base_url);
         }
     }
 
@@ -186,59 +194,93 @@ sub dispatch {
     require Plugins::SlimPing::Core::ClientQuirks;
     Plugins::SlimPing::Core::ClientQuirks->setRequestClient($client_name);
 
-    my $args = { params => $params, user => $user, client_name => $client_name,
-                 _httpClient => $httpClient, _response => $response };
+    my $args = {
+        params      => $params,
+        user        => $user,
+        client_name => $client_name,
+        _httpClient => $httpClient,
+        _response   => $response
+    };
 
     # Apply client-specific request-phase workarounds before dispatch.
     # Returns immediately when client_quirks_enabled is off (the default).
     Plugins::SlimPing::Core::ClientQuirks->applyRequestHooks($args);
 
     # Stream handlers bypass ResponseFormatter -- they write binary directly
-    if (my $stream_handler = $_stream_handlers{$endpoint}) {
-        return $stream_handler->($httpClient, $response, $args);
+    if ( my $stream_handler = $_stream_handlers{$endpoint} ) {
+        return $stream_handler->( $httpClient, $response, $args );
     }
 
     # Standard JSON/XML handlers
     my $handler = $_handlers{$endpoint};
     unless ($handler) {
         $log->info("SlimPing: no handler registered for '$endpoint'");
-        return _sendResponse($httpClient, $response, $format,
-            Plugins::SlimPing::Utils::Errors->error(0, "Not implemented: $endpoint"), $endpoint);
+        return _sendResponse( $httpClient, $response, $format,
+            Plugins::SlimPing::Utils::Errors->error( 0, "Not implemented: $endpoint" ), $endpoint );
     }
 
-    my $result = eval {
-        $handler->($args);
+    # Opt-in deferral.  A handler whose data arrives from a callback calls
+    # $args->{defer}->() to take ownership of the response; its return value is
+    # then ignored and the completion writes the response later.  See
+    # API/DeferredResponse.pm for the contract and the safety rails.
+    my ( $deferred, $defer_done );
+    $args->{defer} = sub {
+        $deferred = 1;
+
+        require Plugins::SlimPing::API::DeferredResponse;
+        $defer_done = Plugins::SlimPing::API::DeferredResponse->defer(
+            label          => $endpoint,
+            httpClient     => $httpClient,
+            context        => _contextRestorer( $user->{username}, $base_url, $client_name ),
+            timeout        => $args->{defer_timeout},
+            timeout_result => $args->{defer_timeout_result},
+            finalise       => sub {
+                my ($result) = @_;
+                _finalise( $httpClient, $response, $format, $params, $endpoint, $result );
+            },
+        );
+
+        return $defer_done;
     };
+
+    my $result = eval { $handler->($args); };
 
     if ($@) {
         require Carp;
         my $err = $@;
-        $log->error(sub { "SlimPing: handler '$endpoint' threw: $err" . Carp::longmess() });
-        $result = Plugins::SlimPing::Utils::Errors->error(0, 'Internal server error');
+        $log->error( sub { "SlimPing: handler '$endpoint' threw: $err" . Carp::longmess() } );
+
+        if ($deferred) {
+
+            # The handler had already handed the response to a callback, so
+            # answer now rather than leaving the client waiting for the watchdog.
+            $defer_done->( sub { Plugins::SlimPing::Utils::Errors->error( 0, 'Internal server error' ) } );
+            return;
+        }
+
+        $result = Plugins::SlimPing::Utils::Errors->error( 0, 'Internal server error' );
     }
+
+    # A deferred handler writes its own response when its callback fires.
+    return if $deferred;
 
     my $t_handler = time();
 
-    Plugins::SlimPing::Core::ClientQuirks->applyResponseHooks($result);
-
-    require Plugins::SlimPing::Utils::ResponseTrimmer;
-    Plugins::SlimPing::Utils::ResponseTrimmer->trim($result, $params->{c});
-
-    _sendResponse($httpClient, $response, $format, $result, $endpoint);
+    _finalise( $httpClient, $response, $format, $params, $endpoint, $result );
 
     my $t_send = time();
 
-    if ($log->is_debug) {
+    if ( $log->is_debug ) {
         Plugins::SlimPing::Core::DebugThrottle->debugRateLimited(
             "timing_$endpoint",
             sprintf(
                 'SlimPing timing: %s parse=%.1fms auth=%.1fms handler=%.1fms send=%.1fms total=%.1fms',
                 $endpoint,
-                ($t_parse  - $t_start)  * 1000,
-                ($t_auth   - $t_parse)  * 1000,
-                ($t_handler - $t_auth)   * 1000,
-                ($t_send   - $t_handler) * 1000,
-                ($t_send   - $t_start)  * 1000,
+                ( $t_parse - $t_start ) * 1000,
+                ( $t_auth - $t_parse ) * 1000,
+                ( $t_handler - $t_auth ) * 1000,
+                ( $t_send - $t_handler ) * 1000,
+                ( $t_send - $t_start ) * 1000,
             ),
             30
         );
@@ -258,29 +300,29 @@ sub _parseParams {
     my ($request) = @_;
     my %params;
 
-    _accumulate(\%params, $request->uri->query() || '');
+    _accumulate( \%params, $request->uri->query() || '' );
 
-    if ($request->method() eq 'POST') {
+    if ( $request->method() eq 'POST' ) {
         my $ct = $request->header('Content-Type') // '';
-        if ($ct =~ m{^\s*application/x-www-form-urlencoded\b}i
-            || $ct =~ m{^\s*multipart/form-data\b}i) {
+        if (   $ct =~ m{^\s*application/x-www-form-urlencoded\b}i
+            || $ct =~ m{^\s*multipart/form-data\b}i )
+        {
 
             my $body = $request->content() // '';
-            if (length($body) > MAX_POST_BODY_BYTES) {
-                $log->warn(sprintf(
-                    'SlimPing: POST body too large (%d bytes) -- ignoring body',
-                    length($body)
-                ));
-            } else {
+            if ( length($body) > MAX_POST_BODY_BYTES ) {
+                $log->warn( sprintf( 'SlimPing: POST body too large (%d bytes) -- ignoring body', length($body) ) );
+            }
+            else {
                 # Only populate a key from the body if not already set by the
                 # query string.
-                for my $pair (split /&/, $body) {
-                    my ($k, $v) = split /=/, $pair, 2;
+                for my $pair ( split /&/, $body ) {
+                    my ( $k, $v ) = split /=/, $pair, 2;
                     next unless defined $k && length $k;
-                    $params{ _formDecodeValue($k) } //= _formDecodeValue($v // '');
+                    $params{ _formDecodeValue($k) } //= _formDecodeValue( $v // '' );
                 }
             }
-        } elsif (length($ct)) {
+        }
+        elsif ( length($ct) ) {
             $log->debug("SlimPing: POST body Content-Type not consumed by form parser: '$ct'");
         }
     }
@@ -289,7 +331,7 @@ sub _parseParams {
     # from producing unexpected arrayrefs in the auth chain and handlers.
     for my $k (qw(k apiKey u p t s f c v share track token_expires t_stream sq_id playlist)) {
         $params{$k} = $params{$k}->[-1]
-            if ref $params{$k} eq 'ARRAY';
+          if ref $params{$k} eq 'ARRAY';
     }
 
     return \%params;
@@ -297,16 +339,17 @@ sub _parseParams {
 
 # Accumulate key=value pairs into %$dest, collecting duplicate keys as arrayrefs.
 sub _accumulate {
-    my ($dest, $str) = @_;
-    for my $pair (split /&/, $str) {
-        my ($k, $v) = split /=/, $pair, 2;
+    my ( $dest, $str ) = @_;
+    for my $pair ( split /&/, $str ) {
+        my ( $k, $v ) = split /=/, $pair, 2;
         next unless defined $k && length $k;
         $k = _formDecodeValue($k);
-        $v = _formDecodeValue($v // '');
-        if (exists $dest->{$k}) {
-            $dest->{$k} = [$dest->{$k}] unless ref $dest->{$k} eq 'ARRAY';
+        $v = _formDecodeValue( $v // '' );
+        if ( exists $dest->{$k} ) {
+            $dest->{$k} = [ $dest->{$k} ] unless ref $dest->{$k} eq 'ARRAY';
             push @{ $dest->{$k} }, $v;
-        } else {
+        }
+        else {
             $dest->{$k} = $v;
         }
     }
@@ -329,25 +372,56 @@ sub _formDecodeValue {
     return uri_unescape($form);
 }
 
+# The shared response tail: client response quirks, trimming, render, write.
+# Used by the synchronous path and by a deferred handler's completion, which
+# restores the request context before calling it.
+sub _finalise {
+    my ( $httpClient, $response, $format, $params, $endpoint, $result ) = @_;
+
+    Plugins::SlimPing::Core::ClientQuirks->applyResponseHooks($result);
+
+    require Plugins::SlimPing::Utils::ResponseTrimmer;
+    Plugins::SlimPing::Utils::ResponseTrimmer->trim( $result, $params->{c} );
+
+    return _sendResponse( $httpClient, $response, $format, $result, $endpoint );
+}
+
+# Request identity (user, base URL, client name) is module-level state that the
+# next dispatch overwrites, so a deferred completion restores its own before
+# the payload is built.
+sub _contextRestorer {
+    my ( $username, $base_url, $client_name ) = @_;
+
+    return sub {
+        Plugins::SlimPing::Core::LibraryMapper->setRequestUser($username);
+        Plugins::SlimPing::Core::LibraryMapper->setRequestBaseUrl($base_url) if defined $base_url;
+
+        require Plugins::SlimPing::Core::ClientQuirks;
+        Plugins::SlimPing::Core::ClientQuirks->setRequestClient($client_name);
+
+        return;
+    };
+}
+
 # Render $data via ResponseFormatter and write the HTTP response.
 # $endpoint is optional -- when provided, cacheable endpoints get
 # Cache-Control and Last-Modified headers.
 sub _sendResponse {
-    my ($httpClient, $response, $format, $data, $endpoint) = @_;
+    my ( $httpClient, $response, $format, $data, $endpoint ) = @_;
 
     require Plugins::SlimPing::API::ResponseFormatter;
-    my $body = Plugins::SlimPing::API::ResponseFormatter->render($data, $format);
+    my $body = Plugins::SlimPing::API::ResponseFormatter->render( $data, $format );
     $body = encode_utf8($body) if is_utf8($body);
 
-    my $ct = ($format eq 'json') ? 'application/json' : 'text/xml';
-    $response->header('Content-Type'   => "$ct; charset=utf-8");
-    $response->header('Content-Length' => length($body));
+    my $ct = ( $format eq 'json' ) ? 'application/json' : 'text/xml';
+    $response->header( 'Content-Type'   => "$ct; charset=utf-8" );
+    $response->header( 'Content-Length' => length($body) );
     $response->code(200);
 
-    _maybeAddCachingHeaders($response, $endpoint) if $endpoint && !$data->{error};
+    _maybeAddCachingHeaders( $response, $endpoint ) if $endpoint && !$data->{error};
 
     require Slim::Web::HTTP;
-    Slim::Web::HTTP::addHTTPResponse($httpClient, $response, \$body);
+    Slim::Web::HTTP::addHTTPResponse( $httpClient, $response, \$body );
 }
 
 # Send a Subsonic error response through the standard envelope.
@@ -356,43 +430,48 @@ sub _sendResponse {
 # Delegates error-hashref construction to Utils::Errors for consistency —
 # all error envelopes in the plugin now flow through a single module.
 sub sendError {
-    my ($class, $httpClient, $response, $params, $code, $msg) = @_;
+    my ( $class, $httpClient, $response, $params, $code, $msg ) = @_;
     require Plugins::SlimPing::Utils::Errors;
-    _sendResponse($httpClient, $response,
-        (ref $params eq 'HASH' ? $params->{f} : undef) || 'xml',
-        Plugins::SlimPing::Utils::Errors->error($code, $msg)
+    _sendResponse(
+        $httpClient, $response,
+        ( ref $params eq 'HASH' ? $params->{f} : undef ) || 'xml',
+        Plugins::SlimPing::Utils::Errors->error( $code, $msg )
     );
 }
 
 # Add Cache-Control and Last-Modified headers for cacheable endpoints.
 # Library data gets the full cache TTL (default 300 s), user collections get
 # a shorter TTL (60 s), and static metadata gets a longer TTL (3600 s).
-# Last-Modified is derived from lastScanTimestampMs for library endpoints;
+# Last-Modified is derived from libraryLastModifiedMs (the later of the last
+# rescan and the last material configuration change) for library endpoints;
 # user-collection and static endpoints omit it because their change cadence
-# is independent of library rescans.
+# is independent of library data.
 sub _maybeAddCachingHeaders {
-    my ($response, $endpoint) = @_;
+    my ( $response, $endpoint ) = @_;
     my $category = $_cacheable_endpoints{$endpoint} or return;
 
     my $ttl = $prefs->get('cache_ttl_seconds');
     my $max_age;
 
-    if ($category eq 'static') {
+    if ( $category eq 'static' ) {
         $max_age = 3600;
-    } elsif ($category eq 'user') {
+    }
+    elsif ( $category eq 'user' ) {
         $max_age = 60;
-    } else {
+    }
+    else {
         $max_age = $ttl;
     }
 
-    $response->header('Cache-Control' => "max-age=$max_age, private");
+    $response->header( 'Cache-Control' => "max-age=$max_age, private" );
 
-    # Last-Modified only makes sense for library data that changes on rescan.
-    if ($category eq 'library') {
-        my $last_scan = $prefs->get('lastScanTimestampMs');
+    # Last-Modified only makes sense for library data that changes on rescan or
+    # on a material configuration change (exposure, per-user default folder).
+    if ( $category eq 'library' ) {
+        my $last_scan = Plugins::SlimPing::Core::LibraryMapper->libraryLastModifiedMs();
         if ($last_scan) {
-            my $http_date = _epochToHttpDate(int($last_scan / 1000));
-            $response->header('Last-Modified' => $http_date) if $http_date;
+            my $http_date = _epochToHttpDate( int( $last_scan / 1000 ) );
+            $response->header( 'Last-Modified' => $http_date ) if $http_date;
         }
     }
 }
@@ -400,7 +479,7 @@ sub _maybeAddCachingHeaders {
 # Convert a Unix epoch to an RFC 1123 HTTP-date string (GMT).
 sub _epochToHttpDate {
     my ($epoch) = @_;
-    return strftime('%a, %d %b %Y %H:%M:%S GMT', gmtime($epoch));
+    return strftime( '%a, %d %b %Y %H:%M:%S GMT', gmtime($epoch) );
 }
 
 1;

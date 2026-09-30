@@ -57,20 +57,20 @@ sub getInstance {
 # --- Password helpers ---------------------------------------------------------
 
 sub hashPassword {
-    my ($self, $password) = @_;
-    return sha256_hex($self->_serverSalt() . $password);
+    my ( $self, $password ) = @_;
+    return sha256_hex( $self->_serverSalt() . $password );
 }
 
 sub verifyPassword {
-    my ($self, $password, $stored_hash) = @_;
-    my $candidate = sha256_hex($self->_serverSalt() . $password);
-    return _constantTimeEq($candidate, $stored_hash);
+    my ( $self, $password, $stored_hash ) = @_;
+    my $candidate = sha256_hex( $self->_serverSalt() . $password );
+    return _constantTimeEq( $candidate, $stored_hash );
 }
 
 sub verifyToken {
-    my ($self, $plaintext_password, $token, $salt) = @_;
-    my $candidate = md5_hex($plaintext_password . $salt);
-    return _constantTimeEq($candidate, $token);
+    my ( $self, $plaintext_password, $token, $salt ) = @_;
+    my $candidate = md5_hex( $plaintext_password . $salt );
+    return _constantTimeEq( $candidate, $token );
 }
 
 # Verify a Subsonic token+salt pair for a given username without ever exposing
@@ -78,21 +78,21 @@ sub verifyToken {
 # password_plain or password_hash -- it asks "is this token valid?" rather than
 # "give me the password so I can check."
 sub verifyTokenForUser {
-    my ($self, $username, $token, $salt) = @_;
+    my ( $self, $username, $token, $salt ) = @_;
     my $row = _userStore()->getByUsername($username) or return 0;
-    return $self->verifyToken($row->password_plain, $token, $salt);
+    return $self->verifyToken( $row->password_plain, $token, $salt );
 }
 
 sub verifyPasswordForUser {
-    my ($self, $username, $password) = @_;
+    my ( $self, $username, $password ) = @_;
     my $row = _userStore()->getByUsername($username) or return 0;
-    return $self->verifyPassword($password, $row->password_hash);
+    return $self->verifyPassword( $password, $row->password_hash );
 }
 
 sub _serverSalt {
     my $self = shift;
-    unless ($prefs->get('server_salt')) {
-        $prefs->set('server_salt', $self->generateApiKey());
+    unless ( $prefs->get('server_salt') ) {
+        $prefs->set( 'server_salt', $self->generateApiKey() );
     }
     return $prefs->get('server_salt');
 }
@@ -101,21 +101,21 @@ sub _serverSalt {
 
 sub generateApiKey {
     my $rand;
-    sysopen(my $fh, '/dev/urandom', 0)
-        or die "SlimPing: cannot open /dev/urandom for entropy: $!";
-    sysread($fh, $rand, 32) == 32
-        or die "SlimPing: short read from /dev/urandom (got " . length($rand // '') . " bytes)";
+    sysopen( my $fh, '/dev/urandom', 0 )
+      or die "SlimPing: cannot open /dev/urandom for entropy: $!";
+    sysread( $fh, $rand, 32 ) == 32
+      or die "SlimPing: short read from /dev/urandom (got " . length( $rand // '' ) . " bytes)";
     close($fh);
-    return substr(sha256_hex($rand), 0, 32);
+    return substr( sha256_hex($rand), 0, 32 );
 }
 
 sub _constantTimeEq {
-    my ($a, $b) = @_;
+    my ( $a, $b ) = @_;
     return 0 unless defined $a && defined $b;
     return 0 if length($a) != length($b);
     my $diff = 0;
-    for (my $i = 0; $i < length($a); $i++) {
-        $diff |= ord(substr($a, $i, 1)) ^ ord(substr($b, $i, 1));
+    for ( my $i = 0 ; $i < length($a) ; $i++ ) {
+        $diff |= ord( substr( $a, $i, 1 ) ) ^ ord( substr( $b, $i, 1 ) );
     }
     return $diff == 0 ? 1 : 0;
 }
@@ -173,9 +173,7 @@ sub _hmacSigningKey {
     if ($@) {
         die "SlimPing: cannot persist HMAC signing key to database: $@";
     }
-    $log->warn(
-        "SlimPing: new HMAC signing key generated"
-          . " — all outstanding stream tokens are now invalid" );
+    $log->warn( "SlimPing: new HMAC signing key generated" . " — all outstanding stream tokens are now invalid" );
     return $key;
 }
 
@@ -203,29 +201,27 @@ sub rotateHmacSigningKey {
         Plugins::SlimPing::Handlers::Stream::TranscodeDecision::clearTranscodeSigningKey();
     }
 
-    $log->warn(
-        "SlimPing: HMAC signing key rotated"
-          . " — all outstanding stream and transcode tokens invalidated" );
+    $log->warn( "SlimPing: HMAC signing key rotated" . " — all outstanding stream and transcode tokens invalidated" );
     return 1;
 }
 
 # Generate a self-authenticating stream token for a given resource.
 # Returns a 64-char hex HMAC-SHA256 of the resource ID + expiry.
 sub generateStreamToken {
-    my ($self, $sq_id, $ttl_seconds) = @_;
+    my ( $self, $sq_id, $ttl_seconds ) = @_;
     my $expiry = time() + $ttl_seconds;
     my $data   = "$sq_id:$expiry";
-    my $hmac   = hmac_sha256_hex($data, $self->_hmacSigningKey());
-    return ($hmac, $expiry);
+    my $hmac   = hmac_sha256_hex( $data, $self->_hmacSigningKey() );
+    return ( $hmac, $expiry );
 }
 
 # Validate a stream token.  Recomputes the HMAC and compares with constant-time
 # equality.  Returns ($sq_id, $expiry) on success, empty list on failure.
 sub validateStreamToken {
-    my ($self, $sq_id, $expiry, $token) = @_;
-    return () unless defined $sq_id && length $sq_id;
+    my ( $self, $sq_id, $expiry, $token ) = @_;
+    return () unless defined $sq_id  && length $sq_id;
     return () unless defined $expiry && $expiry > 0;
-    return () unless defined $token && length $token;
+    return () unless defined $token  && length $token;
 
     # Expiry check before crypto -- don't burn cycles on expired tokens
     if ( time() > $expiry ) {
@@ -238,14 +234,13 @@ sub validateStreamToken {
         return ();
     }
 
-    my $data  = "$sq_id:$expiry";
-    my $key   = $self->_hmacSigningKey();
-    my $candidate = hmac_sha256_hex($data, $key);
-    unless ( _constantTimeEq($candidate, $token) ) {
+    my $data      = "$sq_id:$expiry";
+    my $key       = $self->_hmacSigningKey();
+    my $candidate = hmac_sha256_hex( $data, $key );
+    unless ( _constantTimeEq( $candidate, $token ) ) {
         $log->debug(
             sprintf(
-                'SlimPing: stream token HMAC mismatch for %s '
-                  . '(key_prefix=%s candidate_prefix=%s token_prefix=%s)',
+                'SlimPing: stream token HMAC mismatch for %s ' . '(key_prefix=%s candidate_prefix=%s token_prefix=%s)',
                 $sq_id,
                 substr( $key,       0, 8 ),
                 substr( $candidate, 0, 8 ),
@@ -255,7 +250,7 @@ sub validateStreamToken {
         return ();
     }
 
-    return ($sq_id, $expiry);
+    return ( $sq_id, $expiry );
 }
 
 # --- User CRUD (delegated to UserStore) ---------------------------------------
@@ -275,7 +270,7 @@ sub _userRowToHash {
     my %u = $row->get_columns();
     delete $u{password_plain};
     delete $u{password_hash};
-    my @keys = $row->api_keys()->search({}, { order_by => 'created_at' })->all();
+    my @keys = $row->api_keys()->search( {}, { order_by => 'created_at' } )->all();
     $u{api_keys} = [
         map {
             my %k = $_->get_columns();
@@ -292,89 +287,90 @@ sub getUsers {
 }
 
 sub getUser {
-    my ($self, $username) = @_;
+    my ( $self, $username ) = @_;
     my $row = _userStore()->getByUsername($username) or return undef;
     return _userRowToHash($row);
 }
 
 sub getDisplayName {
-    my ($self, $username) = @_;
+    my ( $self, $username ) = @_;
     return _userStore()->getDisplayName($username);
 }
 
 sub getAlias {
-    my ($self, $username) = @_;
+    my ( $self, $username ) = @_;
     return undef unless $username;
     my $aliases = $prefs->get('pref_user_aliases') || {};
     return $aliases->{$username};
 }
 
 sub setAlias {
-    my ($self, $username, $alias) = @_;
-    return _userStore()->setAlias($username, $alias);
+    my ( $self, $username, $alias ) = @_;
+    return _userStore()->setAlias( $username, $alias );
 }
 
 sub getUserByApiKey {
-    my ($self, $api_key) = @_;
+    my ( $self, $api_key ) = @_;
     my $row = _userStore()->getByApiKey($api_key) or return undef;
     return _userRowToHash($row);
 }
 
 sub createUser {
-    my ($self, %args) = @_;
+    my ( $self, %args ) = @_;
     my %RESERVED = map { $_ => 1 } qw(_anon system root);
     return undef if $RESERVED{ $args{username} };
     return _userStore()->createUser(
         username       => $args{username},
-        password_hash  => $self->hashPassword($args{password}),
+        password_hash  => $self->hashPassword( $args{password} ),
         password_plain => $args{password},
         admin          => $args{admin},
     );
 }
 
 sub addApiKey {
-    my ($self, $username, $label) = @_;
+    my ( $self, $username, $label ) = @_;
     my $plain = $self->generateApiKey();
-    return _userStore()->addApiKey($username, $plain, $label);
+    return _userStore()->addApiKey( $username, $plain, $label );
 }
 
 sub setJukeboxPlayer {
-    my ($self, $username, $player_id) = @_;
-    return _userStore()->setJukeboxPlayer($username, $player_id);
+    my ( $self, $username, $player_id ) = @_;
+    return _userStore()->setJukeboxPlayer( $username, $player_id );
 }
 
 sub setRadioFolder {
-    my ($self, $username, $folder) = @_;
-    return _userStore()->setRadioFolder($username, $folder);
+    my ( $self, $username, $folder ) = @_;
+    return _userStore()->setRadioFolder( $username, $folder );
+}
+
+sub setDefaultMusicFolder {
+    my ( $self, $username, $canonical ) = @_;
+    return _userStore()->setDefaultMusicFolder( $username, $canonical );
 }
 
 sub setAdmin {
-    my ($self, $username, $admin) = @_;
-    return _userStore()->setAdmin($username, $admin);
+    my ( $self, $username, $admin ) = @_;
+    return _userStore()->setAdmin( $username, $admin );
 }
 
 sub setPassword {
-    my ($self, $username, $password) = @_;
-    return _userStore()->setPassword(
-        $username,
-        $self->hashPassword($password),
-        $password,
-    );
+    my ( $self, $username, $password ) = @_;
+    return _userStore()->setPassword( $username, $self->hashPassword($password), $password, );
 }
 
 sub setEnabled {
-    my ($self, $username, $enabled) = @_;
-    return _userStore()->setEnabled($username, $enabled);
+    my ( $self, $username, $enabled ) = @_;
+    return _userStore()->setEnabled( $username, $enabled );
 }
 
 sub setScrobbleEnabled {
-    my ($self, $username, $enabled) = @_;
-    return _userStore()->setScrobbleEnabled($username, $enabled);
+    my ( $self, $username, $enabled ) = @_;
+    return _userStore()->setScrobbleEnabled( $username, $enabled );
 }
 
 sub setPlaycountSyncEnabled {
-    my ($self, $username, $enabled) = @_;
-    return _userStore()->setPlaycountSyncEnabled($username, $enabled);
+    my ( $self, $username, $enabled ) = @_;
+    return _userStore()->setPlaycountSyncEnabled( $username, $enabled );
 }
 
 sub setPlaybackLogging {
@@ -388,7 +384,7 @@ sub setAcceptPlaybackReport {
 }
 
 sub isScrobbleEnabled {
-    my ($self, $username) = @_;
+    my ( $self, $username ) = @_;
     return 0 unless $username;
 
     my $user = eval { $self->getUser($username) };
@@ -403,7 +399,7 @@ sub isScrobbleEnabled {
 }
 
 sub isPlaycountSyncEnabled {
-    my ($self, $username) = @_;
+    my ( $self, $username ) = @_;
     return 0 unless $username;
 
     my $user = eval { $self->getUser($username) };
@@ -451,28 +447,28 @@ sub isPlaybackReportAccepted {
 }
 
 sub recordLogin {
-    my ($self, $username) = @_;
+    my ( $self, $username ) = @_;
     return _userStore()->recordLogin($username);
 }
 
 sub deleteApiKey {
-    my ($self, $username, $key_id) = @_;
-    return _userStore()->deleteApiKey($username, $key_id);
+    my ( $self, $username, $key_id ) = @_;
+    return _userStore()->deleteApiKey( $username, $key_id );
 }
 
 sub relabelApiKey {
-    my ($self, $username, $key_id, $label) = @_;
-    return _userStore()->relabelApiKey($username, $key_id, $label);
+    my ( $self, $username, $key_id, $label ) = @_;
+    return _userStore()->relabelApiKey( $username, $key_id, $label );
 }
 
 sub deleteUser {
-    my ($self, $username) = @_;
+    my ( $self, $username ) = @_;
     return _userStore()->deleteUser($username);
 }
 
 sub updateUser {
-    my ($self, $username, $changes) = @_;
-    return _userStore()->updateUser($username, $changes);
+    my ( $self, $username, $changes ) = @_;
+    return _userStore()->updateUser( $username, $changes );
 }
 
 1;

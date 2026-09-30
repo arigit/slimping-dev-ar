@@ -49,15 +49,12 @@ sub debugThrottled {
     $window //= $_default_window;
     my $now = time();
 
-    my $state = $_throttled{$key} //=
-      { count => 0, last_time => 0, logged_summary => 0 };
+    my $state = $_throttled{$key} //= { count => 0, last_time => 0, logged_summary => 0 };
 
     if ( $now - $state->{last_time} > $window ) {
         if ( $state->{count} > 1 && !$state->{logged_summary} ) {
             my $suppressed = $state->{count} - 1;
-            $log->debug(
-"[$key] (suppressed $suppressed similar messages in last ${window}s)"
-            );
+            $log->debug("[$key] (suppressed $suppressed similar messages in last ${window}s)");
         }
 
         $state->{count}          = 1;

@@ -39,9 +39,9 @@ my $prefs = Plugins::SlimPing::Core::Logging->getPrefs();
 
 sub registerHandlers {
     my $class = shift;
-    Plugins::SlimPing::API::Router->registerHandler('star',      \&star);
-    Plugins::SlimPing::API::Router->registerHandler('unstar',    \&unstar);
-    Plugins::SlimPing::API::Router->registerHandler('setRating', \&setRating);
+    Plugins::SlimPing::API::Router->registerHandler( 'star',      \&star );
+    Plugins::SlimPing::API::Router->registerHandler( 'unstar',    \&unstar );
+    Plugins::SlimPing::API::Router->registerHandler( 'setRating', \&setRating );
 
 }
 
@@ -49,38 +49,38 @@ sub registerHandlers {
 
 sub star {
     my ($args) = @_;
-    my $p    = $args->{params};
-    my $err  = Plugins::SlimPing::Utils::Errors->requireOneOf($p, qw(id albumId artistId));
+    my $p      = $args->{params};
+    my $err    = Plugins::SlimPing::Utils::Errors->requireOneOf( $p, qw(id albumId artistId) );
     return $err if $err;
     my $user = $args->{user}{username};
-    Plugins::SlimPing::Core::Annotations->modifyStars($user, $p, 1);
+    Plugins::SlimPing::Core::Annotations->modifyStars( $user, $p, 1 );
     return {};
 }
 
 sub unstar {
     my ($args) = @_;
-    my $p    = $args->{params};
-    my $err  = Plugins::SlimPing::Utils::Errors->requireOneOf($p, qw(id albumId artistId));
+    my $p      = $args->{params};
+    my $err    = Plugins::SlimPing::Utils::Errors->requireOneOf( $p, qw(id albumId artistId) );
     return $err if $err;
     my $user = $args->{user}{username};
-    Plugins::SlimPing::Core::Annotations->modifyStars($user, $p, 0);
+    Plugins::SlimPing::Core::Annotations->modifyStars( $user, $p, 0 );
     return {};
 }
 
 sub setRating {
     my ($args) = @_;
-    my $p    = $args->{params};
-    my $user = $args->{user}{username};
-    my $id   = $p->{id}
-        or return Plugins::SlimPing::Utils::Errors->missingParam('id');
+    my $p      = $args->{params};
+    my $user   = $args->{user}{username};
+    my $id     = $p->{id}
+      or return Plugins::SlimPing::Utils::Errors->missingParam('id');
     my $rating = $p->{rating};
     return Plugins::SlimPing::Utils::Errors->missingParam('rating')
-        unless defined $rating;
+      unless defined $rating;
     $rating = int($rating);
     $rating = 0 if $rating < 0;
     $rating = 5 if $rating > 5;
 
-    Plugins::SlimPing::Core::Annotations->setUserRating($user, $id, $rating);
+    Plugins::SlimPing::Core::Annotations->setUserRating( $user, $id, $rating );
     return {};
 }
 

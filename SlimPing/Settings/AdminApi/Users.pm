@@ -29,6 +29,7 @@ use Plugins::SlimPing::Auth::AdminGate;
 use Plugins::SlimPing::Core::Audit;
 use Plugins::SlimPing::Utils::Params;
 require Plugins::SlimPing::Core::Container;
+require Plugins::SlimPing::Core::LibraryMapper;
 
 my $log   = Plugins::SlimPing::Core::Logging->getLogger();
 my $prefs = Plugins::SlimPing::Core::Logging->getPrefs();
@@ -53,6 +54,7 @@ sub handle {
     if ( $method eq 'GET' ) {
 
         my $users = $mgr->getUsers();
+
         # Enrich with dpl_access from plugin prefs (not stored in the DB)
         for my $u (@$users) {
             my $dpl_val = $prefs->get("sq_dpl_access_$u->{username}");
@@ -65,19 +67,19 @@ sub handle {
         my $body = eval { $json->decode( $request->content() || '{}' ) };
         if ($@) {
             $log->warn("AdminApi: JSON decode failed: $@");
-            my $err = { error => 'Invalid JSON body' };
+            my $err       = { error => 'Invalid JSON body' };
             my $resp_body = $json->encode($err);
-            $response->header('Content-Type'   => 'application/json; charset=utf-8');
-            $response->header('Content-Length' => length($resp_body));
+            $response->header( 'Content-Type'   => 'application/json; charset=utf-8' );
+            $response->header( 'Content-Length' => length($resp_body) );
             $response->code(400);
-            Slim::Web::HTTP::addHTTPResponse($httpClient, $response, \$resp_body);
+            Slim::Web::HTTP::addHTTPResponse( $httpClient, $response, \$resp_body );
             return;
         }
         $body //= {};
-        my $action = $body->{action}                                     // '';
+        my $action = $body->{action} // '';
 
         if ( $action eq 'create' ) {
-            my $admin = Plugins::SlimPing::Utils::Params->coerceBool($body->{admin});
+            my $admin = Plugins::SlimPing::Utils::Params->coerceBool( $body->{admin} );
             $mgr->createUser(
                 username => $body->{username},
                 password => $body->{password},
@@ -109,7 +111,7 @@ sub handle {
                 $result = { error => 'username is required' };
             }
             else {
-                my $admin = Plugins::SlimPing::Utils::Params->coerceBool($body->{admin});
+                my $admin = Plugins::SlimPing::Utils::Params->coerceBool( $body->{admin} );
                 my $ok    = $mgr->setAdmin( $body->{username}, $admin );
                 if ($ok) {
                     Plugins::SlimPing::Core::Audit::record(
@@ -134,8 +136,7 @@ sub handle {
             }
             else {
                 my $player_id = $body->{player_id};
-                my $ok =
-                  $mgr->setJukeboxPlayer( $body->{username}, $player_id );
+                my $ok        = $mgr->setJukeboxPlayer( $body->{username}, $player_id );
                 if ($ok) {
                     Plugins::SlimPing::Core::Audit::record(
                         actor  => $actor,
@@ -178,11 +179,11 @@ sub handle {
                 my $ok = $mgr->deleteApiKey( $body->{username}, $body->{key_id} );
                 if ($ok) {
                     Plugins::SlimPing::Core::Audit::record(
-                        actor   => $actor,
-                        ip      => $ip,
-                        action  => 'revoke_api_key',
-                        target  => $body->{username},
-                        detail  => 'key_id=' . $body->{key_id},
+                        actor  => $actor,
+                        ip     => $ip,
+                        action => 'revoke_api_key',
+                        target => $body->{username},
+                        detail => 'key_id=' . $body->{key_id},
                     );
                     $result = { ok => 1 };
                 }
@@ -221,8 +222,8 @@ sub handle {
                 $result = { error => 'username is required' };
             }
             else {
-                my $enabled = Plugins::SlimPing::Utils::Params->coerceBool($body->{enabled});
-                my $ok = $mgr->setEnabled( $body->{username}, $enabled );
+                my $enabled = Plugins::SlimPing::Utils::Params->coerceBool( $body->{enabled} );
+                my $ok      = $mgr->setEnabled( $body->{username}, $enabled );
                 if ($ok) {
                     Plugins::SlimPing::Core::Audit::record(
                         actor  => $actor,
@@ -246,32 +247,87 @@ sub handle {
             }
             else {
                 my $folder = $body->{radio_folder};
-                my $ok = $mgr->setRadioFolder( $body->{username}, $folder );
-                if ($ok) {
-                    Plugins::SlimPing::Core::Audit::record(
-                        actor  => $actor,
-                        ip     => $ip,
-                        action => 'set_user_radio_folder',
-                        target => $body->{username},
-                        detail => 'folder=' . ( $folder // '(root)' ),
-                    );
-                    $result = { ok => 1 };
+
+                # Normalise empty string to undef -- both mean "root".
+                $folder = undef if defined $folder && !length $folder;
+
+                # Reject non-string input: JSON objects and arrays are
+                # references, and DBD::SQLite would stringify one into the
+                # column as HASH(0x...) while the route reported success.
+                if ( defined $folder && ref $folder ) {
+                    $status = 400;
+                    $result = { error => 'radio_folder must be a plain string' };
                 }
                 else {
-                    $status = 404;
-                    $result = { error => 'User not found' };
+                    my $ok = $mgr->setRadioFolder( $body->{username}, $folder );
+                    if ($ok) {
+                        Plugins::SlimPing::Core::Audit::record(
+                            actor  => $actor,
+                            ip     => $ip,
+                            action => 'set_user_radio_folder',
+                            target => $body->{username},
+                            detail => 'folder=' . ( $folder // '(root)' ),
+                        );
+                        $result = { ok => 1 };
+                    }
+                    else {
+                        $status = 404;
+                        $result = { error => 'User not found' };
+                    }
                 }
             }
         }
+        elsif ( $action eq 'set_default_music_folder' ) {
+            unless ( $body->{username} ) {
+                $status = 400;
+                $result = { error => 'username is required' };
+            }
+            else {
+                my $folder = $body->{default_music_folder};
 
+                # Normalise empty string to undef -- both mean "All Music".
+                $folder = undef if defined $folder && !length $folder;
+
+                # Clearing is always allowed, even in default_only exposure
+                # mode; setting requires the library to be currently exposed.
+                if ( defined $folder && ref $folder ) {
+                    $status = 400;
+                    $result = { error => 'default_music_folder must be a plain string' };
+                }
+                elsif ( defined $folder
+                    && !Plugins::SlimPing::Core::LibraryMapper->isLibraryExposed($folder) )
+                {
+                    $status = 400;
+                    $result = { error => "Library '$folder' is not currently exposed" };
+                }
+                else {
+                    my $ok = $mgr->setDefaultMusicFolder( $body->{username}, $folder );
+                    if ($ok) {
+                        Plugins::SlimPing::Core::LibraryMapper->touchLibraryView();
+                        Plugins::SlimPing::Core::Audit::record(
+                            actor  => $actor,
+                            ip     => $ip,
+                            action => 'set_default_music_folder',
+                            target => $body->{username},
+                            detail => 'folder=' . ( $folder // '(all music)' ),
+                        );
+                        $result = { ok => 1 };
+                    }
+                    else {
+                        $status = 404;
+                        $result = { error => 'User not found' };
+                    }
+                }
+            }
+        }
         elsif ( $action eq 'set_scrobble_enabled' ) {
             unless ( $body->{username} ) {
                 $status = 400;
                 $result = { error => 'username is required' };
             }
             else {
-                my $enabled = Plugins::SlimPing::Utils::Params->coerceBool($body->{scrobble_enabled});
-                my $ok = $mgr->setScrobbleEnabled( $body->{username}, $enabled );
+                my $enabled = Plugins::SlimPing::Utils::Params->coerceBool( $body->{scrobble_enabled} );
+                my $ok      = $mgr->setScrobbleEnabled( $body->{username}, $enabled );
                 if ($ok) {
                     Plugins::SlimPing::Core::Audit::record(
                         actor  => $actor,
@@ -294,8 +350,8 @@ sub handle {
                 $result = { error => 'username is required' };
             }
             else {
-                my $enabled = Plugins::SlimPing::Utils::Params->coerceBool($body->{playcount_sync_enabled});
-                my $ok = $mgr->setPlaycountSyncEnabled( $body->{username}, $enabled );
+                my $enabled = Plugins::SlimPing::Utils::Params->coerceBool( $body->{playcount_sync_enabled} );
+                my $ok      = $mgr->setPlaycountSyncEnabled( $body->{username}, $enabled );
                 if ($ok) {
                     Plugins::SlimPing::Core::Audit::record(
                         actor  => $actor,
@@ -318,8 +374,8 @@ sub handle {
                 $result = { error => 'username is required' };
             }
             else {
-                my $enabled = Plugins::SlimPing::Utils::Params->coerceBool($body->{playback_logging});
-                my $ok = $mgr->setPlaybackLogging( $body->{username}, $enabled );
+                my $enabled = Plugins::SlimPing::Utils::Params->coerceBool( $body->{playback_logging} );
+                my $ok      = $mgr->setPlaybackLogging( $body->{username}, $enabled );
                 if ($ok) {
                     Plugins::SlimPing::Core::Audit::record(
                         actor  => $actor,
@@ -342,8 +398,8 @@ sub handle {
                 $result = { error => 'username is required' };
             }
             else {
-                my $enabled = Plugins::SlimPing::Utils::Params->coerceBool($body->{accept_playback_report});
-                my $ok = $mgr->setAcceptPlaybackReport( $body->{username}, $enabled );
+                my $enabled = Plugins::SlimPing::Utils::Params->coerceBool( $body->{accept_playback_report} );
+                my $ok      = $mgr->setAcceptPlaybackReport( $body->{username}, $enabled );
                 if ($ok) {
                     Plugins::SlimPing::Core::Audit::record(
                         actor  => $actor,

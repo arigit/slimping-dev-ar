@@ -44,24 +44,26 @@ my $log = Plugins::SlimPing::Core::Logging->getLogger();
 # isLosslessFormat, and outputMime.  Lossless formats are those where a
 # client bitrate cap virtually always requires transcoding.
 my %_mime = (
-    mp3  => [ 'audio/mpeg',      0 ],
-    flc  => [ 'audio/flac',      1 ],
-    flac => [ 'audio/flac',      1 ],
-    ogg  => [ 'audio/ogg',       0 ],
-    oga  => [ 'audio/ogg',       0 ],
-    aac  => [ 'audio/aac',       0 ],
-    m4a  => [ 'audio/mp4',       0 ],
-    alac => [ 'audio/mp4',       1 ],
-    opus => [ 'audio/ogg',       0 ],
-    wma  => [ 'audio/x-ms-wma',  0 ],
-    wav  => [ 'audio/wav',       1 ],
-    aif  => [ 'audio/aiff',      1 ],
-    aiff => [ 'audio/aiff',      1 ],
-    mp4  => [ 'audio/mp4',       0 ],
-    ape  => [ 'audio/ape',       1 ],
-    wv   => [ 'audio/wavpack',   1 ],
-    dsf  => [ 'audio/dsf',       1 ],
-    dff  => [ 'audio/dff',       1 ],
+    mp3  => [ 'audio/mpeg',     0 ],
+    flc  => [ 'audio/flac',     1 ],
+    flac => [ 'audio/flac',     1 ],
+    ogg  => [ 'audio/ogg',      0 ],
+    oga  => [ 'audio/ogg',      0 ],
+    aac  => [ 'audio/aac',      0 ],
+    m4a  => [ 'audio/mp4',      0 ],
+    alac => [ 'audio/mp4',      1 ],
+    alc  => [ 'audio/mp4',      1 ],
+    alcx => [ 'audio/mp4',      1 ],
+    opus => [ 'audio/ogg',      0 ],
+    wma  => [ 'audio/x-ms-wma', 0 ],
+    wav  => [ 'audio/wav',      1 ],
+    aif  => [ 'audio/aiff',     1 ],
+    aiff => [ 'audio/aiff',     1 ],
+    mp4  => [ 'audio/mp4',      0 ],
+    ape  => [ 'audio/ape',      1 ],
+    wv   => [ 'audio/wavpack',  1 ],
+    dsf  => [ 'audio/dsf',      1 ],
+    dff  => [ 'audio/dff',      1 ],
 );
 
 sub _mimeType {
@@ -143,18 +145,17 @@ sub shapeArtist {
         my $username = Plugins::SlimPing::Core::LibraryMapper::_requestUsername();
         if ($username) {
             require Plugins::SlimPing::Core::Annotations;
-            $starred_at =
-              Plugins::SlimPing::Core::Annotations->getStarredAtMerged( $username,
-                $artist_id );
-            $rating = Plugins::SlimPing::Core::Annotations->getRating( $username,
-                $artist_id );
+            $starred_at = Plugins::SlimPing::Core::Annotations->getStarredAtMerged( $username, $artist_id );
+            $rating     = Plugins::SlimPing::Core::Annotations->getRating( $username, $artist_id );
         }
     }
 
     my @artist_roles;
     if ( exists $hints->{roles} ) {
         @artist_roles = @{ $hints->{roles} };
-    } elsif ( ref $artist ne 'HASH' ) {
+    }
+    elsif ( ref $artist ne 'HASH' ) {
+
         # DBIx path: query distinct roles from contributor_track and contributor_album.
         my $dbh   = Slim::Schema->dbh;
         my $roles = {};
@@ -180,7 +181,7 @@ sub shapeArtist {
     # and 6 can now both produce 'artist'.
     my %seen_roles;
     @artist_roles = grep { !$seen_roles{$_}++ }
-        map { $_ eq 'trackartist' ? 'artist' : $_ } @artist_roles;
+      map { $_ eq 'trackartist' ? 'artist' : $_ } @artist_roles;
 
     return {
         id             => $artist_id,
@@ -188,7 +189,7 @@ sub shapeArtist {
         mediaType      => 'artist',
         albumCount     => $album_count,
         coverArt       => $self->encodeId( 'artist', $artist_raw_id ),
-        artistImageUrl => Plugins::SlimPing::API::ResponseFormatter->coverArtUrl($artist_id, size => 600),
+        artistImageUrl => Plugins::SlimPing::API::ResponseFormatter->coverArtUrl( $artist_id, size => 600 ),
         ( defined $starred_at ? ( starred    => $starred_at )  : () ),
         ( defined $rating     ? ( userRating => int($rating) ) : () ),
         musicBrainzId => $artist_mbid // undef,
@@ -234,7 +235,7 @@ sub shapeArtistLegacy {
         name           => $artist_name,
         albumCount     => $album_count,
         coverArt       => $self->encodeId( 'artist', $artist_raw_id ),
-        artistImageUrl => Plugins::SlimPing::API::ResponseFormatter->coverArtUrl($artist_id, size => 600),
+        artistImageUrl => Plugins::SlimPing::API::ResponseFormatter->coverArtUrl( $artist_id, size => 600 ),
     };
 }
 
@@ -267,7 +268,7 @@ sub shapeAlbum {
       ? $hints->{songCount}
       : $album->tracks()->count();
 
- # $album->duration() returns a MM:SS string -- compute integer seconds instead.
+    # $album->duration() returns a MM:SS string -- compute integer seconds instead.
     my $duration_secs;
     if ( exists $hints->{durationSecs} ) {
         $duration_secs = $hints->{durationSecs};
@@ -299,7 +300,7 @@ sub shapeAlbum {
     else {
         my $t = $album->tracks->first;
         my $g = $t ? $t->genre() : undef;
-        $genre  = $g ? $g->name() : undef;
+        $genre  = $g     ? $g->name()             : undef;
         $genres = $genre ? [ { name => $genre } ] : [];
     }
 
@@ -313,9 +314,8 @@ sub shapeAlbum {
     }
     else {
         my $artist = $album->contributor();
-        $artist_name = $artist ? $artist->name() : '';
-        $artist_id =
-          $artist ? $self->encodeId( 'artist', $artist->id() ) : undef;
+        $artist_name = $artist ? $artist->name()                            : '';
+        $artist_id   = $artist ? $self->encodeId( 'artist', $artist->id() ) : undef;
     }
 
     my $album_id = $self->encodeId( 'album', $album_raw_id );
@@ -330,26 +330,26 @@ sub shapeAlbum {
         my $username = Plugins::SlimPing::Core::LibraryMapper::_requestUsername();
         if ($username) {
             require Plugins::SlimPing::Core::Annotations;
-            $starred_at =
-              Plugins::SlimPing::Core::Annotations->getStarredAtMerged( $username,
-                $album_id );
-            $rating = Plugins::SlimPing::Core::Annotations->getRating( $username,
-                $album_id );
+            $starred_at = Plugins::SlimPing::Core::Annotations->getStarredAtMerged( $username, $album_id );
+            $rating     = Plugins::SlimPing::Core::Annotations->getRating( $username, $album_id );
         }
     }
 
     my $compilation;
     my $release_type;
     if ( exists $hints->{isCompilation} ) {
-        $compilation = $hints->{isCompilation};
+        $compilation  = $hints->{isCompilation};
         $release_type = $hints->{releaseType};
-    } else {
-        $compilation = ref $album eq 'HASH'
-            ? $album->{compilation}
-            : $album->compilation();
-        $release_type = ref $album eq 'HASH'
-            ? $album->{release_type}
-            : $album->release_type();
+    }
+    else {
+        $compilation =
+          ref $album eq 'HASH'
+          ? $album->{compilation}
+          : $album->compilation();
+        $release_type =
+          ref $album eq 'HASH'
+          ? $album->{release_type}
+          : $album->release_type();
     }
 
     my $created;
@@ -366,12 +366,11 @@ sub shapeAlbum {
             }
         );
         my $cr_row = $cr_rs->first;
+
         # created is required by the OpenSubsonic AlbumID3 spec.
         # Fall back to epoch-zero (1970-01-01T00:00:00Z) for empty albums
         # (no tracks yet) — a stable sentinel, unlike time().
-        $created = Plugins::SlimPing::Core::LibraryMapper::_iso8601(
-            $cr_row ? $cr_row->get_column('min_added') : 0
-        );
+        $created = Plugins::SlimPing::Core::LibraryMapper::_iso8601( $cr_row ? $cr_row->get_column('min_added') : 0 );
     }
 
     # Album artist list from hints (pre-computed in batch queries), with a
@@ -390,12 +389,12 @@ sub shapeAlbum {
     # string when the album is a compilation, joins multiple album artists when
     # available, or falls back to the single artist name.
     my $display_artist;
-    if ( $compilation ) {
+    if ($compilation) {
         require Slim::Music::Info;
         $display_artist = Slim::Music::Info::variousArtistString();
     }
-    elsif ( @album_artists ) {
-        $display_artist = join(', ', map { $_->{name} } @album_artists);
+    elsif (@album_artists) {
+        $display_artist = join( ', ', map { $_->{name} } @album_artists );
     }
     else {
         $display_artist = $artist_name;
@@ -405,14 +404,14 @@ sub shapeAlbum {
     my $al_play_count;
     if ( exists $hints->{playCount} ) {
         $al_play_count = $hints->{playCount};
-    } else {
-        if ( main::STATISTICS ) {
+    }
+    else {
+        if (main::STATISTICS) {
             my $dbh = Slim::Schema->dbh;
-            my $sth = $dbh->prepare_cached(
-                'SELECT COALESCE(SUM(tp.playCount), 0) FROM tracks t '
-              . 'LEFT JOIN tracks_persistent tp ON tp.urlmd5 = t.urlmd5 '
-              . 'WHERE t.album = ? AND t.audio = 1'
-            );
+            my $sth =
+              $dbh->prepare_cached( 'SELECT COALESCE(SUM(tp.playCount), 0) FROM tracks t '
+                  . 'LEFT JOIN tracks_persistent tp ON tp.urlmd5 = t.urlmd5 '
+                  . 'WHERE t.album = ? AND t.audio = 1' );
             $sth->execute($album_raw_id);
             ($al_play_count) = $sth->fetchrow_array();
             $sth->finish();
@@ -425,32 +424,35 @@ sub shapeAlbum {
     if ( exists $hints->{albumGain} ) {
         $al_rg = $hints->{albumGain};
         $al_rp = $hints->{albumPeak};
-    } else {
-        $al_rg = ref $album eq 'HASH'
-            ? $album->{replay_gain}
-            : $album->get_column('replay_gain');
-        $al_rp = ref $album eq 'HASH'
-            ? $album->{replay_peak}
-            : $album->get_column('replay_peak');
+    }
+    else {
+        $al_rg =
+          ref $album eq 'HASH'
+          ? $album->{replay_gain}
+          : $album->get_column('replay_gain');
+        $al_rp =
+          ref $album eq 'HASH'
+          ? $album->{replay_peak}
+          : $album->get_column('replay_peak');
     }
 
     # Album last-played -- MAX of track lastplayed timestamps (STATISTICS gated).
     my $al_played;
     if ( exists $hints->{played} ) {
         $al_played = $hints->{played};
-    } elsif ( main::STATISTICS ) {
+    }
+    elsif (main::STATISTICS) {
         my $dbh = Slim::Schema->dbh;
-        my $sth = $dbh->prepare_cached(
-            'SELECT MAX(tp.lastplayed) FROM tracks t '
-          . 'LEFT JOIN tracks_persistent tp ON tp.urlmd5 = t.urlmd5 '
-          . 'WHERE t.album = ? AND t.audio = 1'
-        );
+        my $sth =
+          $dbh->prepare_cached( 'SELECT MAX(tp.lastplayed) FROM tracks t '
+              . 'LEFT JOIN tracks_persistent tp ON tp.urlmd5 = t.urlmd5 '
+              . 'WHERE t.album = ? AND t.audio = 1' );
         $sth->execute($album_raw_id);
         my ($max_played) = $sth->fetchrow_array();
         $sth->finish();
-        $al_played = $max_played
-            ? Plugins::SlimPing::Core::LibraryMapper::_iso8601($max_played) : undef;
-    } else {
+        $al_played = $max_played ? Plugins::SlimPing::Core::LibraryMapper::_iso8601($max_played) : undef;
+    }
+    else {
         $al_played = undef;
     }
 
@@ -458,13 +460,13 @@ sub shapeAlbum {
     my @disc_titles;
     if ( exists $hints->{discTitles} ) {
         @disc_titles = @{ $hints->{discTitles} };
-    } else {
+    }
+    else {
         my $dbh = Slim::Schema->dbh;
-        my $sth = $dbh->prepare_cached(
-            'SELECT DISTINCT disc, discsubtitle FROM tracks '
-          . 'WHERE album = ? AND audio = 1 AND disc IS NOT NULL AND discsubtitle IS NOT NULL '
-          . 'ORDER BY disc'
-        );
+        my $sth =
+          $dbh->prepare_cached( 'SELECT DISTINCT disc, discsubtitle FROM tracks '
+              . 'WHERE album = ? AND audio = 1 AND disc IS NOT NULL AND discsubtitle IS NOT NULL '
+              . 'ORDER BY disc' );
         $sth->execute($album_raw_id);
         while ( my ( $d, $title ) = $sth->fetchrow_array() ) {
             push @disc_titles, { disc => int($d), title => $title };
@@ -495,22 +497,23 @@ sub shapeAlbum {
         musicBrainzId => $album_mbid // undef,
         sortName      => $album_sort // undef,
         displayArtist => $display_artist,
-        artists       => @album_artists
-        ? \@album_artists
-        : $artist_id
-            ? [ { id => $artist_id, name => $artist_name } ]
-            : [],
-        ( defined $compilation ? ( isCompilation => $compilation ? \1 : \0 ) : () ),
-        ( defined $release_type && length $release_type
-            ? ( releaseTypes => [$release_type] ) : () ),
-        ( defined $al_rg || defined $al_rp
-            ? ( replayGain => {
-                ( defined $al_rg ? ( albumGain => $al_rg + 0.0 ) : () ),
-                ( defined $al_rp ? ( albumPeak => $al_rp + 0.0 ) : () ),
-              } )
-            : () ),
-        ( defined $al_played ? ( played => $al_played ) : () ),
-        ( @disc_titles ? ( discTitles => \@disc_titles ) : () ),
+        artists       => @album_artists ? \@album_artists
+        : $artist_id ? [ { id => $artist_id, name => $artist_name } ]
+        : [],
+        ( defined $compilation                          ? ( isCompilation => $compilation ? \1 : \0 ) : () ),
+        ( defined $release_type && length $release_type ? ( releaseTypes  => [$release_type] )        : () ),
+        (
+            defined $al_rg || defined $al_rp
+            ? (
+                replayGain => {
+                    ( defined $al_rg ? ( albumGain => $al_rg + 0.0 ) : () ),
+                    ( defined $al_rp ? ( albumPeak => $al_rp + 0.0 ) : () ),
+                }
+              )
+            : ()
+        ),
+        ( defined $al_played ? ( played     => $al_played )    : () ),
+        ( @disc_titles       ? ( discTitles => \@disc_titles ) : () ),
     };
 }
 
@@ -527,8 +530,7 @@ sub shapePlaylist {
     }
     else {
         my $dbh = Slim::Schema->dbh;
-        my $sth = $dbh->prepare_cached(
-            'SELECT COUNT(*), COALESCE(SUM(t.secs), 0) FROM playlist_track pt '
+        my $sth = $dbh->prepare_cached( 'SELECT COUNT(*), COALESCE(SUM(t.secs), 0) FROM playlist_track pt '
               . 'LEFT JOIN tracks t ON t.url = pt.track WHERE pt.playlist = ?' );
         $sth->execute( $pl->id() );
         ( $song_count, $duration_secs ) = $sth->fetchrow_array();
@@ -545,9 +547,7 @@ sub shapePlaylist {
     my $valid_until;
     if ( ( $pl->content_type() // '' ) eq 'ssp' ) {
         my $changed = $pl->updated_time() // time();
-        $valid_until = Plugins::SlimPing::Core::LibraryMapper::_iso8601(
-            $changed + 3600
-        );
+        $valid_until = Plugins::SlimPing::Core::LibraryMapper::_iso8601( $changed + 3600 );
     }
 
     my $shaped = {
@@ -558,12 +558,13 @@ sub shapePlaylist {
         songCount => $song_count // 0,
         duration  => int( $duration_secs // 0 ),
         coverArt  => $self->encodeId( 'playlist', $pl->id() ),
+
         # Slim::Schema::Playlist inherits from Track; added_time / updated_time
         # are DBIx column accessors on the tracks table.
-        created   => Plugins::SlimPing::Core::LibraryMapper::_iso8601( $pl->added_time() // time() ),
-        changed   => Plugins::SlimPing::Core::LibraryMapper::_iso8601( $pl->updated_time() // time() ),
-        comment   => _playlistComment($pl),
-        readonly  => ( ( $pl->content_type() // '' ) eq 'ssp' ) ? \0 : \1,
+        created  => Plugins::SlimPing::Core::LibraryMapper::_iso8601( $pl->added_time()   // time() ),
+        changed  => Plugins::SlimPing::Core::LibraryMapper::_iso8601( $pl->updated_time() // time() ),
+        comment  => _playlistComment($pl),
+        readonly => ( ( $pl->content_type() // '' ) eq 'ssp' ) ? \0 : \1,
         ( defined $valid_until ? ( validUntil => $valid_until ) : () ),
     };
 
@@ -583,24 +584,25 @@ sub shapePlaylist {
 
         # Batch-resolve album artists so shapeTrack does not repeat the
         # contributor_album query for every track.
-        my $dbh = Slim::Schema->dbh;
-        my $album_artists_for = $self->batchFetchAlbumArtists(
-            $dbh, [ keys %$album_lookup ]
-        );
+        my $dbh               = Slim::Schema->dbh;
+        my $album_artists_for = $self->batchFetchAlbumArtists( $dbh, [ keys %$album_lookup ] );
 
         $shaped->{entry} = [
             map {
-                my $t          = $_;
-                my $album_id   = $t->get_column('album');
-                my $album_data = defined $album_id
-                    ? ( $album_lookup->{$album_id} // {} )
-                    : {};
+                my $t        = $_;
+                my $album_id = $t->get_column('album');
+                my $album_data =
+                  defined $album_id
+                  ? ( $album_lookup->{$album_id} // {} )
+                  : {};
                 my $shaped_track = $self->shapeTrack(
-                    $t, $track_genre->{ $t->id() }, $album_lookup,
+                    $t,
+                    $track_genre->{ $t->id() },
+                    $album_lookup,
                     {
                         albumArtists => defined $album_id
-                            ? ( $album_artists_for->{$album_id} // [] )
-                            : [],
+                        ? ( $album_artists_for->{$album_id} // [] )
+                        : [],
                         isCompilation => $album_data->{compilation} // 0,
                     }
                 );
@@ -631,14 +633,15 @@ sub shapeTrack {
     # provides album and artist fields pre-joined; the DBIx path resolves them
     # from related objects.  After this block the rest of the method builds the
     # return hashref from scalars only -- same code path regardless of input.
-    my ( $track_raw_id, $track_title, $track_sort, $album_raw_id,
-         $album_title, $album_contrib_id, $album_contrib_name,
-         $secs, $bitrate, $fmt, $suffix, $tracknum, $disc,
-         $filesize, $added_time, $playcount, $year, $bpm,
-         $channels, $samplerate, $samplesize, $track_mbid,
-         $artist_raw_id, $artist_name, $comment, $played_iso,
-         $track_rg, $track_rp, $is_stub, $track_url,
-         $grouping_val, $work_title );
+    my (
+        $track_raw_id,     $track_title,        $track_sort,    $album_raw_id, $album_title,
+        $album_contrib_id, $album_contrib_name, $secs,          $bitrate,      $fmt,
+        $suffix,           $tracknum,           $disc,          $filesize,     $added_time,
+        $playcount,        $year,               $bpm,           $channels,     $samplerate,
+        $samplesize,       $track_mbid,         $artist_raw_id, $artist_name,  $comment,
+        $played_iso,       $track_rg,           $track_rp,      $is_stub,      $track_url,
+        $grouping_val,     $work_title
+    );
 
     if ( ref $track eq 'HASH' ) {
         $track_raw_id       = $track->{id};
@@ -654,27 +657,28 @@ sub shapeTrack {
         my $url_no_fragment = $track->{url} // '';
         $url_no_fragment =~ s/#.*$//;
         ($suffix) = ( $url_no_fragment =~ /\.([^.]+)$/ );
-        $tracknum           = $track->{tracknum};
-        $disc               = $track->{disc};
-        $filesize           = $track->{filesize};
-        $added_time         = $track->{added_time};
-        $playcount          = $track->{playcount};
-        $year               = $track->{year};
-        $bpm                = $track->{bpm};
-        $channels           = $track->{channels};
-        $samplerate         = $track->{samplerate};
-        $samplesize         = $track->{samplesize};
-        $track_mbid         = $track->{musicbrainz_id};
-        $artist_raw_id      = $track->{artist_id};
-        $artist_name        = $track->{artist_name};
-        $comment            = undef;  # not available in batch SQL
-        $played_iso         = $track->{lastplayed}
-            ? Plugins::SlimPing::Core::LibraryMapper::_iso8601( $track->{lastplayed} )
-            : undef;
-        $track_rg           = $track->{replay_gain};
-        $track_rp           = $track->{replay_peak};
-        $grouping_val       = $track->{grouping};
-        $work_title         = $track->{work_title};
+        $tracknum      = $track->{tracknum};
+        $disc          = $track->{disc};
+        $filesize      = $track->{filesize};
+        $added_time    = $track->{added_time};
+        $playcount     = $track->{playcount};
+        $year          = $track->{year};
+        $bpm           = $track->{bpm};
+        $channels      = $track->{channels};
+        $samplerate    = $track->{samplerate};
+        $samplesize    = $track->{samplesize};
+        $track_mbid    = $track->{musicbrainz_id};
+        $artist_raw_id = $track->{artist_id};
+        $artist_name   = $track->{artist_name};
+        $comment       = undef;                      # not available in batch SQL
+        $played_iso =
+          $track->{lastplayed}
+          ? Plugins::SlimPing::Core::LibraryMapper::_iso8601( $track->{lastplayed} )
+          : undef;
+        $track_rg     = $track->{replay_gain};
+        $track_rp     = $track->{replay_peak};
+        $grouping_val = $track->{grouping};
+        $work_title   = $track->{work_title};
     }
     else {
         $track_raw_id = $track->id();
@@ -703,12 +707,15 @@ sub shapeTrack {
         $work_title   = eval { $track->work() && $track->work()->title() };
         $comment      = $track->comment();
         my $lastplayed = eval { $track->lastplayed() };
+
         if ($@) {
-            $log->warn("SlimPing: lastplayed error for track " . $track->id() . ": $@");
+            $log->warn( "SlimPing: lastplayed error for track " . $track->id() . ": $@" );
             $played_iso = undef;
-        } elsif ( defined $lastplayed && $lastplayed > 0 ) {
+        }
+        elsif ( defined $lastplayed && $lastplayed > 0 ) {
             $played_iso = Plugins::SlimPing::Core::LibraryMapper::_iso8601($lastplayed);
-        } else {
+        }
+        else {
             $played_iso = undef;
         }
 
@@ -739,7 +746,7 @@ sub shapeTrack {
         $album_contrib_name = $album->{contributor_name};
 
         # Resolve artist
-        my $artist     = $track->artist();
+        my $artist = $track->artist();
         $artist_raw_id = $artist ? $artist->id()   : undef;
         $artist_name   = $artist ? $artist->name() : undef;
     }
@@ -754,7 +761,7 @@ sub shapeTrack {
     $is_stub   = 0;
     if ( ref $track ne 'HASH' ) {
         $is_stub = !( eval { $track->audio() } // 1 )
-            && ( !$track_url || $track_url !~ /^[a-zA-Z][a-zA-Z0-9+\-.]*:/ || $track_url =~ /^file:/ );
+          && ( !$track_url || $track_url !~ /^[a-zA-Z][a-zA-Z0-9+\-.]*:/ || $track_url =~ /^file:/ );
     }
 
     $artist_name //= '';
@@ -763,13 +770,14 @@ sub shapeTrack {
     # Sanitise fields that map to Java int in client JSON adapters.
     # A single corrupted database value (e.g. bpm=1.84e19) causes Moshi-based
     # clients like Symfonium to reject the entire search page.
-    $bpm        = undef if defined $bpm && ( $bpm <= 0 || $bpm > 1000 );
-    $year       = undef if defined $year && ( $year < 1000 || $year > 2100 );
-    $tracknum   = undef if defined $tracknum && ( $tracknum <= 0 || $tracknum > 9999 );
-    $disc       = undef if defined $disc && ( $disc <= 0 || $disc > 999 );
-    $channels   = undef if defined $channels && ( $channels <= 0 || $channels > 128 );
+    $bpm        = undef if defined $bpm        && ( $bpm <= 0          || $bpm > 1000 );
+    $year       = undef if defined $year       && ( $year < 1000       || $year > 2100 );
+    $tracknum   = undef if defined $tracknum   && ( $tracknum <= 0     || $tracknum > 9999 );
+    $disc       = undef if defined $disc       && ( $disc <= 0         || $disc > 999 );
+    $channels   = undef if defined $channels   && ( $channels <= 0     || $channels > 128 );
     $samplerate = undef if defined $samplerate && ( $samplerate < 8000 || $samplerate > 768000 );
-    $samplesize = undef if defined $samplesize && ( !looks_like_number($samplesize) || $samplesize <= 0 || $samplesize > 64 );
+    $samplesize = undef
+      if defined $samplesize && ( !looks_like_number($samplesize) || $samplesize <= 0 || $samplesize > 64 );
 
     my $album_id = $album_raw_id ? $self->encodeId( 'album', $album_raw_id ) : undef;
     my $track_id = $self->encodeId( 'track', $track_raw_id );
@@ -785,11 +793,8 @@ sub shapeTrack {
         my $username = Plugins::SlimPing::Core::LibraryMapper::_requestUsername();
         if ($username) {
             require Plugins::SlimPing::Core::Annotations;
-            $starred_at =
-              Plugins::SlimPing::Core::Annotations->getStarredAtMerged( $username,
-                $track_id );
-            $rating = Plugins::SlimPing::Core::Annotations->getRating( $username,
-                $track_id );
+            $starred_at = Plugins::SlimPing::Core::Annotations->getStarredAtMerged( $username, $track_id );
+            $rating     = Plugins::SlimPing::Core::Annotations->getRating( $username, $track_id );
         }
     }
 
@@ -805,10 +810,10 @@ sub shapeTrack {
         my $username = Plugins::SlimPing::Core::LibraryMapper::_requestUsername();
         if ($username) {
             require Plugins::SlimPing::Core::BookmarkStore;
-            my $store   = Plugins::SlimPing::Core::BookmarkStore->getInstance();
-            my $bm      = $store->getUserBookmarks($username);
+            my $store = Plugins::SlimPing::Core::BookmarkStore->getInstance();
+            my $bm    = $store->getUserBookmarks($username);
             $bookmark_position = $bm->{$track_id}{position}
-                if $bm && $bm->{$track_id};
+              if $bm && $bm->{$track_id};
         }
     }
 
@@ -822,24 +827,26 @@ sub shapeTrack {
         @composer_names = @{ $hints->{composerNames} // [] };
     }
     elsif ( !$is_stub && ref $track ne 'HASH' ) {
-        my $prefs = Plugins::SlimPing::Core::Logging->getPrefs();
+        my $prefs   = Plugins::SlimPing::Core::Logging->getPrefs();
         my $exposed = $prefs->get('exposed_contributor_roles');
-        my @role_types = $exposed
-            ? split(/\s*,\s*/, $exposed)
-            : qw(ARTIST COMPOSER CONDUCTOR BAND ALBUMARTIST TRACKARTIST);
+        my @role_types =
+          $exposed
+          ? split( /\s*,\s*/, $exposed )
+          : qw(ARTIST COMPOSER CONDUCTOR BAND ALBUMARTIST TRACKARTIST);
 
         for my $role_type (@role_types) {
             $role_type = uc($role_type);
             my $rs = eval { $track->contributorsOfType($role_type) };
             next unless $rs;
             for my $c ( $rs->all ) {
-                push @contributors, {
+                push @contributors,
+                  {
                     role   => lc($role_type),
                     artist => {
                         id   => $self->encodeId( 'artist', $c->id ),
                         name => $c->name,
                     },
-                };
+                  };
             }
         }
         push @composer_names, map { $_->name } eval { $track->composer() };
@@ -879,9 +886,8 @@ sub shapeTrack {
 
     # Contributors must contain only non-artist roles -- artist,
     # albumartist and trackartist belong in artists/albumArtists.
-    my @os_contributors = grep {
-        $_->{role} ne 'artist' && $_->{role} ne 'albumartist' && $_->{role} ne 'trackartist'
-    } @contributors;
+    my @os_contributors =
+      grep { $_->{role} ne 'artist' && $_->{role} ne 'albumartist' && $_->{role} ne 'trackartist' } @contributors;
 
     return {
         id       => $track_id,
@@ -894,99 +900,128 @@ sub shapeTrack {
         artistId => $artist_raw_id
         ? $self->encodeId( 'artist', $artist_raw_id )
         : undef,
-        coverArt => $album_id,
-        duration => int( $secs // 0 ),
-        bitRate  => ( $bitrate && $bitrate =~ /^\d+$/ ) ? 0 + int( $bitrate / 1000 ) : undef,
+        coverArt    => $album_id,
+        duration    => int( $secs // 0 ),
+        bitRate     => ( $bitrate && $bitrate =~ /^\d+$/ ) ? 0 + int( $bitrate / 1000 ) : undef,
         contentType => _mimeType( $self, $fmt ),
         suffix      => $suffix || $fmt || '',
-        ( ( $suffix || $fmt ) && lc( $suffix || $fmt ) ne 'mp3'
-            ? ( transcodedContentType => 'audio/mpeg',
-                transcodedSuffix      => 'mp3' )
-            : () ),
-        path        => _fakePath( $track_title, $artist_name, $album_title, $disc, $tracknum, $suffix ),
-        year        => $year // undef,
-        genre       => $genre_val,
-        genres      => $genres,
-        track       => $tracknum // undef,
-        discNumber  => $disc     // 1,
-        size        => $filesize // 0,
-        created     => Plugins::SlimPing::Core::LibraryMapper::_iso8601(
-            $added_time
+        (
+            ( $suffix || $fmt ) && lc( $suffix || $fmt ) ne 'mp3'
+            ? (
+                transcodedContentType => 'audio/mpeg',
+                transcodedSuffix      => 'mp3'
+              )
+            : ()
         ),
-        isDir     => \0,
-        isVideo   => \0,
-        type      => 'music',
-        mediaType => 'song',
-        playCount => int( $playcount // 0 ),
-        ( defined $played_iso
-            ? ( played => $played_iso )
-            : exists $hints->{played}
-                ? ( played => $hints->{played} )
-                : () ),
-        ( exists $hints->{averageRating}
+        path       => _fakePath( $track_title, $artist_name, $album_title, $disc, $tracknum, $suffix ),
+        year       => $year // undef,
+        genre      => $genre_val,
+        genres     => $genres,
+        track      => $tracknum // undef,
+        discNumber => $disc     // 1,
+        size       => $filesize // 0,
+        created    => Plugins::SlimPing::Core::LibraryMapper::_iso8601($added_time),
+        isDir      => \0,
+        isVideo    => \0,
+        type       => 'music',
+        mediaType  => 'song',
+        playCount  => int( $playcount // 0 ),
+        (
+              defined $played_iso     ? ( played => $played_iso )
+            : exists $hints->{played} ? ( played => $hints->{played} )
+            :                           ()
+        ),
+        (
+            exists $hints->{averageRating}
             ? ( averageRating => $hints->{averageRating} )
-            : () ),
+            : ()
+        ),
         ( defined $starred_at ? ( starred    => $starred_at )  : () ),
         ( defined $rating     ? ( userRating => int($rating) ) : () ),
-        bpm           => $bpm            // undef,
-        comment       => $comment        // undef,
-        sortName      => $track_sort     // undef,
-        musicBrainzId => $track_mbid     // undef,
-        channelCount  => $channels       // undef,
-        samplingRate  => $samplerate     // undef,
-        bitDepth      => $samplesize     // undef,
-        ( defined $track_rg || defined $track_rp
-            ? ( replayGain => {
-                ( defined $track_rg ? ( trackGain => $track_rg + 0.0 ) : () ),
-                ( defined $track_rp ? ( trackPeak => $track_rp + 0.0 ) : () ),
-              } )
-            : () ),
-        ( defined $bookmark_position
+        bpm           => $bpm        // undef,
+        comment       => $comment    // undef,
+        sortName      => $track_sort // undef,
+        musicBrainzId => $track_mbid // undef,
+        channelCount  => $channels   // undef,
+        samplingRate  => $samplerate // undef,
+        bitDepth      => $samplesize // undef,
+        (
+            defined $track_rg || defined $track_rp
+            ? (
+                replayGain => {
+                    ( defined $track_rg ? ( trackGain => $track_rg + 0.0 ) : () ),
+                    ( defined $track_rp ? ( trackPeak => $track_rp + 0.0 ) : () ),
+                }
+              )
+            : ()
+        ),
+        (
+            defined $bookmark_position
             ? ( bookmarkPosition => int($bookmark_position) )
-            : () ),
-        ( @os_contributors
+            : ()
+        ),
+        (
+            @os_contributors
             ? ( contributors => \@os_contributors )
-            : () ),
-        ( @composer_names
+            : ()
+        ),
+        (
+            @composer_names
             ? ( displayComposer => join( ', ', @composer_names ) )
-            : () ),
+            : ()
+        ),
         displayArtist => $display_artist,
+
         # Build track artists from the contributor list (ARTIST + TRACKARTIST),
         # deduplicating by ID.  Fall back to the single FK when contributors
         # are unavailable (stub tracks or hashref callers without contributor
         # hints).
-        artists       => do {
+        artists => do {
             my %seen;
-            my @from_contrib = grep { ( $_->{role} eq 'artist' || $_->{role} eq 'trackartist' )
-                                      && !$seen{ $_->{artist}{id} }++ } @contributors;
-            @from_contrib
-            ? [ map { $_->{artist} } @from_contrib ]
-            : $artist_raw_id
-                ? [ { id => $self->encodeId( 'artist', $artist_raw_id ),
-                      name => $artist_name } ]
-                : [];
+            my @from_contrib =
+              grep { ( $_->{role} eq 'artist' || $_->{role} eq 'trackartist' ) && !$seen{ $_->{artist}{id} }++ }
+              @contributors;
+            @from_contrib      ? [ map { $_->{artist} } @from_contrib ]
+              : $artist_raw_id ? [
+                {
+                    id   => $self->encodeId( 'artist', $artist_raw_id ),
+                    name => $artist_name
+                }
+              ]
+              : [];
         },
         displayAlbumArtist => $album_contrib_name // '',
+
         # Album artists: prefer resolved list (from hints or DBIx fallback).
         # If empty, fall back to the single album contributor FK.
-        albumArtists => @album_artists
-            ? \@album_artists
-            : $album_contrib_id
-                ? [ { id   => $self->encodeId( 'artist', $album_contrib_id ),
-                      name => $album_contrib_name // '' } ]
-                : [],
+        albumArtists => @album_artists ? \@album_artists
+        : $album_contrib_id ? [
+            {
+                id   => $self->encodeId( 'artist', $album_contrib_id ),
+                name => $album_contrib_name // ''
+            }
+          ]
+        : [],
+
         # OpenSubsonic groupings — the GROUPING tag, split on semicolon or null.
-        ( defined $grouping_val && length $grouping_val
-            ? ( groupings => [
-                grep { defined && length } map { s/^\s+|\s+$//gr }
-                  split( /[;\x00]/, $grouping_val )
-              ] )
-            : () ),
+        (
+            defined $grouping_val && length $grouping_val
+            ? (
+                groupings => [
+                    grep { defined && length } map { s/^\s+|\s+$//gr }
+                      split( /[;\x00]/, $grouping_val )
+                ]
+              )
+            : ()
+        ),
+
         # OpenSubsonic works — the WORK tag from the works table.
         # The works table has no musicbrainz_id column; emit name only.
-        ( defined $work_title && length $work_title
+        (
+            defined $work_title && length $work_title
             ? ( works => [ { name => $work_title } ] )
-            : () ),
+            : ()
+        ),
     };
 }
 
@@ -997,9 +1032,9 @@ sub _fakePath {
     $artist_name ||= 'Unknown Artist';
     $album_name  ||= 'Unknown Album';
     $title       ||= 'Unknown Title';
-    $suffix      //= 'mp3';
+    $suffix //= 'mp3';
 
-# Slashes in any component would break the path illusion -- replace with underscores.
+    # Slashes in any component would break the path illusion -- replace with underscores.
     my $sanitise = sub {
         my ($s) = @_;
         $s =~ s{/}{_}g;

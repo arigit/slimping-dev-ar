@@ -46,6 +46,11 @@ my $prefs = Plugins::SlimPing::Core::Logging->getPrefs();
 # both the VirtualPlayer EOS path AND the client scrobble API call.
 my %_recent_plays;
 
+# Standard Last.fm/LMS scrobble threshold: a track counts as played once
+# playback passes half its length or this many seconds, whichever comes
+# first.  Matches Slim::Plugin::AudioScrobbler::Plugin.
+use constant SCROBBLE_THRESHOLD_MAX_SECS => 240;
+
 # Report a completed play.  Called from Playback.pm when a Subsonic
 # client submits a scrobble or reportPlayback, and from
 # StreamingClient::nextChunk at EOS for exotic-format streams.
@@ -54,8 +59,8 @@ my %_recent_plays;
 # $username - authenticated username (for per-user pref gates)
 # %params   - additional context from the API call
 #   submission - boolean: true = completed play, false = now-playing only
-#   skip_apc   - boolean: caller already reported this play to APC with
-#                the real percent played (reportPlayback path), so do not
+#   skip_apc   - boolean: the caller already reported this play to APC with
+#                the real percent played (the reportPlayback path), so do not
 #                send a second, 100% event
 #
 # Returns 1 on success, 0 if no action was taken (now-playing ping,
@@ -63,7 +68,7 @@ my %_recent_plays;
 sub report {
     my ( $class, $sq_id, $username, %params ) = @_;
 
-    return 0 unless defined $sq_id && length $sq_id;
+    return 0 unless defined $sq_id    && length $sq_id;
     return 0 unless defined $username && length $username;
 
     # Now-playing pings are not completed plays.
@@ -93,9 +98,9 @@ sub report {
     my $mgr = Plugins::SlimPing::Core::Container->get('auth_manager');
     return 0 unless $mgr;
 
-    # Gate on per-user preference for Lyrion stats recording. APC is an
-    # alternate tracker of the same "track played" fact, so it rides the
-    # same gate as the LMS stats update rather than getting its own pref.
+    # Gate on per-user preference for Lyrion stats recording.  APC is an
+    # alternate tracker of the same "track played" fact, so it rides the same
+    # gate as the LMS stats update rather than getting a preference of its own.
     if ( $mgr->isPlaybackLoggingEnabled($username) ) {
         _updateLmsStats($sq_id);
         _dispatchApc($sq_id) unless $params{skip_apc};
@@ -108,15 +113,17 @@ sub report {
     return 1;
 }
 
-# Report a playback-ended event (stop, skip or natural end) to Alternative
-# Play Count with how much of the track played. Deliberately separate from
-# report(): APC gets every ended track, however little played, and applies
-# its own play/skip rules -- report()'s completed-play gate does not apply.
-# Rides the same per-user log_playback_to_lms gate as report()'s APC call.
+# Report a playback-ended event (stop, skip or natural end) to Alternative Play
+# Count with how much of the track played.  Deliberately separate from
+# report(): APC gets every ended track, however little played, and applies its
+# own play/skip rules, so report()'s completed-play gate does not apply.  Rides
+# the same per-user log_playback_to_lms gate as report()'s APC call.
+#
+# $percent - 0-100, the furthest position of the pass as a percentage
 sub reportApc {
     my ( $class, $sq_id, $username, $percent ) = @_;
 
-    return 0 unless defined $sq_id && length $sq_id;
+    return 0 unless defined $sq_id    && length $sq_id;
     return 0 unless defined $username && length $username;
     return 0 unless Plugins::SlimPing::Core::AlternatePlayCount->apcAvailable;
 
@@ -125,6 +132,26 @@ sub reportApc {
 
     _dispatchApc( $sq_id, $percent );
     return 1;
+}
+
+# Did a reported stop last long enough to count as a completed play?
+#
+# A reportPlayback "stopped" fires identically whether the track finished
+# naturally or the client stopped it 5 seconds in -- the report says playback
+# ended, not how much of it played.  Apply the standard Last.fm/LMS scrobble
+# threshold (half the track, capped at SCROBBLE_THRESHOLD_MAX_SECS) before
+# treating a stop as a completed play.  Conservative on missing data: an
+# unknown position or duration does not count.
+sub playedEnough {
+    my ( $class, $duration_secs, $position_secs ) = @_;
+
+    return 0 unless $position_secs && $position_secs > 0;
+    return 0 unless $duration_secs && $duration_secs > 0;
+
+    my $threshold = $duration_secs / 2;
+    $threshold = SCROBBLE_THRESHOLD_MAX_SECS if $threshold > SCROBBLE_THRESHOLD_MAX_SECS;
+
+    return $position_secs >= $threshold ? 1 : 0;
 }
 
 # --- Internal helpers --------------------------------------------------------
@@ -166,8 +193,7 @@ sub _updateLmsStats {
         # we gate here too so the skip is logged.
         $track->playcount( ( $track->playcount() || 0 ) + 1 );
         $track->lastplayed( time() );
-        $log->debug("SlimPing: play recorded for $sq_id ("
-              . ( $track->urlmd5 || '?' ) . ")" );
+        $log->debug( "SlimPing: play recorded for $sq_id (" . ( $track->urlmd5 || '?' ) . ")" );
     };
     if ($@) {
         $log->warn("SlimPing: PlaybackReporter stats update failed for $sq_id: $@");
@@ -186,9 +212,9 @@ sub _dispatchScrobble {
     }
 }
 
-# Dispatch to the Alternative Play Count plugin's external reportplayback
-# API, if installed. AlternatePlayCount.pm applies its own availability
-# gate internally and is a no-op when the plugin is not present.
+# Dispatch to the Alternative Play Count plugin's external reportplayback API,
+# if installed.  AlternatePlayCount.pm applies its own availability gate
+# internally and is a no-op when the plugin is not present.
 sub _dispatchApc {
     my ( $sq_id, $percent ) = @_;
 

@@ -71,14 +71,15 @@ my $_event_counter = 0;
 # larger than per-user so NAT'd / multi-app sources aren't locked out by
 # one user's typos.
 sub _thresholds {
+
     # lan_mode defaults to ON (undef = treat as on) so upgrades don't tighten
     # rate limits behind operators' backs.  Operators opt INTO the strict
     # public-IP-posture thresholds by explicitly saving lan_mode=0.
     my $raw = $prefs->get('lan_mode');
     my $lan = defined $raw ? ( $raw ? 1 : 0 ) : 1;
     return $lan
-      ? ( 30, 200, 5 * 60, 5 * 60 )      # lan_mode (default): very forgiving
-      : ( 10, 50,  5 * 60, 15 * 60 );    # strict: public-internet posture
+      ? ( 30, 200, 5 * 60, 5 * 60 )     # lan_mode (default): very forgiving
+      : ( 10, 50, 5 * 60, 15 * 60 );    # strict: public-internet posture
 }
 
 # Returns 1 if the (ip, username) pair (or the ip alone) is currently in
@@ -114,15 +115,12 @@ sub recordFailure {
 
     my $triggered = 0;
 
-    $triggered ||=
-      _bumpBucket( \%_per_ip, $ip, $now, $ip_threshold, $window, $cooldown,
-        'per-ip' );
+    $triggered ||= _bumpBucket( \%_per_ip, $ip, $now, $ip_threshold, $window, $cooldown, 'per-ip' );
 
     if ( defined $username && length $username ) {
         my $key = "$ip\t$username";
         $triggered ||=
-          _bumpBucket( \%_per_user, $key, $now, $user_threshold, $window,
-            $cooldown, "per-user($username)" );
+          _bumpBucket( \%_per_user, $key, $now, $user_threshold, $window, $cooldown, "per-user($username)" );
     }
 
     if ($triggered) {
@@ -153,7 +151,7 @@ sub _bumpBucket {
 
     if ( $rec->{count} >= $threshold && !$rec->{cooldown_until} ) {
         $rec->{cooldown_until} = $now + $cooldown;
-        $rec->{tag} = $tag;
+        $rec->{tag}            = $tag;
         return 1;
     }
     return 0;
@@ -184,9 +182,8 @@ sub _maybeSweep {
 
     for my $bucket ( \%_per_ip, \%_per_user ) {
         for my $key ( keys %$bucket ) {
-            my $rec = $bucket->{$key};
-            my $stale =
-                ( !$rec->{cooldown_until} || $rec->{cooldown_until} < $now )
+            my $rec   = $bucket->{$key};
+            my $stale = ( !$rec->{cooldown_until} || $rec->{cooldown_until} < $now )
               && ( $now - $rec->{first} > $window );
             delete $bucket->{$key} if $stale;
         }

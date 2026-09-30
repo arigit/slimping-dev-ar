@@ -38,8 +38,7 @@ sub requireFeature {
     return 0
       if Plugins::SlimPing::Core::Logging->isFeatureEnabled($feature_name);
     require Plugins::SlimPing::Core::VirtualPlayer;
-    Plugins::SlimPing::Core::VirtualPlayer->sendStreamError(
-        $httpClient, $response, 0, "Not implemented: $label" );
+    Plugins::SlimPing::Core::VirtualPlayer->sendStreamError( $httpClient, $response, 0, "Not implemented: $label" );
     return 1;
 }
 
@@ -50,11 +49,9 @@ sub gateIp {
     my ( $class, $httpClient, $response, $request ) = @_;
     require Plugins::SlimPing::Auth::RateLimit;
     require Plugins::SlimPing::Core::VirtualPlayer;
-    my $ip =
-      Plugins::SlimPing::Core::VirtualPlayer->remoteIp( $httpClient, $request );
+    my $ip = Plugins::SlimPing::Core::VirtualPlayer->remoteIp( $httpClient, $request );
     if ( Plugins::SlimPing::Auth::RateLimit->isLocked( $ip, '_anon' ) ) {
-        Plugins::SlimPing::Core::VirtualPlayer->sendStreamError(
-            $httpClient, $response, 40,
+        Plugins::SlimPing::Core::VirtualPlayer->sendStreamError( $httpClient, $response, 40,
             'Too many failed attempts - try again later' );
         return ();
     }
@@ -67,20 +64,19 @@ sub gateIp {
 #       httpClient => $httpClient, response => $response,
 #       ip => $ip, value => $p->{sq_id}, param_name => 'sq_id' ) or return;
 sub requireParam {
-    my $class     = shift;
-    my %args      = @_;
+    my $class      = shift;
+    my %args       = @_;
     my $httpClient = $args{httpClient} or die 'requireParam: httpClient required';
-    my $response  = $args{response}   or die 'requireParam: response required';
-    my $ip        = $args{ip};
-    my $value     = $args{value};
-    my $paramName = $args{param_name};
+    my $response   = $args{response}   or die 'requireParam: response required';
+    my $ip         = $args{ip};
+    my $value      = $args{value};
+    my $paramName  = $args{param_name};
 
     return ($value) if defined $value && length $value;
     require Plugins::SlimPing::Auth::RateLimit;
     require Plugins::SlimPing::Core::VirtualPlayer;
     Plugins::SlimPing::Auth::RateLimit->recordFailure( $ip, '_anon' );
-    Plugins::SlimPing::Core::VirtualPlayer->sendStreamError(
-        $httpClient, $response, 10,
+    Plugins::SlimPing::Core::VirtualPlayer->sendStreamError( $httpClient, $response, 10,
         "Required parameter $paramName is missing" );
     return ();
 }

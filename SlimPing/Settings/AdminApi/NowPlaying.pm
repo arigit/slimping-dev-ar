@@ -42,8 +42,7 @@ sub handle {
     return Plugins::SlimPing::Auth::AdminGate::denyAdmin( $httpClient, $response, $err_code, $err_msg )
       unless $auth_ok;
 
-    my $sessions =
-      Plugins::SlimPing::Core::Container->get('session_state')->getActiveSessions();
+    my $sessions = Plugins::SlimPing::Core::Container->get('session_state')->getActiveSessions();
 
     # Enrich sessions with track info where possible
     my $mapper = Plugins::SlimPing::Core::Container->get('library_mapper');

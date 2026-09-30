@@ -9,7 +9,7 @@ __PACKAGE__->source_name('Rating');
 __PACKAGE__->table('rating');
 __PACKAGE__->add_columns(
     user_id  => { data_type => 'integer', is_nullable => 0 },
-    sq_id    => { data_type => 'text', is_nullable => 0 },
+    sq_id    => { data_type => 'text',    is_nullable => 0 },
     rating   => { data_type => 'integer', is_nullable => 0 },
     rated_at => { data_type => 'integer', is_nullable => 0 },
 );

@@ -19,39 +19,46 @@ sub getInstance {
 }
 
 sub getRating {
-    my ($self, $username, $sq_id) = @_;
+    my ( $self, $username, $sq_id ) = @_;
     return undef unless $sq_id && $username;
 
     my $schema = Plugins::SlimPing::Schema->connect();
     my $user   = Plugins::SlimPing::Core::UserStore->getInstance->getByUsername($username)
-        or return undef;
+      or return undef;
 
-    my $rating = $schema->resultset('Rating')->find({
-        user_id => $user->id(),
-        sq_id   => $sq_id,
-    });
+    my $rating = $schema->resultset('Rating')->find(
+        {
+            user_id => $user->id(),
+            sq_id   => $sq_id,
+        }
+    );
     return $rating ? $rating->rating() : undef;
 }
 
 sub setRating {
-    my ($self, $username, $sq_id, $rating) = @_;
+    my ( $self, $username, $sq_id, $rating ) = @_;
 
     my $schema = Plugins::SlimPing::Schema->connect();
     my $user   = Plugins::SlimPing::Core::UserStore->getInstance->getByUsername($username)
-        or return;
+      or return;
 
-    if ($rating == 0) {
-        $schema->resultset('Rating')->search({
-            user_id => $user->id(),
-            sq_id   => $sq_id,
-        })->delete();
-    } else {
-        my $row = $schema->resultset('Rating')->find_or_new({
-            user_id => $user->id(),
-            sq_id   => $sq_id,
-        });
+    if ( $rating == 0 ) {
+        $schema->resultset('Rating')->search(
+            {
+                user_id => $user->id(),
+                sq_id   => $sq_id,
+            }
+        )->delete();
+    }
+    else {
+        my $row = $schema->resultset('Rating')->find_or_new(
+            {
+                user_id => $user->id(),
+                sq_id   => $sq_id,
+            }
+        );
         $row->rating($rating);
-        $row->rated_at(time());
+        $row->rated_at( time() );
         $row->update_or_insert();
     }
     return;
@@ -59,19 +66,17 @@ sub setRating {
 
 # Return a hashref of sq_id => rating for a batch of items.
 sub getRatingBatch {
-    my ($self, $username, $sq_ids) = @_;
+    my ( $self, $username, $sq_ids ) = @_;
     return {} unless $username && $sq_ids && ref $sq_ids eq 'ARRAY' && @$sq_ids;
 
     my $schema = Plugins::SlimPing::Schema->connect();
     my $user   = Plugins::SlimPing::Core::UserStore->getInstance->getByUsername($username)
-        or return {};
+      or return {};
 
-    my $rs = $schema->resultset('Rating')->search(
-        { user_id => $user->id(), sq_id => { -in => $sq_ids } },
-        { columns => [qw(sq_id rating)] }
-    );
+    my $rs = $schema->resultset('Rating')
+      ->search( { user_id => $user->id(), sq_id => { -in => $sq_ids } }, { columns => [qw(sq_id rating)] } );
     my %result;
-    while (my $row = $rs->next()) {
+    while ( my $row = $rs->next() ) {
         $result{ $row->sq_id() } = $row->rating();
     }
     return \%result;
@@ -82,11 +87,11 @@ sub getRatingBatch {
 # track-only filtering uses sq_id prefix matching (sq_tr_%).  Title-alpha
 # tie-breaking is done by the caller after resolving track names.
 sub getRatedTracks {
-    my ($self, $username) = @_;
+    my ( $self, $username ) = @_;
 
     my $schema = Plugins::SlimPing::Schema->connect();
     my $user   = Plugins::SlimPing::Core::UserStore->getInstance->getByUsername($username)
-        or return [];
+      or return [];
 
     my $rs = $schema->resultset('Rating')->search(
         {
@@ -107,19 +112,19 @@ sub flushAll {
 }
 
 sub flushForUser {
-    my ($self, $username) = @_;
-    return Plugins::SlimPing::Utils::StoreHelpers->flushForUser($username, 'Rating');
+    my ( $self, $username ) = @_;
+    return Plugins::SlimPing::Utils::StoreHelpers->flushForUser( $username, 'Rating' );
 }
 
 # Return the average rating for a single sq_id across all users, or undef.
 sub getAverageRating {
-    my ($self, $sq_id) = @_;
+    my ( $self, $sq_id ) = @_;
     return undef unless $sq_id;
 
-    my $rs = Plugins::SlimPing::Schema->connect()->resultset('Rating')->search(
-        { sq_id => $sq_id },
-        { select => [ { AVG => 'rating' } ], as => ['avg_rating'] }
-    );
+    my $rs =
+      Plugins::SlimPing::Schema->connect()
+      ->resultset('Rating')
+      ->search( { sq_id => $sq_id }, { select => [ { AVG => 'rating' } ], as => ['avg_rating'] } );
     my $row = $rs->first;
     return undef unless $row;
     my $avg = $row->get_column('avg_rating');
@@ -130,7 +135,7 @@ sub getAverageRating {
 # a hashref mapping sq_id => average rating (or undef).  Single GROUP BY query
 # avoids N+1 calls when shaping large result sets.
 sub getAverageRatingBatch {
-    my ($self, $sq_ids) = @_;
+    my ( $self, $sq_ids ) = @_;
     return {} unless $sq_ids && @$sq_ids;
 
     my $rs = Plugins::SlimPing::Schema->connect()->resultset('Rating')->search(

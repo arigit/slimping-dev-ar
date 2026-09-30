@@ -41,11 +41,11 @@ my %_services;
 # Warns -- rather than dies -- when overwriting an existing service so that
 # legitimate hot-reload re-registration is non-fatal but still surfaced.
 sub register {
-    my ($class, $name, $instance) = @_;
+    my ( $class, $name, $instance ) = @_;
     die "SlimPing::Container: register requires a service name"
-        unless defined $name;
+      unless defined $name;
     die "SlimPing::Container: register requires a service instance for '$name'"
-        unless defined $instance;
+      unless defined $instance;
     if ( exists $_services{$name} ) {
         $log->warn("Container: overwriting service '$name'");
     }
@@ -55,7 +55,7 @@ sub register {
 # Retrieve a previously registered service by name.
 # Dies if the requested service has not been registered.
 sub get {
-    my ($class, $name) = @_;
+    my ( $class, $name ) = @_;
     die "SlimPing::Container: unknown service '$name'" unless exists $_services{$name};
     return $_services{$name};
 }
@@ -66,16 +66,13 @@ sub registerDefaultServices {
     my $class = shift;
 
     require Plugins::SlimPing::Auth::Manager;
-    $class->register('auth_manager',
-        Plugins::SlimPing::Auth::Manager->getInstance());
+    $class->register( 'auth_manager', Plugins::SlimPing::Auth::Manager->getInstance() );
 
     require Plugins::SlimPing::Core::LibraryMapper;
-    $class->register('library_mapper',
-        Plugins::SlimPing::Core::LibraryMapper->getInstance());
+    $class->register( 'library_mapper', Plugins::SlimPing::Core::LibraryMapper->getInstance() );
 
     require Plugins::SlimPing::Core::SessionState;
-    $class->register('session_state',
-        Plugins::SlimPing::Core::SessionState->getInstance());
+    $class->register( 'session_state', Plugins::SlimPing::Core::SessionState->getInstance() );
 }
 
 1;

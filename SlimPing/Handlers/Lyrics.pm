@@ -40,7 +40,7 @@ use warnings;
 use Slim::Schema;
 use Slim::Control::Request;
 use Time::HiRes qw(time);
-use Encode qw(encode);
+use Encode      qw(encode);
 use Plugins::SlimPing::API::Router;
 use Plugins::SlimPing::Core::LibraryMapper;
 require Plugins::SlimPing::Core::MaiThrottle;
@@ -48,8 +48,8 @@ require Plugins::SlimPing::Utils::Errors;
 
 sub registerHandlers {
     my $class = shift;
-    Plugins::SlimPing::API::Router->registerHandler('getLyrics',         \&getLyrics);
-    Plugins::SlimPing::API::Router->registerHandler('getLyricsBySongId', \&getLyricsBySongId);
+    Plugins::SlimPing::API::Router->registerHandler( 'getLyrics',         \&getLyrics );
+    Plugins::SlimPing::API::Router->registerHandler( 'getLyricsBySongId', \&getLyricsBySongId );
 }
 
 sub getLyrics {
@@ -58,33 +58,32 @@ sub getLyrics {
     my $artist = $p->{artist} // '';
     my $title  = $p->{title}  // '';
 
-    return Plugins::SlimPing::Utils::Errors->error(10,
-        'Required parameters artist and title are missing')
-        unless length $artist || length $title;
+    return Plugins::SlimPing::Utils::Errors->error( 10, 'Required parameters artist and title are missing' )
+      unless length $artist || length $title;
 
     # Reject only control characters (0x00-0x1f, 0x7f) and enforce length.
     # Allow full Unicode so names like Bjork, Motley Crue, and Sigur Ros
     # pass through -- LMS/SQLite/ChartLyrics handle them natively.
-    return Plugins::SlimPing::Utils::Errors->error(0,
-        'Invalid artist or title parameter')
-        unless $artist =~ /^[^\x00-\x1f\x7f]{1,500}$/
-            && $title  =~ /^[^\x00-\x1f\x7f]{1,500}$/;
+    return Plugins::SlimPing::Utils::Errors->error( 0, 'Invalid artist or title parameter' )
+      unless $artist =~ /^[^\x00-\x1f\x7f]{1,500}$/
+      && $title =~ /^[^\x00-\x1f\x7f]{1,500}$/;
 
     # Search for a matching track in the library.
-    my $rs = Slim::Schema->search('Track',
-        { 'contributorTracks.role' => 1, 'me.title' => $title },
-        { join => 'contributorTracks', prefetch => ['primary_artist'] }
+    my $rs = Slim::Schema->search(
+        'Track',
+        { 'contributorTracks.role' => 1,                   'me.title' => $title },
+        { join                     => 'contributorTracks', prefetch   => ['primary_artist'] }
     );
 
-    while (my $track = $rs->next()) {
-        if ($track->artist() && $track->artist()->name() =~ /\Q$artist\E/i) {
+    while ( my $track = $rs->next() ) {
+        if ( $track->artist() && $track->artist()->name() =~ /\Q$artist\E/i ) {
+
             # Found a matching track -- check embedded lyrics first, then
             # try MAI with throttle gating.
             my $value = $track->lyrics();
 
             unless ( defined $value && length $value ) {
-                my $mai = _withMaiSlot(
-                    ['musicartistinfo', 'lyrics', 'track_id:' . $track->id()],
+                my $mai = _withMaiSlot( [ 'musicartistinfo', 'lyrics', 'track_id:' . $track->id() ],
                     'lyrics_track:' . $track->id() );
                 if ( $mai && $mai->{sync} ) {
                     $value = $mai->{result};
@@ -103,8 +102,7 @@ sub getLyrics {
 
     # No matching track in the library -- try MAI directly by artist+title.
     # Gate on MaiThrottle: only call executeRequest when a slot is available.
-    my $mai = _withMaiSlot(
-        ['musicartistinfo', 'lyrics', "artist:$artist", "title:$title"],
+    my $mai = _withMaiSlot( [ 'musicartistinfo', 'lyrics', "artist:$artist", "title:$title" ],
         "lyrics_artist_title:$artist:$title" );
     if ( $mai && $mai->{sync} && $mai->{result} ) {
         return {
@@ -122,17 +120,15 @@ sub getLyrics {
 sub getLyricsBySongId {
     my ($args) = @_;
     my $id = $args->{params}{id}
-        or return Plugins::SlimPing::Utils::Errors->missingParam('id');
+      or return Plugins::SlimPing::Utils::Errors->missingParam('id');
 
-    my (undef, $raw_id) = Plugins::SlimPing::Core::LibraryMapper->decodeId($id);
+    my ( undef, $raw_id ) = Plugins::SlimPing::Core::LibraryMapper->decodeId($id);
     return Plugins::SlimPing::Utils::Errors->notFound('Song') unless defined $raw_id;
 
     # Use search with prefetch rather than find() so the artist lookup is
     # eager-loaded rather than triggering a lazy query.
-    my $track = Slim::Schema->search('Track',
-        { 'me.id' => $raw_id },
-        { prefetch => ['primary_artist'], rows => 1 }
-    )->first();
+    my $track =
+      Slim::Schema->search( 'Track', { 'me.id' => $raw_id }, { prefetch => ['primary_artist'], rows => 1 } )->first();
     return Plugins::SlimPing::Utils::Errors->notFound('Song') unless $track;
 
     my $artist_name = $track->artist() ? $track->artist()->name() : '';
@@ -145,9 +141,7 @@ sub getLyricsBySongId {
     my $lyrics_text = $track->lyrics();
 
     unless ( defined $lyrics_text && length $lyrics_text ) {
-        my $mai = _withMaiSlot(
-            ['musicartistinfo', 'lyrics', "track_id:$raw_id"],
-            "lyrics_track:$raw_id" );
+        my $mai = _withMaiSlot( [ 'musicartistinfo', 'lyrics', "track_id:$raw_id" ], "lyrics_track:$raw_id" );
         if ( $mai && $mai->{sync} ) {
             $lyrics_text = $mai->{result};
         }
@@ -194,11 +188,11 @@ sub getLyricsBySongId {
     }
 
     my $structured = {
-        lang           => $lang,
-        synced         => $is_synced ? \1 : \0,
-        line           => $lines,
-        displayArtist  => $artist_name,
-        displayTitle   => $track->title(),
+        lang          => $lang,
+        synced        => $is_synced ? \1 : \0,
+        line          => $lines,
+        displayArtist => $artist_name,
+        displayTitle  => $track->title(),
         ( $global_offset ? ( offset => int($global_offset) ) : () ),
     };
 
@@ -218,7 +212,7 @@ sub getLyricsBySongId {
 
     return {
         lyricsList => {
-            structuredLyrics => [ $structured ]
+            structuredLyrics => [$structured]
         }
     };
 }
@@ -229,10 +223,10 @@ sub getLyricsBySongId {
 # $cache_key enables deferred-queue coalescing — repeated requests for the same
 # track or artist+title pair only occupy one queue slot.
 sub _withMaiSlot {
-    my ($params, $cache_key) = @_;
-    my $result = Plugins::SlimPing::Core::MaiThrottle->asyncRequest($params, undef, 30, $cache_key);
+    my ( $params, $cache_key ) = @_;
+    my $result = Plugins::SlimPing::Core::MaiThrottle->asyncRequest( $params, undef, 30, $cache_key );
     return undef unless $result;
-    if ($result->{sync}) {
+    if ( $result->{sync} ) {
         return { sync => 1, result => $result->{request}->getResult('lyrics') };
     }
     return { sync => 0 };
@@ -313,11 +307,12 @@ sub _parseLrc {
     }
 
     for my $raw ( split( /\r?\n/, $text ) ) {
+
         # Skip metadata tags like [ti:Title], [ar:Artist], [offset:+/-ms].
         next if $raw =~ /^\[(?:ti|ar|al|by|offset|length|id|re|ve|la|en|au|to|lr):/i;    #]
 
         # Extract all [mm:ss.xx] timestamps from the line.
-        my @stamps = ( $raw =~ /\[(\d+):(\d+\.\d+)\]/g );    #[] balance
+        my @stamps = ( $raw =~ /\[(\d+):(\d+\.\d+)\]/g );                                #[] balance
         next unless @stamps;
 
         # Build ms offset from the first timestamp, adjusted by the
@@ -343,10 +338,11 @@ sub _parseLrc {
         while ( $cooked =~ /<(\d+):(\d+\.\d+)>([^<]*)<\/\1:\2>/g ) {
             my $word_ms = int( ( $1 * 60000 ) + ( $2 * 1000 ) ) + $global_offset;
             $word_ms = 0 if $word_ms < 0;
-            push @word_cues, {
+            push @word_cues,
+              {
                 start_ms => $word_ms,
                 text     => $3,
-            };
+              };
         }
 
         # Strip only the angle-bracket tag MARKUP, preserving the word
@@ -354,7 +350,7 @@ sub _parseLrc {
         # too (s/<\d+:\d+\.\d+>[^<]*<\/\d+:\d+\.\d+>//g), which
         # caused ELRC lyrics to display with missing words.
         $cooked =~ s/<\d+:\d+\.\d+>//g;      # opening tags
-        $cooked =~ s/<\/\d+:\d+\.\d+>//g;     # closing tags
+        $cooked =~ s/<\/\d+:\d+\.\d+>//g;    # closing tags
         $cooked =~ s/^\s+|\s+$//g;
 
         my $line_index = scalar @lines;
@@ -394,37 +390,34 @@ sub _parseLrc {
                     $word_end = $wc->{start_ms} + 200;
                 }
 
-                push @cues, {
+                push @cues,
+                  {
                     byteStart => $byte_start,
                     byteEnd   => $byte_end,
                     start     => $wc->{start_ms},
                     end       => $word_end,
                     value     => $word,
-                };
+                  };
             }
 
             # Line end time: use the last cue's end, falling back to
             # line start + 5000ms.
             my $line_end = $cues[-1]{end} || ( $start_ms + 5000 );
 
-            push @cue_lines, {
+            push @cue_lines,
+              {
                 start => $start_ms,
                 end   => $line_end,
                 index => $line_index,
                 value => $cooked,
                 cue   => \@cues,
-            };
+              };
         }
     }
 
     # If no timestamped lines were found, return plain text.
     unless (@lines) {
-        return (
-            [ map { { value => $_ } } split( /\r?\n/, $text ) ],
-            0,
-            undef,
-            0
-        );
+        return ( [ map { { value => $_ } } split( /\r?\n/, $text ) ], 0, undef, 0 );
     }
 
     return ( \@lines, 1, $has_word_cues ? \@cue_lines : undef, $global_offset );
@@ -454,8 +447,7 @@ sub _parseSrt {
 
         my $ts_line = shift @parts;
         next unless $ts_line =~ m{ (\d{1,2}) : (\d{2}) : (\d{2}) [,.] (\d{3}) }x;
-        my $start_ms = int( ( $1 * 3600000 ) + ( $2 * 60000 )
-                          + ( $3 * 1000 ) + ( $4 // 0 ) );
+        my $start_ms = int( ( $1 * 3600000 ) + ( $2 * 60000 ) + ( $3 * 1000 ) + ( $4 // 0 ) );
 
         my $value = join( "\n", @parts );
         $value =~ s/^\s+|\s+$//g;
@@ -465,10 +457,7 @@ sub _parseSrt {
     }
 
     unless (@lines) {
-        return (
-            [ map { { value => $_ } } split( /\r?\n/, $text ) ],
-            0
-        );
+        return ( [ map { { value => $_ } } split( /\r?\n/, $text ) ], 0 );
     }
 
     return ( \@lines, 1 );

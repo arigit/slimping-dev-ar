@@ -55,7 +55,7 @@ sub getInstance {
     $_instance = bless {
         _available     => 0,
         _initialised   => 0,
-        _exposures     => {},       # exposure_id => { name, sql, params, source, category }
+        _exposures     => {},                          # exposure_id => { name, sql, params, source, category }
         _cache         => Slim::Utils::Cache->new(),
         _last_discover => 0,
     }, $class;
@@ -68,18 +68,18 @@ sub getInstance {
 # Called by Plugin.pm at startup after DPL4 detection.
 # Takes a reference to the DPL4 plugin package name (string).
 sub init {
-    my ($self, $dpl4_package) = @_;
+    my ( $self, $dpl4_package ) = @_;
 
-    $self->{_available}   = 1;
+    $self->{_available}    = 1;
     $self->{_dpl4_package} = $dpl4_package;
     $self->{_initialised}  = 1;
 
     $self->_discover();
 
-    $log->info(sprintf(
-        "SlimPing: DynamicPlaylistBridge initialised - %d playlists eligible for exposure",
-        scalar keys %{ $self->{_exposures} }
-    ));
+    $log->info(
+        sprintf( "SlimPing: DynamicPlaylistBridge initialised - %d playlists eligible for exposure",
+            scalar keys %{ $self->{_exposures} } )
+    );
 
     return 1;
 }
@@ -103,13 +103,15 @@ sub getExposureNames {
     return [] unless $_instance && $_instance->{_available};
     $_instance->_discoverIfStale();
     my @names = sort { $a->{name} cmp $b->{name} }
-                map  { {
-                    id       => $_,
-                    name     => $_instance->{_exposures}{$_}{name},
-                    source   => $_instance->{_exposures}{$_}{source}   // 'unknown',
-                    category => $_instance->{_exposures}{$_}{category} // '',
-                } }
-                keys %{ $_instance->{_exposures} };
+      map {
+        {
+            id       => $_,
+            name     => $_instance->{_exposures}{$_}{name},
+            source   => $_instance->{_exposures}{$_}{source}   // 'unknown',
+            category => $_instance->{_exposures}{$_}{category} // '',
+        }
+      }
+      keys %{ $_instance->{_exposures} };
     return \@names;
 }
 
@@ -117,7 +119,7 @@ sub getExposureCountBySource {
     my %counts;
     return \%counts unless $_instance && $_instance->{_available};
     $_instance->_discoverIfStale();
-    for my $eid (keys %{ $_instance->{_exposures} }) {
+    for my $eid ( keys %{ $_instance->{_exposures} } ) {
         my $src = $_instance->{_exposures}{$eid}{source} // 'unknown';
         $counts{$src}++;
     }
@@ -145,8 +147,8 @@ sub clearCaches {
     my $self = $_instance or return;
 
     # Clear materialised track caches
-    for my $eid (keys %{ $self->{_exposures} }) {
-        $self->{_cache}->remove('sq_dpl_materialised_' . $eid);
+    for my $eid ( keys %{ $self->{_exposures} } ) {
+        $self->{_cache}->remove( 'sq_dpl_materialised_' . $eid );
     }
 
     # Clear dedup history
@@ -160,7 +162,7 @@ sub clearCaches {
 
 # Returns shaped playlist hashes (without tracks) for getPlaylists.
 sub getExposedPlaylists {
-    my ($self, $username) = @_;
+    my ( $self, $username ) = @_;
 
     return () unless $self->isEnabled();
     return () unless $self->_userHasAccess($username);
@@ -173,35 +175,36 @@ sub getExposedPlaylists {
     my $allowed = $self->_allowedUserList();
 
     my @playlists;
-    for my $eid (sort keys %{ $self->{_exposures} }) {
+    for my $eid ( sort keys %{ $self->{_exposures} } ) {
         my $exp   = $self->{_exposures}{$eid};
-        my $sq_id = Plugins::SlimPing::Core::LibraryMapper->encodeId('dynamic_playlist', $eid);
+        my $sq_id = Plugins::SlimPing::Core::LibraryMapper->encodeId( 'dynamic_playlist', $eid );
 
         # Get cached materialised data for songCount/duration/changed/validUntil
-        my $cached = $self->{_cache}->get('sq_dpl_materialised_' . $eid);
+        my $cached = $self->{_cache}->get( 'sq_dpl_materialised_' . $eid );
         my $ttl    = $prefs->get('dpl_cache_ttl_seconds') // 300;
 
-        my $song_count = $cached ? $cached->{song_count} : 0;
-        my $duration   = $cached ? $cached->{duration}   : 0;
-        my $generated  = $cached ? $cached->{generated_at} : time();
+        my $song_count  = $cached ? $cached->{song_count}   : 0;
+        my $duration    = $cached ? $cached->{duration}     : 0;
+        my $generated   = $cached ? $cached->{generated_at} : time();
         my $valid_until = $generated + $ttl;
         my $created     = $self->_exposureCreatedAt($eid);
 
-        push @playlists, {
-            id         => $sq_id,
-            name       => $exp->{name},
-            owner      => 'Lyrion Music Server',
-            public     => \0,
-            songCount  => $song_count,
-            duration   => $duration,
-            coverArt   => $sq_id,
-            created    => _iso8601($created),
-            changed    => _iso8601($generated),
-            comment    => 'Dynamic playlist (DynamicPlaylists v4)',
-            readonly   => \1,
-            validUntil => _iso8601($valid_until),
+        push @playlists,
+          {
+            id          => $sq_id,
+            name        => $exp->{name},
+            owner       => 'Lyrion Music Server',
+            public      => \0,
+            songCount   => $song_count,
+            duration    => $duration,
+            coverArt    => $sq_id,
+            created     => _iso8601($created),
+            changed     => _iso8601($generated),
+            comment     => 'Dynamic playlist (DynamicPlaylists v4)',
+            readonly    => \1,
+            validUntil  => _iso8601($valid_until),
             allowedUser => $allowed,
-        };
+          };
     }
 
     return @playlists;
@@ -210,13 +213,13 @@ sub getExposedPlaylists {
 # Returns a shaped playlist hash with entry array for getPlaylist.
 # Regenerates the materialised track list if stale.
 sub getPlaylistWithTracks {
-    my ($self, $exposure_id, $username) = @_;
+    my ( $self, $exposure_id, $username ) = @_;
 
-    return Plugins::SlimPing::Utils::Errors->error(50, 'Dynamic playlist feature is not enabled')
-        unless $self->isEnabled();
+    return Plugins::SlimPing::Utils::Errors->error( 50, 'Dynamic playlist feature is not enabled' )
+      unless $self->isEnabled();
 
-    return Plugins::SlimPing::Utils::Errors->error(50, 'User does not have access to dynamic playlists')
-        unless $self->_userHasAccess($username);
+    return Plugins::SlimPing::Utils::Errors->error( 50, 'User does not have access to dynamic playlists' )
+      unless $self->_userHasAccess($username);
 
     # Discovery may have failed during plugin init (DPL4 not yet loaded);
     # ensure the registry is up to date before looking up this exposure.
@@ -224,7 +227,7 @@ sub getPlaylistWithTracks {
 
     my $exp = $self->{_exposures}{$exposure_id};
     return Plugins::SlimPing::Utils::Errors->notFound('Playlist')
-        unless $exp;
+      unless $exp;
 
     # Staleness handling uses a stale-while-revalidate model: an expired
     # cache entry is served to the client IMMEDIATELY and regeneration is
@@ -234,46 +237,47 @@ sub getPlaylistWithTracks {
     # broken.  Only a completely cold cache (first ever request for this
     # exposure) materialises synchronously.
     my $ttl    = $prefs->get('dpl_cache_ttl_seconds') // 300;
-    my $cached = $self->{_cache}->get('sq_dpl_materialised_' . $exposure_id);
+    my $cached = $self->{_cache}->get( 'sq_dpl_materialised_' . $exposure_id );
 
     my $track_data;
-    if ($cached && (time() - $cached->{generated_at}) < $ttl) {
+    if ( $cached && ( time() - $cached->{generated_at} ) < $ttl ) {
         $track_data = $cached;
     }
     elsif ($cached) {
+
         # Stale: serve it now, refresh in the background.
         $track_data = $cached;
-        $self->_scheduleBackgroundRefresh($exposure_id, $exp);
+        $self->_scheduleBackgroundRefresh( $exposure_id, $exp );
     }
     else {
         # Cold cache: no choice but to materialise synchronously.
-        $track_data = $self->_materialise($exposure_id, $exp);
-        return Plugins::SlimPing::Utils::Errors->error(0, 'Failed to generate dynamic playlist tracks')
-            unless $track_data;
+        $track_data = $self->_materialise( $exposure_id, $exp );
+        return Plugins::SlimPing::Utils::Errors->error( 0, 'Failed to generate dynamic playlist tracks' )
+          unless $track_data;
     }
 
     # Resolve track URLs to Slim::Schema::Track objects and shape
-    my @entries = $self->_resolveAndShape($track_data->{tracks});
+    my @entries = $self->_resolveAndShape( $track_data->{tracks} );
 
     require Plugins::SlimPing::Core::LibraryMapper;
-    my $sq_id = Plugins::SlimPing::Core::LibraryMapper->encodeId('dynamic_playlist', $exposure_id);
+    my $sq_id   = Plugins::SlimPing::Core::LibraryMapper->encodeId( 'dynamic_playlist', $exposure_id );
     my $created = $self->_exposureCreatedAt($exposure_id);
 
     return {
-        id         => $sq_id,
-        name       => $exp->{name},
-        owner      => 'Lyrion Music Server',
-        public     => \0,
-        songCount  => $track_data->{song_count},
-        duration   => $track_data->{duration},
-        coverArt   => $sq_id,
-        created    => _iso8601($created),
-        changed    => _iso8601($track_data->{generated_at}),
-        comment    => 'Dynamic playlist (DynamicPlaylists v4)',
-        readonly   => \1,
-        validUntil => _iso8601($track_data->{generated_at} + $ttl),
+        id          => $sq_id,
+        name        => $exp->{name},
+        owner       => 'Lyrion Music Server',
+        public      => \0,
+        songCount   => $track_data->{song_count},
+        duration    => $track_data->{duration},
+        coverArt    => $sq_id,
+        created     => _iso8601($created),
+        changed     => _iso8601( $track_data->{generated_at} ),
+        comment     => 'Dynamic playlist (DynamicPlaylists v4)',
+        readonly    => \1,
+        validUntil  => _iso8601( $track_data->{generated_at} + $ttl ),
         allowedUser => $self->_allowedUserList(),
-        entry      => \@entries,
+        entry       => \@entries,
     };
 }
 
@@ -295,9 +299,7 @@ sub _discover {
     # require any internal initialisation — it reads from DPL4's own prefs and
     # internal state, which are fully populated by the time any HTTP request
     # handler runs.
-    my $stub_client = bless {
-        id => 'ssp_dpl_bridge',
-    }, 'Plugins::SlimPing::Core::DynamicPlaylistBridge::StubClient';
+    my $stub_client = bless { id => 'ssp_dpl_bridge', }, 'Plugins::SlimPing::Core::DynamicPlaylistBridge::StubClient';
 
     # Step 1: Get all playlist definitions via DPL4's public API.
     # Use function-call syntax because getDynamicPlaylists expects a client
@@ -315,10 +317,10 @@ sub _discover {
     # some UI flows, leaving brief windows where getDynamicPlaylists returns
     # nothing.  If we previously had a populated registry, keep it and let the
     # next request retry rather than clobbering good data with an empty scan.
-    my $had_dpl_exposures = grep { ($_->{source} // '') ne 'favourite' }
-                            values %{ $self->{_exposures} };
-    if ((!$all_dpls || !keys %$all_dpls) && $had_dpl_exposures) {
+    my $had_dpl_exposures = grep { ( $_->{source} // '' ) ne 'favourite' } values %{ $self->{_exposures} };
+    if ( ( !$all_dpls || !keys %$all_dpls ) && $had_dpl_exposures ) {
         $log->info('SlimPing: getDynamicPlaylists returned no data -- keeping previous registry, will retry');
+
         # Deliberately do NOT update _last_discover so the retry happens on
         # the next request instead of after the full discovery TTL.
         return;
@@ -334,9 +336,9 @@ sub _discover {
     my $unsatisfied_count   = 0;
     my $contextmenu_count   = 0;
 
-    if ($all_dpls && ref $all_dpls eq 'HASH' && keys %$all_dpls) {
+    if ( $all_dpls && ref $all_dpls eq 'HASH' && keys %$all_dpls ) {
         $raw_count = scalar keys %$all_dpls;
-        for my $pl_id (keys %$all_dpls) {
+        for my $pl_id ( keys %$all_dpls ) {
             my $pl_def = $all_dpls->{$pl_id};
             next unless $pl_def && $pl_def->{name};
 
@@ -346,12 +348,12 @@ sub _discover {
             # (Plugin.pm: '(!defined $enabled || $enabled) ? 1 : 0').
             my $enabled   = $dpl4_prefs->get("playlist_${pl_id}_enabled");
             my $favourite = $dpl4_prefs->get("playlist_${pl_id}_favourite");
-            if (defined $enabled && !$enabled) { $not_enabled_count++;   next; }
-            if (!$favourite)                   { $not_favourite_count++; next; }
+            if ( defined $enabled && !$enabled ) { $not_enabled_count++;   next; }
+            if ( !$favourite )                   { $not_favourite_count++; next; }
 
             # Context-menu playlists need a browse context (artist/album/etc.)
             # and cannot run standalone.
-            if (($pl_def->{menulisttype} // '') eq 'contextmenu') {
+            if ( ( $pl_def->{menulisttype} // '' ) eq 'contextmenu' ) {
                 $contextmenu_count++;
                 next;
             }
@@ -360,7 +362,7 @@ sub _discover {
             # (artist, album, genre, year selectors, etc.).  Playlists with
             # only list-type parameters that have a default (0 = All) work
             # headless -- the SQL will use the default value.
-            if ($self->_hasUnsatisfiedParameters($pl_def)) {
+            if ( $self->_hasUnsatisfiedParameters($pl_def) ) {
                 $unsatisfied_count++;
                 next;
             }
@@ -375,9 +377,9 @@ sub _discover {
                 sql         => '',
                 category    => $pl_def->{playlistcategory} // '',
                 source      => $pl_def->{defaultplaylist} ? 'default'
-                             : $pl_def->{customplaylist}   ? 'usercustom'
-                             : $pl_def->{dplcplaylist}     ? 'dplc'
-                             :                                'unknown',
+                : $pl_def->{customplaylist} ? 'usercustom'
+                : $pl_def->{dplcplaylist}   ? 'dplc'
+                :                             'unknown',
             };
         }
     }
@@ -390,7 +392,7 @@ sub _discover {
     # as dynamicplaylist:// URLs in the LMS favourites OPML.  Playlists
     # already exposed via the direct DPL-favourite path are skipped so the
     # same playlist never appears twice.
-    my %fav_eligible = $self->_discoverFavourites($all_dpls, $dpl4_prefs, \%eligible);
+    my %fav_eligible = $self->_discoverFavourites( $all_dpls, $dpl4_prefs, \%eligible );
     %eligible = ( %eligible, %fav_eligible );
 
     $self->{_exposures}     = \%eligible;
@@ -410,18 +412,15 @@ sub _discover {
         eligible       => scalar keys %eligible,
     };
 
-    $log->info(sprintf(
-        'SlimPing: DPL discovery -- %d raw from DPL4, %d skipped (not enabled), '
-      . '%d skipped (not favourited), %d skipped (context menu), '
-      . '%d skipped (has params), %d from LMS Favourites OPML => %d eligible total',
-        $raw_count,
-        $not_enabled_count,
-        $not_favourite_count,
-        $contextmenu_count,
-        $unsatisfied_count,
-        scalar keys %fav_eligible,
-        scalar keys %eligible
-    ));
+    $log->info(
+        sprintf(
+            'SlimPing: DPL discovery -- %d raw from DPL4, %d skipped (not enabled), '
+              . '%d skipped (not favourited), %d skipped (context menu), '
+              . '%d skipped (has params), %d from LMS Favourites OPML => %d eligible total',
+            $raw_count,         $not_enabled_count,        $not_favourite_count, $contextmenu_count,
+            $unsatisfied_count, scalar keys %fav_eligible, scalar keys %eligible
+        )
+    );
 }
 
 # Scan LMS Favourites OPML for dynamicplaylist:// URLs and return exposure
@@ -429,16 +428,15 @@ sub _discover {
 # $direct_eligible is the set already exposed via the DPL-favourite path;
 # favourites pointing at those playlists are skipped (dedupe).
 sub _discoverFavourites {
-    my ($self, $all_dpls, $dpl4_prefs, $direct_eligible) = @_;
+    my ( $self, $all_dpls, $dpl4_prefs, $direct_eligible ) = @_;
 
     my %eligible;
 
     # Internal IDs already exposed directly -- used to skip duplicate
     # Lyrion Favourites of the same playlist.
     my %seen_internal_ids =
-        map  { $_->{internal_id} => 1 }
-        grep { $_->{internal_id} }
-        values %{ $direct_eligible // {} };
+      map { $_->{internal_id} => 1 }
+      grep { $_->{internal_id} } values %{ $direct_eligible // {} };
 
     # Walk the LMS Favourites OPML tree looking for dynamicplaylist:// URLs.
     # Each favourite has a URL with embedded parameter values, e.g.:
@@ -447,7 +445,7 @@ sub _discoverFavourites {
         require Slim::Plugin::Favorites::OpmlFavorites;
         my $favs  = Slim::Plugin::Favorites::OpmlFavorites->new();
         my $level = $favs->toplevel();
-        $self->_walkFavourites($level, \%eligible, $all_dpls, $dpl4_prefs, \%seen_internal_ids);
+        $self->_walkFavourites( $level, \%eligible, $all_dpls, $dpl4_prefs, \%seen_internal_ids );
     };
     if ($@) {
         $log->warn("SlimPing: DynamicPlaylistBridge favourite discovery error: $@");
@@ -458,16 +456,17 @@ sub _discoverFavourites {
 
 # Recursively walk an OPML level and collect dynamicplaylist:// favourites.
 sub _walkFavourites {
-    my ($self, $items, $eligible, $all_dpls, $dpl4_prefs, $seen_internal_ids) = @_;
+    my ( $self, $items, $eligible, $all_dpls, $dpl4_prefs, $seen_internal_ids ) = @_;
 
     return unless $items && ref $items eq 'ARRAY';
 
     for my $item (@$items) {
         my $url = $item->{URL} // $item->{url} // '';
 
-        if ($url =~ m{^dynamicplaylist://}) {
+        if ( $url =~ m{^dynamicplaylist://} ) {
+
             # Parse: dynamicplaylist://<playlist_id>?<query_string>
-            my ($pl_id, $query) = ($url =~ m{^dynamicplaylist://([^?]+)(?:\?(.+))?$});
+            my ( $pl_id, $query ) = ( $url =~ m{^dynamicplaylist://([^?]+)(?:\?(.+))?$} );
             next unless $pl_id;
 
             # Verify the referenced DPL playlist is enabled in DPL4.
@@ -479,12 +478,13 @@ sub _walkFavourites {
             # Parse query parameters into the format DPL4 expects
             my %params;
             if ($query) {
-                for my $pair (split(/&/, $query)) {
-                    my ($k, $v) = split(/=/, $pair, 2);
+                for my $pair ( split( /&/, $query ) ) {
+                    my ( $k, $v ) = split( /=/, $pair, 2 );
                     next unless defined $k;
                     $v //= '';
+
                     # Convert p1=1 to PlaylistParameter1 => { id => 1, value => 1 }
-                    if ($k =~ /^p(\d+)$/) {
+                    if ( $k =~ /^p(\d+)$/ ) {
                         $params{"PlaylistParameter${1}"} = { id => int($1), value => $v };
                     }
                 }
@@ -499,14 +499,14 @@ sub _walkFavourites {
             # would steal the second list element, assigning the literal string
             # "default"/"usercustom"/"dplc" to $raw_filename instead of the
             # actual filename.
-            my ($dpl_prefix, $raw_filename) = ($pl_id =~ /^(dpl(?:default|usercustom|dplc)_)?(.+)$/);
-            my $dpl_playlist_id = $pl_id;           # e.g. dpldefault_albums_061_mostplayed_avg
-            my $internal_id     = $raw_filename // $pl_id;  # e.g. albums_061_mostplayed_avg
+            my ( $dpl_prefix, $raw_filename ) = ( $pl_id =~ /^(dpl(?:default|usercustom|dplc)_)?(.+)$/ );
+            my $dpl_playlist_id = $pl_id;                     # e.g. dpldefault_albums_061_mostplayed_avg
+            my $internal_id     = $raw_filename // $pl_id;    # e.g. albums_061_mostplayed_avg
 
             # If the raw filename exists in DPL4's registry, use its canonical id
-            for my $dpl_key (keys %$all_dpls) {
+            for my $dpl_key ( keys %$all_dpls ) {
                 my $def = $all_dpls->{$dpl_key};
-                if (($def->{id} // '') eq $internal_id) {
+                if ( ( $def->{id} // '' ) eq $internal_id ) {
                     $internal_id = $def->{id};
                     last;
                 }
@@ -514,7 +514,7 @@ sub _walkFavourites {
 
             # Build a unique exposure key from the playlist ID and parameters
             require Digest::SHA;
-            my $key = 'fav_' . $internal_id . '_' . substr(Digest::SHA::sha1_hex($url), 0, 8);
+            my $key = 'fav_' . $internal_id . '_' . substr( Digest::SHA::sha1_hex($url), 0, 8 );
 
             # Get the display name from the favourite's text attribute
             my $name = $item->{text} || $item->{name} || $pl_id;
@@ -524,25 +524,25 @@ sub _walkFavourites {
             next if $seen_internal_ids->{$internal_id};
 
             $eligible->{$key} = {
-                name             => $name,
-                internal_id      => $internal_id,
-                dpl_playlist_id  => $dpl_playlist_id,
-                sql              => '',
-                category         => 'Favourites',
-                source           => 'favourite',
-                params           => \%params,
+                name            => $name,
+                internal_id     => $internal_id,
+                dpl_playlist_id => $dpl_playlist_id,
+                sql             => '',
+                category        => 'Favourites',
+                source          => 'favourite',
+                params          => \%params,
             };
         }
 
         # Recurse into subfolders
         my $children = $item->{items} || $item->{children} || [];
-        $self->_walkFavourites($children, $eligible, $all_dpls, $dpl4_prefs, $seen_internal_ids);
+        $self->_walkFavourites( $children, $eligible, $all_dpls, $dpl4_prefs, $seen_internal_ids );
     }
 }
 
 sub _discoverIfStale {
     my $self = shift;
-    if ((time() - $self->{_last_discover}) > DISCOVERY_TTL) {
+    if ( ( time() - $self->{_last_discover} ) > DISCOVERY_TTL ) {
         $self->_discover();
     }
 }
@@ -555,12 +555,12 @@ sub _discoverIfStale {
 # (artist, album, genre, year, multiple*, custom*, *contains, ...) needs a
 # user selection and cannot run headless.
 sub _hasUnsatisfiedParameters {
-    my ($self, $pl_def) = @_;
+    my ( $self, $pl_def ) = @_;
 
     my $params = $pl_def->{parameters};
     return 0 unless $params && ref $params eq 'HASH' && keys %$params;
 
-    for my $pk (keys %$params) {
+    for my $pk ( keys %$params ) {
         my $type = $params->{$pk}{type} // '';
         return 1 unless $type eq 'list';
     }
@@ -575,45 +575,50 @@ sub _hasUnsatisfiedParameters {
 # stale hits (e.g. a client syncing all playlists at once) from queuing
 # duplicate regenerations of the same exposure.
 sub _scheduleBackgroundRefresh {
-    my ($self, $exposure_id, $exp) = @_;
+    my ( $self, $exposure_id, $exp ) = @_;
 
     return if $self->{_refreshing}{$exposure_id};
     $self->{_refreshing}{$exposure_id} = 1;
 
     require Slim::Utils::Timers;
-    Slim::Utils::Timers::setTimer( undef, Time::HiRes::time(), sub {
-        my $t0 = Time::HiRes::time();
-        my $ok = eval { $self->_materialise($exposure_id, $exp) };
-        if ($@) {
-            $log->warn("SlimPing: background DPL refresh failed for '$exposure_id': $@");
+    Slim::Utils::Timers::setTimer(
+        undef,
+        Time::HiRes::time(),
+        sub {
+            my $t0 = Time::HiRes::time();
+            my $ok = eval { $self->_materialise( $exposure_id, $exp ) };
+            if ($@) {
+                $log->warn("SlimPing: background DPL refresh failed for '$exposure_id': $@");
+            }
+            elsif ($ok) {
+                $log->info(
+                    sprintf(
+                        "SlimPing: background DPL refresh for '%s' complete (%.1fs)",
+                        $exposure_id, Time::HiRes::time() - $t0
+                    )
+                );
+            }
+            delete $self->{_refreshing}{$exposure_id};
         }
-        elsif ($ok) {
-            $log->info(sprintf(
-                "SlimPing: background DPL refresh for '%s' complete (%.1fs)",
-                $exposure_id, Time::HiRes::time() - $t0
-            ));
-        }
-        delete $self->{_refreshing}{$exposure_id};
-    } );
+    );
 }
 
 sub _materialise {
-    my ($self, $exposure_id, $exp) = @_;
+    my ( $self, $exposure_id, $exp ) = @_;
 
     my $dpl4_package = $self->{_dpl4_package};
     return undef unless $dpl4_package;
 
     # Build stub client
-    my $stub_client = bless {
-        id => 'ssp_dpl_bridge',
-    }, 'Plugins::SlimPing::Core::DynamicPlaylistBridge::StubClient';
+    my $stub_client = bless { id => 'ssp_dpl_bridge', }, 'Plugins::SlimPing::Core::DynamicPlaylistBridge::StubClient';
 
     my $dpl4_prefs = preferences('plugin.dynamicplaylists4');
+
     # Use SlimPing's own seed size pref rather than DPL4's playback-oriented
     # max_number_of_unplayed_tracks.  DPL4's default of 20 is designed for
     # continuous refill during playback; OpenSubsonic clients see a static
     # list and benefit from a larger initial seed.
-    my $max_tracks = $prefs->get('dpl_seed_size') // 100;
+    my $max_tracks = $prefs->get('dpl_seed_size')                      // 100;
     my $min_tracks = $dpl4_prefs->get('min_number_of_unplayed_tracks') // 5;
 
     # Collect saved parameter values in the format DPL4 expects — each value
@@ -625,16 +630,16 @@ sub _materialise {
 
     # Path A: favourites have pre-configured parameters stored in the exposure
     # entry (parsed from the dynamicplaylist:// URL in LMS Favourites OPML).
-    if ($exp->{params} && ref $exp->{params} eq 'HASH') {
+    if ( $exp->{params} && ref $exp->{params} eq 'HASH' ) {
         %parameters = %{ $exp->{params} };
     }
 
     # Path B: overlay any additional saved parameter values from DPL4 prefs.
     # Pref-stored params take precedence over favourite URL params when both
     # exist, since the user may have edited the favourite since saving it.
-    for my $num (1 .. 20) {
+    for my $num ( 1 .. 20 ) {
         my $val = $dpl4_prefs->get("playlist_${exposure_id}_parameter_${num}");
-        if (defined $val && length $val) {
+        if ( defined $val && length $val ) {
             $parameters{"PlaylistParameter${num}"} = { id => $num, value => $val };
         }
     }
@@ -649,22 +654,17 @@ sub _materialise {
     #   name — display name (cosmetic, used in log messages).
     my $dpl_playlist_def = {
         dynamicplaylistid => $exp->{dpl_playlist_id} // $exposure_id,
-        id                => $exp->{internal_id} // $exposure_id,
+        id                => $exp->{internal_id}     // $exposure_id,
         name              => $exp->{name},
     };
 
     # Call DPL4's API — function-call syntax because getNextDynamicPlaylistTracks
     # expects positional args, not OO method invocation.
-    my ($track_ids, $track_info);
+    my ( $track_ids, $track_info );
     eval {
         no strict 'refs';
-        ($track_ids, $track_info) = &{ $dpl4_package . '::getNextDynamicPlaylistTracks' }(
-            $stub_client,
-            $dpl_playlist_def,
-            $max_tracks,
-            0,
-            \%parameters,
-        );
+        ( $track_ids, $track_info ) = &{ $dpl4_package . '::getNextDynamicPlaylistTracks' }
+          ( $stub_client, $dpl_playlist_def, $max_tracks, 0, \%parameters, );
     };
 
     if ($@) {
@@ -682,21 +682,22 @@ sub _materialise {
     my %url_to_tid;
     my %tid_to_secs;
     my %by_id;
-    my @all_tracks = $schema->search('Track', { 'me.id' => { -in => $track_ids } })->all;
+    my @all_tracks = $schema->search( 'Track', { 'me.id' => { -in => $track_ids } } )->all;
     $by_id{ $_->id } = $_ for @all_tracks;
+
     # Preserve DPL4's ordering by iterating the original ID list
     for my $tid (@$track_ids) {
         my $track = $by_id{$tid} or next;
         push @track_urls, $track->url;
         $url_to_tid{ $track->url } = $tid;
-        $tid_to_secs{$tid} = int($track->secs // 0);
+        $tid_to_secs{$tid} = int( $track->secs // 0 );
     }
 
     # Filter against dedup history
-    my $fresh_urls = $self->_filterHistory($exposure_id, \@track_urls);
+    my $fresh_urls = $self->_filterHistory( $exposure_id, \@track_urls );
 
     # If insufficient tracks after filtering, clear history and retry
-    if (@$fresh_urls < $min_tracks) {
+    if ( @$fresh_urls < $min_tracks ) {
         $self->_clearHistory($exposure_id);
         $fresh_urls = \@track_urls;
     }
@@ -709,7 +710,7 @@ sub _materialise {
     $filtered_duration += $tid_to_secs{$_} for @filtered_ids;
 
     # Record in history
-    $self->_recordHistory($exposure_id, $fresh_urls);
+    $self->_recordHistory( $exposure_id, $fresh_urls );
 
     my $result = {
         tracks       => \@filtered_ids,
@@ -719,7 +720,7 @@ sub _materialise {
     };
 
     # Cache
-    $self->{_cache}->set('sq_dpl_materialised_' . $exposure_id, $result, $prefs->get('dpl_cache_ttl_seconds') // 300);
+    $self->{_cache}->set( 'sq_dpl_materialised_' . $exposure_id, $result, $prefs->get('dpl_cache_ttl_seconds') // 300 );
 
     return $result;
 }
@@ -727,27 +728,26 @@ sub _materialise {
 # --- Internal: Track Resolution & Shaping ---
 
 sub _resolveAndShape {
-    my ($self, $track_ids) = @_;
+    my ( $self, $track_ids ) = @_;
 
     require Plugins::SlimPing::Core::LibraryMapper;
     require Plugins::SlimPing::Core::Container;
 
-    my $mapper  = Plugins::SlimPing::Core::Container->get('library_mapper');
-    my $schema  = Slim::Schema->connect();
+    my $mapper = Plugins::SlimPing::Core::Container->get('library_mapper');
+    my $schema = Slim::Schema->connect();
 
     # Collect track objects with a single batch query, preserving the
     # materialised ordering.  Per-ID find() calls were an N+1 hotspot at
     # seed sizes of 100+.
     my %by_id;
-    $by_id{ $_->id } = $_
-        for $schema->search('Track', { 'me.id' => { -in => $track_ids } })->all;
+    $by_id{ $_->id } = $_ for $schema->search( 'Track', { 'me.id' => { -in => $track_ids } } )->all;
     my @tracks = grep { defined } map { $by_id{$_} } @$track_ids;
 
     return () unless @tracks;
 
     # Batch fetch album/artist/genre data via the facade (same pattern as PlaylistStore)
-    my $album_data  = $mapper->batchFetchAlbumDataForTracks(\@tracks);
-    my $genre_data  = $mapper->batchFetchTrackGenres(\@tracks);
+    my $album_data = $mapper->batchFetchAlbumDataForTracks( \@tracks );
+    my $genre_data = $mapper->batchFetchTrackGenres( \@tracks );
 
     # batchFetchAlbumArtists expects album IDs, not track objects
     my %album_ids;
@@ -755,10 +755,7 @@ sub _resolveAndShape {
         my $aid = $t->get_column('album');
         $album_ids{$aid} = 1 if defined $aid;
     }
-    my $artist_data = $mapper->batchFetchAlbumArtists(
-        $schema->dbh,
-        [ keys %album_ids ]
-    );
+    my $artist_data = $mapper->batchFetchAlbumArtists( $schema->dbh, [ keys %album_ids ] );
 
     # Shape each track.  shapeTrack expects positional args:
     #   ($self, $track, $genre_name, $album_lookup, $hints)
@@ -767,9 +764,9 @@ sub _resolveAndShape {
     for my $track (@tracks) {
         push @entries, $mapper->shapeTrack(
             $track,
-            undef,          # $genre_name — not needed; batch-fetched
-            undef,          # $album_lookup — not needed; batch-fetched
-            {               # $hints
+            undef,    # $genre_name — not needed; batch-fetched
+            undef,    # $album_lookup — not needed; batch-fetched
+            {         # $hints
                 album_hints  => $album_data,
                 genre_hints  => $genre_data,
                 artist_hints => $artist_data,
@@ -783,15 +780,15 @@ sub _resolveAndShape {
 # --- Internal: Dedup History ---
 
 sub _filterHistory {
-    my ($self, $exposure_id, $track_urls) = @_;
+    my ( $self, $exposure_id, $track_urls ) = @_;
 
     my $schema = Plugins::SlimPing::Schema->connect();
     my $dbh    = $schema->storage->dbh;
 
     my $existing = {};
-    my $sth = $dbh->prepare('SELECT track_url FROM sq_dynamic_playlist_history WHERE exposure_id = ?');
+    my $sth      = $dbh->prepare('SELECT track_url FROM sq_dynamic_playlist_history WHERE exposure_id = ?');
     $sth->execute($exposure_id);
-    while (my ($url) = $sth->fetchrow_array) {
+    while ( my ($url) = $sth->fetchrow_array ) {
         $existing->{$url} = 1;
     }
 
@@ -800,30 +797,30 @@ sub _filterHistory {
 }
 
 sub _recordHistory {
-    my ($self, $exposure_id, $track_urls) = @_;
+    my ( $self, $exposure_id, $track_urls ) = @_;
 
     my $schema = Plugins::SlimPing::Schema->connect();
     my $dbh    = $schema->storage->dbh;
     my $now    = time();
 
     my $sth = $dbh->prepare(
-        'INSERT OR IGNORE INTO sq_dynamic_playlist_history (exposure_id, track_url, added) VALUES (?, ?, ?)'
-    );
+        'INSERT OR IGNORE INTO sq_dynamic_playlist_history (exposure_id, track_url, added) VALUES (?, ?, ?)');
 
     for my $url (@$track_urls) {
-        $sth->execute($exposure_id, $url, $now);
+        $sth->execute( $exposure_id, $url, $now );
     }
 }
 
 sub _clearHistory {
-    my ($self, $exposure_id) = @_;
+    my ( $self, $exposure_id ) = @_;
 
     my $schema = Plugins::SlimPing::Schema->connect();
     my $dbh    = $schema->storage->dbh;
 
     if ($exposure_id) {
-        $dbh->do('DELETE FROM sq_dynamic_playlist_history WHERE exposure_id = ?', undef, $exposure_id);
-    } else {
+        $dbh->do( 'DELETE FROM sq_dynamic_playlist_history WHERE exposure_id = ?', undef, $exposure_id );
+    }
+    else {
         $dbh->do('DELETE FROM sq_dynamic_playlist_history');
     }
 }
@@ -831,7 +828,7 @@ sub _clearHistory {
 # --- Internal: Permissions ---
 
 sub _userHasAccess {
-    my ($self, $username) = @_;
+    my ( $self, $username ) = @_;
     return 1 unless defined $username && length $username;
     my $val = $prefs->get("sq_dpl_access_${username}");
     return 1 unless defined $val;    # Default: access
@@ -840,6 +837,7 @@ sub _userHasAccess {
 
 sub _allowedUserList {
     my $self = shift;
+
     # Return list of usernames with sq_dpl_access enabled.
     # Since prefs are flat, we iterate user records from Auth::Manager.
     require Plugins::SlimPing::Core::Container;
@@ -858,11 +856,11 @@ sub _allowedUserList {
 # --- Internal: Helpers ---
 
 sub _exposureCreatedAt {
-    my ($self, $exposure_id) = @_;
+    my ( $self, $exposure_id ) = @_;
     my $ts = $prefs->get("dpl_exposure_created_${exposure_id}");
     unless ($ts) {
         $ts = time();
-        $prefs->set("dpl_exposure_created_${exposure_id}", $ts);
+        $prefs->set( "dpl_exposure_created_${exposure_id}", $ts );
     }
     return $ts;
 }
@@ -873,11 +871,7 @@ sub _iso8601 {
     my ($epoch) = @_;
     return '' unless defined $epoch;
     my @lt = gmtime($epoch);
-    return sprintf(
-        '%04d-%02d-%02dT%02d:%02d:%02dZ',
-        $lt[5] + 1900, $lt[4] + 1, $lt[3],
-        $lt[2], $lt[1], $lt[0]
-    );
+    return sprintf( '%04d-%02d-%02dT%02d:%02d:%02dZ', $lt[5] + 1900, $lt[4] + 1, $lt[3], $lt[2], $lt[1], $lt[0] );
 }
 
 # --- Stub Client ---
@@ -915,10 +909,10 @@ sub pluginData {
 # Stub out methods that LMS or DPL4 may call on a real client but that
 # are irrelevant for our headless bridge.  All return sensible defaults.
 sub hasDigitalIn { 0 }
-sub power         { 0 }
-sub isPlaying     { 0 }
-sub controller    { return $_[0] }  # return self
+sub power        { 0 }
+sub isPlaying    { 0 }
+sub controller   { return $_[0] }    # return self
 
-1;  # StubClient package return
+1;                                   # StubClient package return
 
-1;  # DynamicPlaylistBridge package return
+1;                                   # DynamicPlaylistBridge package return

@@ -37,37 +37,36 @@ my $_stub = sub {
 # Endpoints permanently stubbed because their functionality belongs
 # exclusively in the plugin settings UI or core LMS functionality.
 my @PERMANENTLY_STUBBED = qw(
-    getUsers createUser updateUser deleteUser changePassword getAvatar
-    createInternetRadioStation
-    updateInternetRadioStation deleteInternetRadioStation
+  getUsers createUser updateUser deleteUser changePassword getAvatar
+  createInternetRadioStation
+  updateInternetRadioStation deleteInternetRadioStation
 );
 
 my @OLD_SEARCH = qw(
-    search
+  search
 );
 
 my @CHAT = qw(
-    getChatMessages addChatMessage
+  getChatMessages addChatMessage
 );
 
 # Podcast and video endpoints are stubbed for now pending a decision on whether to implement them.
 # They are low priority and require a lot of work.
 my @PODCAST = qw(
-    getPodcasts createPodcastChannel deletePodcastChannel getPodcastEpisode
-    refreshPodcasts downloadPodcastEpisode deletePodcastEpisode getNewestPodcasts
+  getPodcasts createPodcastChannel deletePodcastChannel getPodcastEpisode
+  refreshPodcasts downloadPodcastEpisode deletePodcastEpisode getNewestPodcasts
 );
 
 # Endpoints that require capabilities no LMS plugin provides (e.g. audio
 # fingerprint analysis, video support, HLS streaming).
 my @PERMANENTLY_UNSUPPORTED = qw(
-    getSonicSimilarTracks findSonicPath
-    getVideos getVideoInfo hls getCaptions    
+  getVideos getVideoInfo hls getCaptions
 );
 
 sub registerHandlers {
     my $class = shift;
-    for my $endpoint (@PERMANENTLY_STUBBED, @OLD_SEARCH, @CHAT, @PODCAST, @PERMANENTLY_UNSUPPORTED) {
-        Plugins::SlimPing::API::Router->registerHandler($endpoint, $_stub);
+    for my $endpoint ( @PERMANENTLY_STUBBED, @OLD_SEARCH, @CHAT, @PODCAST, @PERMANENTLY_UNSUPPORTED ) {
+        Plugins::SlimPing::API::Router->registerHandler( $endpoint, $_stub );
     }
 }
 

@@ -33,9 +33,9 @@ use Plugins::SlimPing::API::Router;
 
 sub registerHandlers {
     my $class = shift;
-    Plugins::SlimPing::API::Router->registerHandler('ping',                      \&ping);
-    Plugins::SlimPing::API::Router->registerHandler('getLicense',                \&getLicense);
-    Plugins::SlimPing::API::Router->registerHandler('getOpenSubsonicExtensions', \&getOpenSubsonicExtensions);
+    Plugins::SlimPing::API::Router->registerHandler( 'ping',                      \&ping );
+    Plugins::SlimPing::API::Router->registerHandler( 'getLicense',                \&getLicense );
+    Plugins::SlimPing::API::Router->registerHandler( 'getOpenSubsonicExtensions', \&getOpenSubsonicExtensions );
 }
 
 sub ping {
@@ -47,6 +47,7 @@ sub getLicense {
         license => {
             valid => \1,
             email => '',
+
             # OpenSubsonic license spec includes optional licenseExpires and
             # trialExpires fields.  SlimPing is a free plugin with no licensing
             # model, so these are correctly omitted per spec rule.
@@ -62,7 +63,7 @@ sub getOpenSubsonicExtensions {
             { name => 'jukeboxControl',       versions => [1] },
             { name => 'savePlayQueue',        versions => [1] },
             { name => 'indexBasedQueue',      versions => [1] },
-            { name => 'songLyrics',           versions => [1, 2] },
+            { name => 'songLyrics',           versions => [ 1, 2 ] },
             { name => 'songRating',           versions => [1] },
             { name => 'star',                 versions => [1] },
             { name => 'coverArtResize',       versions => [1] },

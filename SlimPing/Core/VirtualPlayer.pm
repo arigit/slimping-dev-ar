@@ -80,7 +80,12 @@ use constant MAX_OUTPUT_BITRATE => 320;
 sub _governRemoteStream {
     my ($args) = @_;
     return unless $args->{is_remote};
-    unless ( Plugins::SlimPing::Core::VirtualPlayer::RemoteGovernor::_checkRemoteRateLimit( $args->{username}, $args->{client_name} ) ) {
+    unless (
+        Plugins::SlimPing::Core::VirtualPlayer::RemoteGovernor::_checkRemoteRateLimit(
+            $args->{username}, $args->{client_name}
+        )
+      )
+    {
         return -1;
     }
     unless ( Plugins::SlimPing::Core::VirtualPlayer::RemoteGovernor::_acquireRemoteSlot( $args->{_address} ) ) {
@@ -106,7 +111,7 @@ sub _buildPlayer {
 
     my $client = Plugins::SlimPing::Core::StreamingClient->new( $address, $paddr, $args->{httpClient} );
     $client->init();
-    $client->name( "SlimPing: $args->{client_name} ($args->{sq_id})" );
+    $client->name("SlimPing: $args->{client_name} ($args->{sq_id})");
     $client->_setModel( _clientModel( $args->{client_name} ) );
     $client->_setLiveStream( $args->{is_live_stream} );
 
@@ -117,14 +122,15 @@ sub _buildPlayer {
 sub _commitBitratePref {
     my ( $client, $output_br_kbps ) = @_;
     return unless $output_br_kbps > 0;
-    my $target_br = $output_br_kbps == MAX_OUTPUT_BITRATE
+    my $target_br =
+      $output_br_kbps == MAX_OUTPUT_BITRATE
       ? MAX_OUTPUT_BITRATE - 1
       : $output_br_kbps;
     $server_prefs->client($client)->set( 'transcodeBitrate', $target_br );
 }
 
 sub _writeResponseHeaders {
-    my ($args) = @_;
+    my ($args)           = @_;
     my $response         = $args->{response};
     my $output_br_kbps   = $args->{output_br_kbps};
     my $size_bytes       = $args->{size_bytes};
@@ -149,6 +155,7 @@ sub _writeResponseHeaders {
         }
         else {
             $response->code(200);
+
             # Let the caller control Accept-Ranges -- AudioDelivery sets
             # 'none' for transcode, 'bytes' for direct serve.
             $response->header( 'Content-Length' => $size_bytes );
@@ -172,12 +179,12 @@ sub _writeResponseHeaders {
             $safe_name =~ s/[\x00-\x1f\x7f]//g;
             $response->header( 'icy-name' => $safe_name ) if length $safe_name;
         }
-        $response->header( 'icy-br'          => $output_br_kbps )         if $output_br_kbps;
-        $response->header( 'icy-genre'       => $args->{meta}{genre} )   if $args->{meta} && $args->{meta}{genre};
-        $response->header( 'icy-url'         => $args->{icy_url} )       if $args->{icy_url};
-        $response->header( 'icy-description' => $args->{icy_desc} )      if $args->{icy_desc};
-        $response->header( 'icy-metaint'     => 32768 )                  if $args->{enable_icy};
-        $response->header( 'icy-year'        => $args->{meta}{year} )    if $args->{meta} && $args->{meta}{year};
+        $response->header( 'icy-br'          => $output_br_kbps )      if $output_br_kbps;
+        $response->header( 'icy-genre'       => $args->{meta}{genre} ) if $args->{meta} && $args->{meta}{genre};
+        $response->header( 'icy-url'         => $args->{icy_url} )     if $args->{icy_url};
+        $response->header( 'icy-description' => $args->{icy_desc} )    if $args->{icy_desc};
+        $response->header( 'icy-metaint'     => 32768 )                if $args->{enable_icy};
+        $response->header( 'icy-year'        => $args->{meta}{year} )  if $args->{meta} && $args->{meta}{year};
     }
 
     if ($is_download) {
@@ -223,8 +230,10 @@ sub _startPlayback {
     if ($enable_icy) {
         $Slim::Web::HTTP::sendMetaData{$httpClient}  = 1;
         $Slim::Web::HTTP::metaDataBytes{$httpClient} = -length($headers);
-    } else {
+    }
+    else {
         $Slim::Web::HTTP::sendMetaData{$httpClient} = 0;
+
         # The pool-check block in radioStream may have leaked icy-metaint
         # onto the response object.  Strip it so the client does not
         # expect ICY blocks that will never arrive.
@@ -266,17 +275,11 @@ sub _startPlayback {
                 $client->id(), $time_offset, $source_url
             )
         );
-        $client->execute(
-            [ 'playlist', 'jump', 0, 0, 0, { timeOffset => $time_offset } ] );
+        $client->execute( [ 'playlist', 'jump', 0, 0, 0, { timeOffset => $time_offset } ] );
     }
     else {
-        $log->debug(
-            sprintf(
-                'SlimPing: play without seek: client=%s source=%s',
-                $client->id(), $source_url
-            )
-        );
-        $client->execute( [ 'play' ] );
+        $log->debug( sprintf( 'SlimPing: play without seek: client=%s source=%s', $client->id(), $source_url ) );
+        $client->execute( ['play'] );
     }
 
     # Pre-seed ICY stream title with "<Station> - Connecting..." so ICY-capable
@@ -285,8 +288,7 @@ sub _startPlayback {
     # stream title arrives from the station.
     if ( $is_live_stream && $enable_icy && $args->{stream_name} ) {
         require Slim::Music::Info;
-        Slim::Music::Info::setCurrentTitle(
-            $source_url, $args->{stream_name} . ' - Connecting...' );
+        Slim::Music::Info::setCurrentTitle( $source_url, $args->{stream_name} . ' - Connecting...' );
     }
 
     Slim::Web::HTTP::addStreamingResponse( $httpClient, $headers );
@@ -304,9 +306,9 @@ sub _startPlayback {
     $log->debug(
         sprintf(
             'SlimPing: pipeline headers id=%s client=%s icy_req=%d cl=%s ct=%s out_br=%d size=%s remote=%d live=%d',
-            $sq_id, $client_name, $enable_icy, ( $response->header('Content-Length') // 'none' ),
+            $sq_id,       $client_name, $enable_icy, ( $response->header('Content-Length') // 'none' ),
             $output_mime, $output_br_kbps, ( defined $size_bytes ? $size_bytes : 'unknown' ),
-            $is_remote, $is_live_stream
+            $is_remote,   $is_live_stream
         )
     );
 }
@@ -348,13 +350,13 @@ sub streamViaPipeline {
 
     Plugins::SlimPing::Core::VirtualPlayer::PlayerCleanup::_registerCleanupHandler();
 
-    $args{client_name}      ||= 'unknown';
-    $args{format}           ||= '';
-    $args{time_offset}      //= 0;
-    $args{output_br_kbps}   //= 0;
-    $args{duration_s}       //= 0;
-    $args{is_live_stream}   //= 0;
-    $args{username}         ||= '_anon';
+    $args{client_name} ||= 'unknown';
+    $args{format}      ||= '';
+    $args{time_offset}    //= 0;
+    $args{output_br_kbps} //= 0;
+    $args{duration_s}     //= 0;
+    $args{is_live_stream} //= 0;
+    $args{username} ||= '_anon';
     $args{cue_offset_bytes} //= 0;
     $args{cue_duration_s}   //= 0;
 
@@ -362,16 +364,14 @@ sub streamViaPipeline {
     $args{enable_icy} = $args{is_live_stream} && $request && $request->header('Icy-MetaData') ? 1 : 0;
 
     # Apply client-specific quirks for this stream.
-    if ( $request ) {
-        my $ua = $request->header('User-Agent') || '';
-        my $quirks = Plugins::SlimPing::Core::ClientQuirks->quirks_for_client(
-            $ua, $args{client_name}
-        );
+    if ($request) {
+        my $ua     = $request->header('User-Agent') || '';
+        my $quirks = Plugins::SlimPing::Core::ClientQuirks->quirks_for_client( $ua, $args{client_name} );
         if ( defined $quirks->{enable_icy} && !$quirks->{enable_icy} ) {
             $args{enable_icy} = 0;
             $log->info("SlimPing: ICY disabled for $args{client_name} client");
         }
-        $args{_client_quirks} = $quirks;   # carry through to _startPlayback
+        $args{_client_quirks} = $quirks;    # carry through to _startPlayback
     }
     $args{want_cl} = $args{want_cl} ? 1 : 0;
 
@@ -390,10 +390,8 @@ sub streamViaPipeline {
     # Register this stream for cache population (downloads do not populate).
     require Plugins::SlimPing::Core::TranscodeCache;
     unless ( $args{is_download} ) {
-        Plugins::SlimPing::Core::TranscodeCache->getInstance->registerStream(
-            $client->id, $args{sq_id}, $args{output_br_kbps},
-            $args{size_bytes} // 0
-        );
+        Plugins::SlimPing::Core::TranscodeCache->getInstance->registerStream( $client->id, $args{sq_id},
+            $args{output_br_kbps}, $args{size_bytes} // 0 );
     }
 
     _registerPoolPrimary( $client, \%args );

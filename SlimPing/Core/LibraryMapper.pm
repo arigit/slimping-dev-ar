@@ -56,6 +56,13 @@ my $_instance;
 # Current request's authenticated username.  Set by the Router after auth so
 # shapeTrack/shapeAlbum/shapeArtist can annotate responses with the calling
 # user's stars and ratings without every handler passing username explicitly.
+#
+# INVARIANT: this is never cleared between requests, so Router::dispatch MUST
+# set it unconditionally on every dispatch -- including the _anon sentinel for
+# unauthenticated endpoints.  A conditional setter would leave the previous
+# request's value in place and leak one user's context into another's request.
+# Prefer passing state through $args (see resolveLibraryFilter) over adding new
+# request-scoped globals here.
 my $_request_username;
 
 # Current request's base URL (scheme + host).  Set by the Router after auth so
@@ -68,17 +75,17 @@ my $_request_base_url;
 my $_mai_available;
 
 sub setRequestUser {
-    my ($class, $username) = @_;
+    my ( $class, $username ) = @_;
     $_request_username = $username;
 }
 
 sub setRequestBaseUrl {
-    my ($class, $base_url) = @_;
+    my ( $class, $base_url ) = @_;
     $_request_base_url = $base_url;
 }
 
 sub setMaiAvailable {
-    my ($class, $available) = @_;
+    my ( $class, $available ) = @_;
     $_mai_available = $available;
 }
 
@@ -87,7 +94,7 @@ sub setMaiAvailable {
 sub _requestUsername { return $_request_username; }
 sub _requestBaseUrl  { return $_request_base_url; }
 sub _maiAvailable    { return $_mai_available; }
-sub maiAvailable     { return $_mai_available; }  # public accessor for non-sub-module callers
+sub maiAvailable     { return $_mai_available; }      # public accessor for non-sub-module callers
 
 # Strip surrounding whitespace and quotes from a search query string.
 # Some clients (e.g. Symfonium) quote-wrap empty search terms; an empty-or-blank
@@ -104,22 +111,22 @@ sub cleanSearchQuery {
 # LibraryMapper::Streaming, which owns the radio URL/icon caches.
 sub getRadioIconUrl {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Streaming::getRadioIconUrl($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Streaming::getRadioIconUrl( $self, @_ );
 }
 
 sub getRadioName {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Streaming::getRadioName($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Streaming::getRadioName( $self, @_ );
 }
 
 # Prefix map: internal type name => sq_ prefix character sequence
 my %_prefix = (
-    track    => 'tr',
-    album    => 'al',
-    artist   => 'ar',
-    folder   => 'f',
-    playlist => 'pl',
-    genre    => 'g',
+    track            => 'tr',
+    album            => 'al',
+    artist           => 'ar',
+    folder           => 'f',
+    playlist         => 'pl',
+    genre            => 'g',
     radio            => 'rd',
     dynamic_playlist => 'dpl',
 );
@@ -147,12 +154,13 @@ sub getInstance {
 # --- ID scheme ----------------------------------------------------------------
 
 sub encodeId {
-    my ($class_or_self, $type, $raw_id) = @_;
+    my ( $class_or_self, $type, $raw_id ) = @_;
     my $pfx = $_prefix{$type};
     unless ($pfx) {
         $log->error("SlimPing: encodeId called with unknown type '$type'");
         return undef;
     }
+
     # URL-based tracks (internet radio stations in playlists) produce a
     # URL-derived hash that Perl sees as a signed 64-bit integer — the
     # high bit makes it negative.  abs() normalises it without breaking
@@ -162,72 +170,115 @@ sub encodeId {
 }
 
 sub decodeId {
-    my ($class_or_self, $sq_id) = @_;
-    return (undef, undef) unless defined $sq_id;
+    my ( $class_or_self, $sq_id ) = @_;
+    return ( undef, undef ) unless defined $sq_id;
+
     # Raw ID is \w+ to accommodate non-numeric IDs (e.g. radio station identifiers
     # in future phases) without breaking the current numeric database-ID use case.
-    my ($pfx, $raw) = ($sq_id =~ /^sq_([a-z]+)_(\w+)$/);
-    return (undef, undef) unless defined $pfx;
+    my ( $pfx, $raw ) = ( $sq_id =~ /^sq_([a-z]+)_(\w+)$/ );
+    return ( undef, undef ) unless defined $pfx;
     my $type = $_prefix_reverse{$pfx};
-    return (undef, undef) unless defined $type;
+    return ( undef, undef ) unless defined $type;
+
     # Coerce to number only when the raw value is purely numeric (DB row IDs).
-    my $id = ($raw =~ /^\d+$/) ? $raw + 0 : $raw;
-    return ($type, $id);
+    my $id = ( $raw =~ /^\d+$/ ) ? $raw + 0 : $raw;
+    return ( $type, $id );
 }
 
-# Decode a musicFolderId HTTP parameter into a raw LMS library ID, applying
-# exposure-mode checks.  Returns undef for "All Music" (folder 0), missing,
-# invalid, or unexposed folder IDs -- callers treat undef as no filter.
+# Classify the musicFolderId request parameter.  Returns one of:
 #
-# Accepts both integer IDs (the canonical format per the OpenSubsonic spec) and
-# legacy sq_f_* strings so clients that cached the old format continue to work.
-sub decodeLibraryParam {
-    my ($class_or_self, $params) = @_;
+#   ('all')                  explicit All Music -- integer 0 or legacy sq_f_0
+#   ('library', $canonical)  a named virtual library
+#   ('absent')               parameter not supplied
+#   ('invalid')              supplied but unresolvable
+#
+# Accepts both plain integers (the canonical wire format per the OpenSubsonic
+# spec) and legacy sq_f_* strings, so clients that cached the old format keep
+# working.
+sub _classifyFolderParam {
+    my ($params) = @_;
+
     my $folder_id = $params->{musicFolderId};
-    return undef unless defined $folder_id;
+    return ('absent') unless defined $folder_id && length $folder_id;
 
-    my $raw;
-
-    # Try the sq_f_* wire format first (legacy clients).
-    my (undef, $decoded) = $class_or_self->decodeId($folder_id);
-    if (defined $decoded) {
-        $raw = $decoded;
+    # Legacy sq_f_* wire format.
+    my ( undef, $decoded ) = __PACKAGE__->decodeId($folder_id);
+    if ( defined $decoded ) {
+        return ('all') if $decoded eq '0';
+        return ( 'library', $decoded );
     }
-    elsif ( $folder_id =~ /^\d+$/ ) {
-        # Plain integer — the canonical format.  0 is "All Music".
-        my $int_id = 0 + $folder_id;
-        return undef if $int_id == 0;
 
-        # Reverse-map the integer to a virtual-library canonical ID.
-        require Slim::Music::VirtualLibraries;
-        my $libs = Slim::Music::VirtualLibraries->getLibraries() || {};
-        for my $lib_key ( keys %$libs ) {
-            my $lib = $libs->{$lib_key};
-            if ( $class_or_self->folderCanonicalToInt( $lib->{id} ) == $int_id ) {
-                $raw = $lib->{id};
-                last;
-            }
-        }
-        return undef unless defined $raw;
+    return ('invalid') unless $folder_id =~ /^\d+$/;
+
+    my $int_id = 0 + $folder_id;
+    return ('all') if $int_id == 0;
+
+    # Reverse-map the wire integer to a virtual-library canonical ID.
+    require Slim::Music::VirtualLibraries;
+    my $libs = Slim::Music::VirtualLibraries->getLibraries() || {};
+    for my $lib_key ( keys %$libs ) {
+        my $lib = $libs->{$lib_key};
+        return ( 'library', $lib->{id} )
+          if __PACKAGE__->folderCanonicalToInt( $lib->{id} ) == $int_id;
     }
-    else {
+
+    return ('invalid');
+}
+
+# Resolve the effective library filter for a request.  Three inputs, in
+# precedence order:
+#
+#   1. the musicFolderId request parameter     (layer 3) -- always wins
+#   2. the calling user's default_music_folder (layer 2)
+#   3. the global Music Folder Exposure setting (layer 1) -- bounds both
+#
+# Returns the LMS hashed real library ID, or undef meaning "no filter"
+# (All Music).  Callers treat undef as unfiltered.
+#
+# Takes the handler $args hashref -- NOT $args->{params} -- so that the user
+# travels with the parameters.  This deliberately avoids adding request-scoped
+# global state: LibraryMapper request context is never cleared, so a global
+# would risk one user's default leaking into another user's request.
+sub resolveLibraryFilter {
+    my ( $class_or_self, $args ) = @_;
+
+    # Fail fast on the handler-args contract.  Router::_parseParams produces a
+    # flat hashref of strings, so a raw params hashref can never hold a nested
+    # hashref at {params} and cannot satisfy this guard.
+    unless ( ref $args eq 'HASH' && ref $args->{params} eq 'HASH' ) {
+        $log->error('SlimPing: resolveLibraryFilter requires the handler args hashref');
         return undef;
     }
 
-    return undef unless $raw && $raw ne '0';
+    my ( $kind, $canonical ) = _classifyFolderParam( $args->{params} );
 
-    my $mode = $prefs->get('exposed_libraries_mode');
-    return undef if $mode eq 'default_only';
-    if ($mode eq 'selected') {
-        my $ids     = $prefs->get('exposed_library_ids');
-        my %allowed = map { $_ => 1 } @{ ref $ids eq 'ARRAY' ? $ids : [] };
-        return undef unless $allowed{$raw};
-    }
+    # Explicit All Music -- the documented override, never superseded.
+    return undef if $kind eq 'all';
 
-    # $raw is the stable string ID (e.g. "audioBooks"); convert to the hashed
-    # key LMS uses in library_track.library / library_album.library columns.
+    return _realLibraryId($canonical)
+      if $kind eq 'library' && __PACKAGE__->isLibraryExposed($canonical);
+
+    # Absent, invalid, or un-exposed: fall back to the user's default.
+    return _defaultLibraryFor( $args->{user} );
+}
+
+# The calling user's stored default, validated against current exposure.  A
+# stale default -- library un-exposed or deleted in LMS -- falls open to All
+# Music; the stored value is left intact so re-exposing restores it.
+sub _defaultLibraryFor {
+    my ($user) = @_;
+    my $canonical = ref $user eq 'HASH' ? $user->{default_music_folder} : undef;
+    return undef unless defined $canonical && length $canonical;
+    return undef unless __PACKAGE__->isLibraryExposed($canonical);
+    return _realLibraryId($canonical);
+}
+
+# Convert a canonical library ID into the hashed key LMS uses in the
+# library_track / library_album / library_contributor tables.
+sub _realLibraryId {
+    my ($canonical) = @_;
     require Slim::Music::VirtualLibraries;
-    return Slim::Music::VirtualLibraries->getRealId($raw) || undef;
+    return Slim::Music::VirtualLibraries->getRealId($canonical) || undef;
 }
 
 # Convert a virtual-library canonical string ID into a stable positive integer
@@ -236,138 +287,168 @@ sub decodeLibraryParam {
 # to avoid collisions across the handful of libraries a real-world LMS instance
 # will ever have.  Zero is reserved for "All Music".
 sub folderCanonicalToInt {
-    my ($class_or_self, $canonical_id) = @_;
+    my ( $class_or_self, $canonical_id ) = @_;
     my $hash = 5381;
     $hash = ( ( $hash << 5 ) + $hash + ord($_) ) & 0x7FFFFFFF for split //, $canonical_id;
     return $hash || 1;    # ensure non-zero
+}
+
+# Whether a virtual library's canonical string ID both EXISTS in LMS and is
+# currently advertised by the global Music Folder Exposure setting.
+#
+# Existence is checked first: without it, mode 'all' would accept any string,
+# so a typo or a display name passed instead of a canonical ID would be stored
+# and then silently resolve to All Music on every request.
+sub isLibraryExposed {
+    my ( $class_or_self, $canonical ) = @_;
+    return 0 unless defined $canonical && length $canonical;
+
+    require Slim::Music::VirtualLibraries;
+    my $libs = Slim::Music::VirtualLibraries->getLibraries() || {};
+    return 0 unless grep { $libs->{$_}->{id} eq $canonical } keys %$libs;
+
+    my $mode = $prefs->get('exposed_libraries_mode') // 'all';
+    return 0 if $mode eq 'default_only';
+    return 1 if $mode ne 'selected';
+
+    my $ids     = $prefs->get('exposed_library_ids');
+    my %allowed = map { $_ => 1 } @{ ref $ids eq 'ARRAY' ? $ids : [] };
+    return $allowed{$canonical} ? 1 : 0;
 }
 
 # --- Music folders (LMS virtual libraries) ------------------------------------
 
 sub getMusicFolders {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Queries::getMusicFolders($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Queries::getMusicFolders( $self, @_ );
 }
 
 # --- Artists ------------------------------------------------------------------
 
 sub getArtists {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::RawQueries::getArtists($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::RawQueries::getArtists( $self, @_ );
 }
 
 sub getArtistById {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Queries::getArtistById($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Queries::getArtistById( $self, @_ );
 }
 
 sub getArtistsByIds {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Queries::getArtistsByIds($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Queries::getArtistsByIds( $self, @_ );
 }
 
 sub enrichArtistAlbumCounts {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Queries::enrichArtistAlbumCounts($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Queries::enrichArtistAlbumCounts( $self, @_ );
 }
 
 sub getAlbumsByArtist {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Queries::getAlbumsByArtist($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Queries::getAlbumsByArtist( $self, @_ );
 }
 
 # --- Albums -------------------------------------------------------------------
 
 sub getAlbumById {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Queries::getAlbumById($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Queries::getAlbumById( $self, @_ );
 }
 
 sub getAlbumsByIds {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Queries::getAlbumsByIds($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Queries::getAlbumsByIds( $self, @_ );
 }
 
 sub enrichAlbumAggregates {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Queries::enrichAlbumAggregates($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Queries::enrichAlbumAggregates( $self, @_ );
 }
 
 sub getTracksByAlbum {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Queries::getTracksByAlbum($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Queries::getTracksByAlbum( $self, @_ );
 }
 
 sub getAlbumList {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::RawQueries::getAlbumList($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::RawQueries::getAlbumList( $self, @_ );
 }
 
 sub getRandomSongIds {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::RawQueries::getRandomSongIds($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::RawQueries::getRandomSongIds( $self, @_ );
 }
 
 # --- Tracks -------------------------------------------------------------------
 
 sub getTrackById {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Queries::getTrackById($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Queries::getTrackById( $self, @_ );
 }
 
 sub getTracksByIds {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Queries::getTracksByIds($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Queries::getTracksByIds( $self, @_ );
+}
+
+# Track length in whole seconds, or 0 when unknown.  Used by the playback
+# reporting paths, which must not reach into Slim::Schema directly.
+sub trackDurationSecs {
+    my $self = ref $_[0] ? shift : shift->getInstance();
+    return Plugins::SlimPing::Core::LibraryMapper::Queries::trackDurationSecs( $self, @_ );
 }
 
 sub resolveFilePath {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Streaming::resolveFilePath($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Streaming::resolveFilePath( $self, @_ );
 }
 
 sub resolveStreamUrl {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Streaming::resolveStreamUrl($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Streaming::resolveStreamUrl( $self, @_ );
 }
 
 sub getCueStartTime {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Streaming::getCueStartTime($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Streaming::getCueStartTime( $self, @_ );
 }
 
 sub resolveCoverArtUrl {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Streaming::resolveCoverArtUrl($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Streaming::resolveCoverArtUrl( $self, @_ );
 }
 
 sub resolveTrackDbUrl {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Streaming::resolveTrackDbUrl($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Streaming::resolveTrackDbUrl( $self, @_ );
 }
 
 sub resolveAlbumDbUrl {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Streaming::resolveAlbumDbUrl($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Streaming::resolveAlbumDbUrl( $self, @_ );
 }
 
 sub resolveArtistDbUrl {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Streaming::resolveArtistDbUrl($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Streaming::resolveArtistDbUrl( $self, @_ );
 }
 
 sub getTracksByUrls {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Queries::getTracksByUrls($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Queries::getTracksByUrls( $self, @_ );
 }
 
 sub idsInLibrary {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Queries::idsInLibrary($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Queries::idsInLibrary( $self, @_ );
 }
 
 sub getAlbumObject {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Queries::getAlbumObject($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Queries::getAlbumObject( $self, @_ );
 }
 
 # --- Artist artwork (MAI integration) -----------------------------------------
@@ -377,7 +458,7 @@ sub getAlbumObject {
 sub isMaiArtworkAvailable {
     my $self = ref $_[0] ? shift : shift->getInstance();
     my $mode = $prefs->get('feature_mai_integration');
-    return 0 if defined $mode && ($mode eq 'off' || $mode eq '0');
+    return 0 if defined $mode && ( $mode eq 'off' || $mode eq '0' );
     return 0 unless $_mai_available;
     require Slim::Utils::Prefs;
     my $mai_prefs = Slim::Utils::Prefs::preferences('plugin.musicartistinfo');
@@ -388,25 +469,28 @@ sub isMaiArtworkAvailable {
 # Resolve a local filesystem path for an artist's MAI artwork image.
 # Returns a path string on success, undef when no local artwork exists.
 sub getArtistArtworkPath {
-    my ($self, $sq_artist_id) = @_;
-    my (undef, $raw_id) = $self->decodeId($sq_artist_id);
+    my ( $self, $sq_artist_id ) = @_;
+    my ( undef, $raw_id )       = $self->decodeId($sq_artist_id);
     return undef unless defined $raw_id;
     return undef unless $self->isMaiArtworkAvailable();
-    my $artist = Slim::Schema->find('Contributor', $raw_id);
+    my $artist = Slim::Schema->find( 'Contributor', $raw_id );
     return undef unless $artist;
     my $path = eval {
-        Plugins::MusicArtistInfo::LocalArtwork->getArtistPhoto({
-            artist    => $artist->name(),
-            artist_id => $artist->id(),
-            rawUrl    => 1,
-        });
+        Plugins::MusicArtistInfo::LocalArtwork->getArtistPhoto(
+            {
+                artist    => $artist->name(),
+                artist_id => $artist->id(),
+                rawUrl    => 1,
+            }
+        );
     };
     my $err = $@;
     if ($err) {
         $log->debug(
             sprintf(
                 'MAI getArtistPhoto (rawUrl) threw for artist id=%s name=%s: %s',
-                $artist->id() // '?', $artist->name() // '?', $err
+                $artist->id() // '?',
+                $artist->name() // '?', $err
             )
         );
         return undef;
@@ -419,19 +503,19 @@ sub getArtistArtworkPath {
 
 sub getGenres {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::RawQueries::getGenres($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::RawQueries::getGenres( $self, @_ );
 }
 
 sub getTracksByGenre {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Queries::getTracksByGenre($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Queries::getTracksByGenre( $self, @_ );
 }
 
 # --- Top songs ----------------------------------------------------------------
 
 sub getTopSongs {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Queries::getTopSongs($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Queries::getTopSongs( $self, @_ );
 }
 
 # --- Similar songs ------------------------------------------------------------
@@ -439,7 +523,7 @@ sub getTopSongs {
 sub getSimilarSongs {
     my $self = ref $_[0] ? shift : shift->getInstance();
     require Plugins::SlimPing::Core::LibraryMapper::RelatedSongs;
-    return Plugins::SlimPing::Core::LibraryMapper::RelatedSongs::getSimilarSongs($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::RelatedSongs::getSimilarSongs( $self, @_ );
 }
 
 # Delegates to getSimilarSongs — identical implementation, separate API endpoint.
@@ -451,7 +535,7 @@ sub getSimilarSongs2 {
 
 sub search {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::RawQueries::search($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::RawQueries::search( $self, @_ );
 }
 
 # --- Library membership helpers -----------------------------------------------
@@ -460,7 +544,7 @@ sub search {
 # directly as $mapper_obj->_batchGenreHint(...).  Implementation in Queries.pm.
 sub _batchGenreHint {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Queries::_batchGenreHint($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Queries::_batchGenreHint( $self, @_ );
 }
 
 # Batch-resolve track genres for an array of Track objects.  Replaces the
@@ -468,7 +552,7 @@ sub _batchGenreHint {
 # that needed shapeTrack-ready genre hints.  Implementation in Queries.pm.
 sub batchFetchTrackGenres {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Queries::batchFetchTrackGenres($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Queries::batchFetchTrackGenres( $self, @_ );
 }
 
 # Batch-resolve all genres for raw track IDs, returning an arrayref per track
@@ -477,7 +561,7 @@ sub batchFetchTrackGenres {
 # aware callers.  Implementation in Queries.pm.
 sub batchFetchAllTrackGenres {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Queries::batchFetchAllTrackGenres($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Queries::batchFetchAllTrackGenres( $self, @_ );
 }
 
 # Batch-resolve track contributors (via contributor_track) and composer names for
@@ -485,7 +569,7 @@ sub batchFetchAllTrackGenres {
 # optional role filter hashref.  Implementation in Queries.pm.
 sub batchFetchTrackContributors {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Queries::batchFetchTrackContributors($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Queries::batchFetchTrackContributors( $self, @_ );
 }
 
 # Batch-resolve contributor roles for raw contributor IDs (contributor_track
@@ -493,7 +577,7 @@ sub batchFetchTrackContributors {
 # Implementation in Queries.pm.
 sub batchFetchArtistRoles {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Queries::batchFetchArtistRoles($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Queries::batchFetchArtistRoles( $self, @_ );
 }
 
 # Batch-resolve album-level genres for raw album IDs.  Returns a hashref of
@@ -501,14 +585,14 @@ sub batchFetchArtistRoles {
 # Implementation in Queries.pm.
 sub batchFetchAlbumGenres {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Queries::batchFetchAlbumGenres($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Queries::batchFetchAlbumGenres( $self, @_ );
 }
 
 # Batch-resolve album-level artists/album-artists for raw album IDs.  Returns a
 # hashref of album_id => [{id, name}, ...].  Implementation in Queries.pm.
 sub batchFetchAlbumArtists {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Queries::batchFetchAlbumArtists($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Queries::batchFetchAlbumArtists( $self, @_ );
 }
 
 # Batch-resolve album data (id, title, contributor_id, contributor_name) for an
@@ -519,7 +603,7 @@ sub batchFetchAlbumArtists {
 # Implementation in Queries.pm.
 sub batchFetchAlbumDataForTracks {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Queries::batchFetchAlbumDataForTracks($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Queries::batchFetchAlbumDataForTracks( $self, @_ );
 }
 
 # --- Cache helpers -------------------------------------------------------------
@@ -533,16 +617,16 @@ sub batchFetchAlbumDataForTracks {
 #
 # $ttl defaults to CACHE_TTL (300 s -- also invalidated on rescan).
 sub _cached {
-    my ($self, $cache_key, $compute_fn, $ttl) = @_;
+    my ( $self, $cache_key, $compute_fn, $ttl ) = @_;
     $self = $self->getInstance() unless ref $self;
     $ttl //= CACHE_TTL;
 
     my $gen_key = "$cache_key.g$self->{_cache_gen}";
-    my $cached = $self->{_cache}->get($gen_key);
+    my $cached  = $self->{_cache}->get($gen_key);
     return $cached if $cached;
 
     my $result = $compute_fn->();
-    $self->{_cache}->set($gen_key, $result, $ttl);
+    $self->{_cache}->set( $gen_key, $result, $ttl );
     return $result;
 }
 
@@ -552,14 +636,49 @@ sub invalidateCache {
     my $self = ref $_[0] ? $_[0] : $_[0]->getInstance();
     $self->{_cache_gen}++;
     $self->{_cache}->remove('slimping.folders');
-    $log->info(sprintf('SlimPing: cache generation bumped to %d', $self->{_cache_gen}));
+    $self->touchLibraryView();
+    $log->info( sprintf( 'SlimPing: cache generation bumped to %d', $self->{_cache_gen} ) );
 }
 
-# Clear the folder cache entry (called when exposure prefs change).
-sub invalidateFolderCache {
+# Drop the cached folder list WITHOUT signalling clients.  Used by the startup
+# purge, where the goal is only to discard a possibly stale entry written by an
+# earlier code version -- the library view itself has not changed, so telling
+# every client to refetch would be wrong.
+sub purgeFolderCache {
     my $self = ref $_[0] ? $_[0] : $_[0]->getInstance();
     $self->{_cache}->remove('slimping.folders');
+    $log->info('SlimPing: folder cache purged');
+}
+
+# Drop the cached folder list AND signal clients that the library view changed.
+# Used when the exposed-folder set actually changes.
+sub invalidateFolderCache {
+    my $self = ref $_[0] ? $_[0] : $_[0]->getInstance();
+    $self->purgeFolderCache();
+    $self->touchLibraryView();
     $log->info('SlimPing: folder cache invalidated');
+}
+
+# Record that the library view changed -- an LMS rescan, a change to the global
+# Music Folder Exposure setting, or a change to any user's default folder.
+#
+# Deliberately global rather than per-user: exposure changes affect everyone, so
+# a global value is needed regardless, and over-invalidating costs one cheap
+# refetch per client after a rare admin action.
+sub touchLibraryView {
+    my $class_or_self = shift;
+    $prefs->set( 'libraryViewChangedMs', int( time() * 1000 ) );
+    $log->debug('SlimPing: library view timestamp bumped');
+}
+
+# Effective Last-Modified for library data: the later of the last LMS rescan and
+# the last material configuration change.  Single source of truth for both
+# Router::_maybeAddCachingHeaders and Handlers::Browse::getIndexes.
+sub libraryLastModifiedMs {
+    my $class_or_self = shift;
+    my $scan          = $prefs->get('lastScanTimestampMs')  // 0;
+    my $view          = $prefs->get('libraryViewChangedMs') // 0;
+    return $scan > $view ? $scan : $view;
 }
 
 
@@ -571,32 +690,32 @@ sub invalidateFolderCache {
 
 sub shapeArtist {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Shapes::shapeArtist($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Shapes::shapeArtist( $self, @_ );
 }
 
 sub shapeArtistLegacy {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Shapes::shapeArtistLegacy($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Shapes::shapeArtistLegacy( $self, @_ );
 }
 
 sub shapeAlbum {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Shapes::shapeAlbum($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Shapes::shapeAlbum( $self, @_ );
 }
 
 sub shapePlaylist {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Shapes::shapePlaylist($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Shapes::shapePlaylist( $self, @_ );
 }
 
 sub shapeTrack {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Shapes::shapeTrack($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Shapes::shapeTrack( $self, @_ );
 }
 
 sub _mimeType {
     my $self = ref $_[0] ? shift : shift;
-    return Plugins::SlimPing::Core::LibraryMapper::Shapes::_mimeType($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Shapes::_mimeType( $self, @_ );
 }
 
 sub isLosslessFormat {
@@ -613,19 +732,19 @@ sub outputMime {
 
 sub shapeArtistInfoLegacy {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::ArtistInfo::shapeArtistInfoLegacy($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::ArtistInfo::shapeArtistInfoLegacy( $self, @_ );
 }
 
 sub shapeArtistInfo {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::ArtistInfo::shapeArtistInfo($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::ArtistInfo::shapeArtistInfo( $self, @_ );
 }
 
 # --- Internet Radio ------------------------------------------------------------
 
 sub getInternetRadioStations {
     my $self = ref $_[0] ? shift : shift->getInstance();
-    return Plugins::SlimPing::Core::LibraryMapper::Streaming::getInternetRadioStations($self, @_);
+    return Plugins::SlimPing::Core::LibraryMapper::Streaming::getInternetRadioStations( $self, @_ );
 }
 
 # --- Time helper --------------------------------------------------------------
@@ -637,8 +756,7 @@ sub _iso8601 {
     my ($epoch) = @_;
     return undef unless defined $epoch && $epoch >= 0;
     my @t = gmtime($epoch);
-    return sprintf('%04d-%02d-%02dT%02d:%02d:%02dZ',
-        $t[5] + 1900, $t[4] + 1, $t[3], $t[2], $t[1], $t[0]);
+    return sprintf( '%04d-%02d-%02dT%02d:%02d:%02dZ', $t[5] + 1900, $t[4] + 1, $t[3], $t[2], $t[1], $t[0] );
 }
 
 # --- Duplicate consolidations (promoted from sub-modules) ----------------------
@@ -646,16 +764,15 @@ sub _iso8601 {
 # Find the most common genre ID for an artist's tracks via raw SQL.
 # Promoted from ArtistInfo.pm and RelatedSongs.pm duplicates.
 sub _artistPrimaryGenreId {
-    my ($self, $artist) = @_;
+    my ( $self, $artist ) = @_;
     $self = $self->getInstance() unless ref $self;
     my $dbh = Slim::Schema->dbh;
-    my $sth = $dbh->prepare_cached(
-        'SELECT gt.genre FROM contributor_track ct'
-      . ' JOIN genre_track gt ON gt.track = ct.track'
-      . ' WHERE ct.contributor = ? AND ct.role = 1'
-      . ' GROUP BY gt.genre ORDER BY COUNT(*) DESC LIMIT 1'
-    );
-    $sth->execute($artist->id());
+    my $sth =
+      $dbh->prepare_cached( 'SELECT gt.genre FROM contributor_track ct'
+          . ' JOIN genre_track gt ON gt.track = ct.track'
+          . ' WHERE ct.contributor = ? AND ct.role = 1'
+          . ' GROUP BY gt.genre ORDER BY COUNT(*) DESC LIMIT 1' );
+    $sth->execute( $artist->id() );
     my ($genre_id) = $sth->fetchrow_array();
     $sth->finish();
     return $genre_id;
@@ -666,26 +783,25 @@ sub _artistPrimaryGenreId {
 # no primary genre is found.
 # Merged from _candidateArtistIds (ArtistInfo.pm) and _genreArtistIds (RelatedSongs.pm).
 sub _genreArtistIds {
-    my ($self, $artist, $count) = @_;
+    my ( $self, $artist, $count ) = @_;
     $self = $self->getInstance() unless ref $self;
 
     my $genre_id = $self->_artistPrimaryGenreId($artist);
     return () unless $genre_id;
 
     my $dbh = Slim::Schema->dbh;
-    my $sth = $dbh->prepare_cached(
-        'SELECT DISTINCT ct.contributor FROM contributor_track ct'
-      . ' JOIN genre_track gt ON gt.track = ct.track'
-      . ' WHERE gt.genre = ? AND ct.contributor != ?'
-    );
-    $sth->execute($genre_id, $artist->id());
+    my $sth =
+      $dbh->prepare_cached( 'SELECT DISTINCT ct.contributor FROM contributor_track ct'
+          . ' JOIN genre_track gt ON gt.track = ct.track'
+          . ' WHERE gt.genre = ? AND ct.contributor != ?' );
+    $sth->execute( $genre_id, $artist->id() );
     my @ids = map { $_->[0] } @{ $sth->fetchall_arrayref() };
     $sth->finish();
     return () unless @ids;
 
     require List::Util;
     my @picked = List::Util::shuffle(@ids);
-    splice(@picked, $count) if @picked > $count;
+    splice( @picked, $count ) if @picked > $count;
     return @picked;
 }
 
@@ -694,19 +810,19 @@ sub _genreArtistIds {
 # $type is the encode prefix type ('artist', 'album', 'track').
 # Used by Queries.pm and RawQueries.pm sub-modules.
 sub _batchFetchAnnotations {
-    my ($self, $type, $rows) = @_;
+    my ( $self, $type, $rows ) = @_;
     $self = $self->getInstance() unless ref $self;
 
     my $starred = {};
     my $ratings = {};
 
     my $username = $_request_username;
-    return ($starred, $ratings) unless $username && $rows && @$rows;
+    return ( $starred, $ratings ) unless $username && $rows && @$rows;
 
     require Plugins::SlimPing::Core::Annotations;
-    my @encoded = map { $self->encodeId($type, $_->[0]) } @$rows;
-    $starred = Plugins::SlimPing::Core::Annotations->getStarredBatch($username, \@encoded);
-    $ratings = Plugins::SlimPing::Core::Annotations->getRatingBatch($username, \@encoded);
+    my @encoded = map { $self->encodeId( $type, $_->[0] ) } @$rows;
+    $starred = Plugins::SlimPing::Core::Annotations->getStarredBatch( $username, \@encoded );
+    $ratings = Plugins::SlimPing::Core::Annotations->getRatingBatch( $username, \@encoded );
 
     # Merge bridged LMS favourites (the server-global OPML file) into the
     # starred batch.  SlimPing store timestamps win; bridged ids fill gaps

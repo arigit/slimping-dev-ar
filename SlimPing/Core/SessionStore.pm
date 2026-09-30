@@ -24,27 +24,31 @@ sub getInstance {
 # --- State accessors (keyed by username + client_name) -----------------------
 
 sub getState {
-    my ($self, $username, $client_name) = @_;
+    my ( $self, $username, $client_name ) = @_;
     $client_name //= '';
 
     my $schema = Plugins::SlimPing::Schema->connect();
     my $user   = Plugins::SlimPing::Core::UserStore->getInstance->getByUsername($username)
-        or return _defaultState();
+      or return _defaultState();
 
-    my $row = $schema->resultset('Session')->find({
-        user_id     => $user->id(),
-        client_name => $client_name,
-    });
+    my $row = $schema->resultset('Session')->find(
+        {
+            user_id     => $user->id(),
+            client_name => $client_name,
+        }
+    );
 
     if ($row) {
         return {
-            play_queue  => $json->decode($row->play_queue() || '[]'),
+            play_queue  => $json->decode( $row->play_queue() || '[]' ),
             queue_index => $row->queue_index() // 0,
-            now_playing => $row->now_playing_track() ? {
+            now_playing => $row->now_playing_track()
+            ? {
                 track_id      => $row->now_playing_track(),
                 position_secs => $row->position_secs() // 0,
                 started_at    => $row->started_at(),
-            } : undef,
+              }
+            : undef,
             client_name => $row->client_name(),
             last_seen   => $row->last_seen_at(),
         };
@@ -65,27 +69,29 @@ sub _defaultState {
 sub saveQueue {
     my $self        = shift;
     my %args        = @_;
-    my $username    = $args{username}    or die 'saveQueue: username required';
+    my $username    = $args{username} or die 'saveQueue: username required';
     my $client_name = $args{client_name} // '';
-    my $track_ids   = $args{track_ids}   or die 'saveQueue: track_ids required';
+    my $track_ids   = $args{track_ids} or die 'saveQueue: track_ids required';
     my $current     = $args{current};
     my $position    = $args{position};
 
     my $schema = Plugins::SlimPing::Schema->connect();
     my $user   = Plugins::SlimPing::Core::UserStore->getInstance->getByUsername($username)
-        or return;
+      or return;
 
-    my $row = $schema->resultset('Session')->find_or_new({
-        user_id     => $user->id(),
-        client_name => $client_name,
-    });
+    my $row = $schema->resultset('Session')->find_or_new(
+        {
+            user_id     => $user->id(),
+            client_name => $client_name,
+        }
+    );
 
     my $data = {
-        play_queue  => $json->encode($track_ids // []),
-        queue_index => $current // 0,
+        play_queue   => $json->encode( $track_ids // [] ),
+        queue_index  => $current // 0,
         last_seen_at => time(),
     };
-    if (defined $position) {
+    if ( defined $position ) {
         $data->{position_secs} = $position;
     }
     $row->set_columns($data);
@@ -94,56 +100,64 @@ sub saveQueue {
 }
 
 sub setNowPlaying {
-    my ($self, $username, $track_id, $position_secs, $client_name) = @_;
+    my ( $self, $username, $track_id, $position_secs, $client_name ) = @_;
     $client_name //= '';
 
     my $schema = Plugins::SlimPing::Schema->connect();
     my $user   = Plugins::SlimPing::Core::UserStore->getInstance->getByUsername($username)
-        or return;
+      or return;
 
-    my $now  = time();
-    my $row  = $schema->resultset('Session')->find_or_new({
-        user_id     => $user->id(),
-        client_name => $client_name,
-    });
+    my $now = time();
+    my $row = $schema->resultset('Session')->find_or_new(
+        {
+            user_id     => $user->id(),
+            client_name => $client_name,
+        }
+    );
 
-    $row->set_columns({
-        now_playing_track => $track_id,
-        position_secs     => $position_secs // 0,
-        started_at        => $now,
-        last_seen_at      => $now,
-    });
+    $row->set_columns(
+        {
+            now_playing_track => $track_id,
+            position_secs     => $position_secs // 0,
+            started_at        => $now,
+            last_seen_at      => $now,
+        }
+    );
     $row->update_or_insert();
     return;
 }
 
 sub clearNowPlaying {
-    my ($self, $username, $client_name) = @_;
+    my ( $self, $username, $client_name ) = @_;
     $client_name //= '';
 
     my $schema = Plugins::SlimPing::Schema->connect();
     my $user   = Plugins::SlimPing::Core::UserStore->getInstance->getByUsername($username)
-        or return;
+      or return;
 
-    my $row = $schema->resultset('Session')->find({
-        user_id     => $user->id(),
-        client_name => $client_name,
-    });
+    my $row = $schema->resultset('Session')->find(
+        {
+            user_id     => $user->id(),
+            client_name => $client_name,
+        }
+    );
     if ($row) {
-        $row->update({
-            now_playing_track => undef,
-            position_secs     => undef,
-            started_at        => undef,
-        });
+        $row->update(
+            {
+                now_playing_track => undef,
+                position_secs     => undef,
+                started_at        => undef,
+            }
+        );
     }
     return;
 }
 
 sub getQueue {
-    my ($self, $username, $client_name) = @_;
+    my ( $self, $username, $client_name ) = @_;
     $client_name //= '';
 
-    my $state = $self->getState($username, $client_name);
+    my $state = $self->getState( $username, $client_name );
     my $np    = $state->{now_playing} || {};
     return {
         entry     => $state->{play_queue},
@@ -156,25 +170,24 @@ sub getQueue {
 }
 
 sub getActiveSessions {
-    my $self = shift;
+    my $self   = shift;
     my $schema = Plugins::SlimPing::Schema->connect();
 
-    my $rs = $schema->resultset('Session')->search(
-        { 'now_playing_track' => { '!=' => undef } },
-        { order_by => 'last_seen_at DESC' }
-    );
+    my $rs = $schema->resultset('Session')
+      ->search( { 'now_playing_track' => { '!=' => undef } }, { order_by => 'last_seen_at DESC' } );
 
     my @active;
-    while (my $s = $rs->next()) {
+    while ( my $s = $rs->next() ) {
         my $user = $s->user();
-        push @active, {
-            username     => $user->username(),
-            client_name  => $s->client_name() || '',
-            track_id     => $s->now_playing_track(),
-            position     => $s->position_secs() // 0,
-            started_at   => $s->started_at(),
-            last_seen    => $s->last_seen_at(),
-        };
+        push @active,
+          {
+            username    => $user->username(),
+            client_name => $s->client_name() || '',
+            track_id    => $s->now_playing_track(),
+            position    => $s->position_secs() // 0,
+            started_at  => $s->started_at(),
+            last_seen   => $s->last_seen_at(),
+          };
     }
     return \@active;
 }
@@ -184,30 +197,33 @@ sub getActiveSessions {
 # and idle clients -- unlike getActiveSessions which filters globally to
 # active-only.  Used by the LMS Clients menu to show per-client status.
 sub getSessionsForUser {
-    my ($self, $username) = @_;
+    my ( $self, $username ) = @_;
 
     my $schema = Plugins::SlimPing::Schema->connect();
     my $user   = Plugins::SlimPing::Core::UserStore->getInstance->getByUsername($username)
-        or return [];
+      or return [];
 
     my $rs = $schema->resultset('Session')->search(
         { user_id => $user->id() },
         {
-            columns  => [qw(client_name now_playing_track position_secs
-                             started_at last_seen_at)],
+            columns => [
+                qw(client_name now_playing_track position_secs
+                  started_at last_seen_at)
+            ],
             order_by => { -desc => 'last_seen_at' },
         }
     );
 
     my @sessions;
-    while (my $s = $rs->next()) {
-        push @sessions, {
+    while ( my $s = $rs->next() ) {
+        push @sessions,
+          {
             client_name       => $s->client_name(),
             now_playing_track => $s->now_playing_track(),
             position_secs     => $s->position_secs() // 0,
             started_at        => $s->started_at(),
             last_seen_at      => $s->last_seen_at(),
-        };
+          };
     }
     return \@sessions;
 }
@@ -217,12 +233,12 @@ sub getSessionsForUser {
 sub cleanupExpiredSessions {
     my $self   = shift;
     my $ttl    = $prefs->get('session_ttl_days') // 90;
-    my $cutoff = time() - ($ttl * 86400);
+    my $cutoff = time() - ( $ttl * 86400 );
 
     my $rs    = Plugins::SlimPing::Schema->connect()->resultset('Session');
-    my $count = $rs->search({ last_seen_at => { '<' => $cutoff } })->count();
-    if ($count > 0) {
-        $rs->search({ last_seen_at => { '<' => $cutoff } })->delete();
+    my $count = $rs->search( { last_seen_at => { '<' => $cutoff } } )->count();
+    if ( $count > 0 ) {
+        $rs->search( { last_seen_at => { '<' => $cutoff } } )->delete();
         $log->info("SlimPing: cleaned up $count expired sessions (TTL: $ttl days)");
     }
     return $count;
@@ -236,8 +252,8 @@ sub flushAll {
 }
 
 sub flushForUser {
-    my ($self, $username) = @_;
-    return Plugins::SlimPing::Utils::StoreHelpers->flushForUser($username, 'Session');
+    my ( $self, $username ) = @_;
+    return Plugins::SlimPing::Utils::StoreHelpers->flushForUser( $username, 'Session' );
 }
 
 1;

@@ -22,6 +22,7 @@
                 <th>Admin</th>
                 <th>Jukebox Player</th>
                 <th>Radio Folder</th>
+                <th>Default Folder</th>
                 <th>Scrobble</th>
                 <th>Playcount<br>Sync</th>
                 [% IF dpl4_available %]
@@ -80,6 +81,29 @@
                             [% user.radioFolder | html %]</option>
                         [% END %]
                     </select>
+                </td>
+                <td>
+                    <select class="stdedit sp-default-folder-select"
+                        data-username="[% user.username | html %]"
+                        onchange="SlimPingSettings.setDefaultMusicFolder(this)"
+                        style="min-width:160px"
+                        [% 'disabled' IF !slimping_default_folder_options.size %]>
+                        <option value="">All Music</option>
+                        [% FOREACH opt IN slimping_default_folder_options %]
+                        <option value="[% opt.id | html %]"
+                            [% 'selected' IF opt.id == user.default_music_folder %]>
+                            [% opt.name | html %]</option>
+                        [% END %]
+                        [% IF user.default_folder_stale %]
+                        <option value="[% user.default_music_folder | html %]" selected>
+                            [% user.default_music_folder | html %] (no longer exposed)</option>
+                        [% END %]
+                    </select>
+                    [% IF !slimping_default_folder_options.size %]
+                    <div class="text-secondary">No libraries currently exposed -- see
+                        Music Folder Exposure below. Stored defaults fail open
+                        to All Music until the library is re-exposed.</div>
+                    [% END %]
                 </td>
                 <td>
                     <input type="checkbox" class="sp-scrobble-toggle"

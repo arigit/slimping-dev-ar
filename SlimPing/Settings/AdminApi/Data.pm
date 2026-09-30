@@ -60,22 +60,24 @@ sub handle {
         for my $table (qw(User ApiKey Star Rating Bookmark Session Share)) {
             $counts{ lc $table } = $schema->resultset($table)->count();
         }
-        $counts{textcache} = $schema->storage->dbh->selectrow_array(
-            'SELECT COUNT(*) FROM text_cache');
+        $counts{textcache} = $schema->storage->dbh->selectrow_array('SELECT COUNT(*) FROM text_cache');
 
         my $cachedir = Slim::Utils::Prefs::preferences('server')->get('cachedir');
-        my $db_path  = File::Spec::Functions::catfile($cachedir, 'slimping', 'slimping.db');
+        my $db_path  = File::Spec::Functions::catfile( $cachedir, 'slimping', 'slimping.db' );
         my $db_size  = -s $db_path;
 
         # Human-readable file size
         my $db_size_fmt;
         if ( !defined $db_size ) {
             $db_size_fmt = 'unknown';
-        } elsif ( $db_size < 1024 ) {
+        }
+        elsif ( $db_size < 1024 ) {
             $db_size_fmt = "$db_size B";
-        } elsif ( $db_size < 1024 * 1024 ) {
+        }
+        elsif ( $db_size < 1024 * 1024 ) {
             $db_size_fmt = sprintf( '%.1f KB', $db_size / 1024 );
-        } else {
+        }
+        else {
             $db_size_fmt = sprintf( '%.1f MB', $db_size / ( 1024 * 1024 ) );
         }
 
@@ -91,16 +93,16 @@ sub handle {
             my $stats = Plugins::SlimPing::Core::TranscodeCache->getInstance->stats();
             my $ram   = $stats->{ram};
             my $cache = {
-                ram_enabled      => 1,
-                ram_entries      => $ram->{track_count} // 0,
-                ram_hits         => $ram->{hits}        // 0,
-                ram_misses       => $ram->{misses}      // 0,
-                ram_evictions    => $ram->{evictions}   // 0,
-                ram_track_limit  => $ram->{max_tracks}  // 0,
-                ram_bytes_used   => $ram->{bytes_used}  // 0,
-                ram_bytes_max    => $ram->{max_bytes}   // 0,
-                ram_bytes_fmt    => _fmtBytes( $ram->{bytes_used} // 0 ),
-                ram_max_fmt      => _fmtBytes( $ram->{max_bytes}   // 0 ),
+                ram_enabled     => 1,
+                ram_entries     => $ram->{track_count} // 0,
+                ram_hits        => $ram->{hits}        // 0,
+                ram_misses      => $ram->{misses}      // 0,
+                ram_evictions   => $ram->{evictions}   // 0,
+                ram_track_limit => $ram->{max_tracks}  // 0,
+                ram_bytes_used  => $ram->{bytes_used}  // 0,
+                ram_bytes_max   => $ram->{max_bytes}   // 0,
+                ram_bytes_fmt   => _fmtBytes( $ram->{bytes_used} // 0 ),
+                ram_max_fmt     => _fmtBytes( $ram->{max_bytes}  // 0 ),
             };
             if ( $stats->{disk} ) {
                 my $disk = $stats->{disk};
@@ -114,19 +116,19 @@ sub handle {
         };
     }
     elsif ( $method eq 'POST' ) {
-        my $body   = eval { $json->decode( $request->content() || '{}' ) };
+        my $body = eval { $json->decode( $request->content() || '{}' ) };
         if ($@) {
             $log->warn("AdminApi: JSON decode failed: $@");
-            my $err = { error => 'Invalid JSON body' };
+            my $err       = { error => 'Invalid JSON body' };
             my $resp_body = $json->encode($err);
-            $response->header('Content-Type'   => 'application/json; charset=utf-8');
-            $response->header('Content-Length' => length($resp_body));
+            $response->header( 'Content-Type'   => 'application/json; charset=utf-8' );
+            $response->header( 'Content-Length' => length($resp_body) );
             $response->code(400);
-            Slim::Web::HTTP::addHTTPResponse($httpClient, $response, \$resp_body);
+            Slim::Web::HTTP::addHTTPResponse( $httpClient, $response, \$resp_body );
             return;
         }
         $body //= {};
-        my $action = $body->{action}                                     // '';
+        my $action = $body->{action} // '';
 
         if ( $action eq 'flush_store' ) {
             my $target = $body->{target} // '';
@@ -134,15 +136,19 @@ sub handle {
             unless ( $valid{$target} ) {
                 $status = 400;
                 $result = { error => "Invalid target '$target'; valid: star, rating, bookmark, session, share" };
-            } else {
+            }
+            else {
                 my $count = 0;
                 if ( $target eq 'star' ) {
                     $count = Plugins::SlimPing::Core::StarStore->getInstance()->flushAll();
-                } elsif ( $target eq 'rating' ) {
+                }
+                elsif ( $target eq 'rating' ) {
                     $count = Plugins::SlimPing::Core::RatingStore->getInstance()->flushAll();
-                } elsif ( $target eq 'bookmark' ) {
+                }
+                elsif ( $target eq 'bookmark' ) {
                     $count = Plugins::SlimPing::Core::BookmarkStore->getInstance()->flushAll();
-                } elsif ( $target eq 'session' ) {
+                }
+                elsif ( $target eq 'session' ) {
                     $count = Plugins::SlimPing::Core::SessionStore->getInstance()->flushAll();
                 }
                 Plugins::SlimPing::Core::Audit::record(
@@ -162,10 +168,15 @@ sub handle {
                 action => 'restart_server',
             );
             $result = { ok => 1, message => 'Server restart initiated' };
+
             # Delay restart so the HTTP response can be sent first.
-            Slim::Utils::Timers::setTimer( undef, time() + 1.0, sub {
-                Slim::Control::Request::executeRequest( undef, ['restartserver'] );
-            });
+            Slim::Utils::Timers::setTimer(
+                undef,
+                time() + 1.0,
+                sub {
+                    Slim::Control::Request::executeRequest( undef, ['restartserver'] );
+                }
+            );
         }
         elsif ( $action eq 'flush_cache' ) {
             eval {
@@ -204,9 +215,8 @@ sub handle {
  OR url LIKE 'file://%slimping_out_%'
  OR url LIKE 'slimping://%')
 SQL
-            my $dbh    = Slim::Schema->dbh;
-            my ($count) = $dbh->selectrow_array(
-                "SELECT COUNT(*) FROM tracks WHERE $like_clause" );
+            my $dbh = Slim::Schema->dbh;
+            my ($count) = $dbh->selectrow_array("SELECT COUNT(*) FROM tracks WHERE $like_clause");
 
             unless ($confirm) {
                 $result = {
@@ -215,7 +225,8 @@ SQL
                     orphan_count => int( $count // 0 ),
                     message      => 'Add "confirm": true to execute deletion',
                 };
-            } else {
+            }
+            else {
                 # Delete tracks_persistent entries via SQL (handles both
                 # library.db and attached persist.db setups).  If
                 # TrackPersistent is loaded (STATISTICS on), use the
@@ -224,8 +235,7 @@ SQL
                 eval {
                     require Slim::Schema::TrackPersistent;
                     my $rs   = Slim::Schema->resultset('TrackPersistent');
-                    my @urls = @{ $dbh->selectcol_arrayref(
-                        "SELECT urlmd5 FROM tracks WHERE $like_clause" ) || [] };
+                    my @urls = @{ $dbh->selectcol_arrayref("SELECT urlmd5 FROM tracks WHERE $like_clause") || [] };
                     for my $urlmd5 (@urls) {
                         my $row = $rs->search( { urlmd5 => $urlmd5 } )->single;
                         if ($row) {
@@ -240,7 +250,7 @@ SQL
 
                 # Delete orphan junction-table rows, then tracks.
                 $dbh->do("DELETE FROM tracks_persistent WHERE urlmd5 IN (SELECT urlmd5 FROM tracks WHERE $like_clause)")
-                    unless $persist_deleted;  # fallback if resultset path failed
+                  unless $persist_deleted;    # fallback if resultset path failed
 
                 $dbh->do("DELETE FROM tracks WHERE $like_clause");
 
@@ -251,9 +261,9 @@ SQL
                     detail => "count=$count persist=$persist_deleted",
                 );
                 $result = {
-                    ok               => 1,
-                    orphan_count     => int( $count // 0 ),
-                    persist_deleted  => $persist_deleted // 0,
+                    ok              => 1,
+                    orphan_count    => int( $count // 0 ),
+                    persist_deleted => $persist_deleted // 0,
                 };
             }
         }
@@ -262,7 +272,8 @@ SQL
             unless ($username) {
                 $status = 400;
                 $result = { error => 'username is required' };
-            } else {
+            }
+            else {
                 my $stars     = Plugins::SlimPing::Core::StarStore->getInstance()->flushForUser($username);
                 my $ratings   = Plugins::SlimPing::Core::RatingStore->getInstance()->flushForUser($username);
                 my $bookmarks = Plugins::SlimPing::Core::BookmarkStore->getInstance()->flushForUser($username);
@@ -288,7 +299,8 @@ SQL
             unless ($username) {
                 $status = 400;
                 $result = { error => 'username is required' };
-            } else {
+            }
+            else {
                 my $mgr     = Plugins::SlimPing::Core::Container->get('auth_manager');
                 my $deleted = $mgr->deleteUser($username);
                 if ($deleted) {
@@ -300,7 +312,8 @@ SQL
                         detail => 'all data cascaded',
                     );
                     $result = { ok => 1, deleted => $username };
-                } else {
+                }
+                else {
                     $status = 404;
                     $result = { error => 'User not found' };
                 }
@@ -351,7 +364,7 @@ sub _fmtBytes {
     my ($bytes) = @_;
     return '0 B' unless $bytes && $bytes > 0;
     my @units = qw(B KB MB GB);
-    my $i = 0;
+    my $i     = 0;
     while ( $bytes >= 1024 && $i < 3 ) {
         $bytes /= 1024;
         $i++;

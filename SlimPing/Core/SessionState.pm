@@ -20,16 +20,16 @@ sub _store {
 }
 
 sub getState {
-    my ($self, $username, $client_name) = @_;
-    return _store()->getState($username, $client_name);
+    my ( $self, $username, $client_name ) = @_;
+    return _store()->getState( $username, $client_name );
 }
 
 sub saveQueue {
     my $self        = shift;
     my %args        = @_;
-    my $username    = $args{username}    or die 'saveQueue: username required';
+    my $username    = $args{username} or die 'saveQueue: username required';
     my $client_name = $args{client_name} // '';
-    my $track_ids   = $args{track_ids}   or die 'saveQueue: track_ids required';
+    my $track_ids   = $args{track_ids} or die 'saveQueue: track_ids required';
     my $current     = $args{current};
     my $position    = $args{position};
     return _store()->saveQueue(
@@ -42,18 +42,18 @@ sub saveQueue {
 }
 
 sub setNowPlaying {
-    my ($self, $username, $track_id, $position_secs, $client_name) = @_;
-    return _store()->setNowPlaying($username, $track_id, $position_secs, $client_name);
+    my ( $self, $username, $track_id, $position_secs, $client_name ) = @_;
+    return _store()->setNowPlaying( $username, $track_id, $position_secs, $client_name );
 }
 
 sub clearNowPlaying {
-    my ($self, $username, $client_name) = @_;
-    return _store()->clearNowPlaying($username, $client_name);
+    my ( $self, $username, $client_name ) = @_;
+    return _store()->clearNowPlaying( $username, $client_name );
 }
 
 sub getQueue {
-    my ($self, $username, $client_name) = @_;
-    return _store()->getQueue($username, $client_name);
+    my ( $self, $username, $client_name ) = @_;
+    return _store()->getQueue( $username, $client_name );
 }
 
 sub getActiveSessions {
@@ -67,24 +67,24 @@ sub getActiveSessions {
 my %_timeline;
 
 sub updatePlaybackState {
-    my $self        = shift;
-    my %args        = @_;
-    my $username      = $args{username}      or die 'updatePlaybackState: username required';
-    my $client_name   = $args{client_name}   or die 'updatePlaybackState: client_name required';
-    my $state         = $args{state}         || 'playing';
+    my $self          = shift;
+    my %args          = @_;
+    my $username      = $args{username}    or die 'updatePlaybackState: username required';
+    my $client_name   = $args{client_name} or die 'updatePlaybackState: client_name required';
+    my $state         = $args{state} || 'playing';
     my $position_ms   = $args{position_ms}   // 0;
     my $playback_rate = $args{playback_rate} // 1.0;
-    my $key = ($username // '') . ':' . ($client_name // '');
+    my $key           = ( $username // '' ) . ':' . ( $client_name // '' );
     $_timeline{$key} = {
-        state         => $state         || 'playing',
+        state         => $state || 'playing',
         position_ms   => $position_ms   // 0,
         playback_rate => $playback_rate // 1.0,
     };
 }
 
 sub getPlaybackState {
-    my ($self, $username, $client_name) = @_;
-    my $key = ($username // '') . ':' . ($client_name // '');
+    my ( $self, $username, $client_name ) = @_;
+    my $key = ( $username // '' ) . ':' . ( $client_name // '' );
     return $_timeline{$key};
 }
 

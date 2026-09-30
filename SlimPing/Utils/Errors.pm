@@ -31,19 +31,19 @@ use warnings;
 
 # Generic error hashref builder.
 sub error {
-    my ($class, $code, $message) = @_;
+    my ( $class, $code, $message ) = @_;
     return { error => { code => 0 + $code, message => $message } };
 }
 
 # Required parameter missing (code 10).
 sub missingParam {
-    my ($class, $param_name) = @_;
+    my ( $class, $param_name ) = @_;
     return { error => { code => 10, message => "Required parameter $param_name is missing" } };
 }
 
 # Entity not found (code 70).
 sub notFound {
-    my ($class, $entity) = @_;
+    my ( $class, $entity ) = @_;
     return { error => { code => 70, message => "$entity not found" } };
 }
 
@@ -56,7 +56,7 @@ sub notAuthorised {
 # Extract a required parameter from $params, returning the error hashref if
 # missing.  Callers use: Plugins::SlimPing::Utils::Errors->requireId($params, 'id') or return ...;
 sub requireId {
-    my ($class, $params, $key) = @_;
+    my ( $class, $params, $key ) = @_;
     $key //= 'id';
     my $val = $params->{$key};
     return $val if defined $val;
@@ -68,22 +68,23 @@ sub requireId {
 # the value does not match any allowed entry.
 # Callers use: my $err = Plugins::SlimPing::Utils::Errors->requireEnum($type, 'type', ...); return $err if $err;
 sub requireEnum {
-    my ($class, $val, $param_name, @allowed) = @_;
+    my ( $class, $val, $param_name, @allowed ) = @_;
     return undef unless defined $val;
     my %ok = map { $_ => 1 } @allowed;
     return undef if $ok{$val};
-    return $class->error(0, "Unknown value '$val' for parameter '$param_name'. Valid values: " . join(', ', @allowed));
+    return $class->error( 0,
+        "Unknown value '$val' for parameter '$param_name'. Valid values: " . join( ', ', @allowed ) );
 }
 
 # Require at least one of the named parameters to be present and defined.
 # Returns () if at least one is present, or an error hashref (code 10) if none are.
 # Callers use: Plugins::SlimPing::Utils::Errors->requireOneOf($params, qw(id albumId artistId)) or return ...;
 sub requireOneOf {
-    my ($class, $params, @keys) = @_;
+    my ( $class, $params, @keys ) = @_;
     for my $key (@keys) {
         return () if defined $params->{$key};
     }
-    return $class->missingParam(join(' or ', @keys));
+    return $class->missingParam( join( ' or ', @keys ) );
 }
 
 1;

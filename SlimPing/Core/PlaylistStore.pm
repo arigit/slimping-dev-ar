@@ -76,18 +76,19 @@ sub createPlaylist {
 
     my $playlist_dir = Slim::Utils::Misc::getPlaylistDir();
     return ( undef, 'No playlist directory configured in LMS' )
-        unless $playlist_dir;
+      unless $playlist_dir;
 
     my $clean = Slim::Utils::Misc::cleanupFilename($name);
     my $url   = Slim::Utils::Misc::fileURLFromPath(
-        catfile( $playlist_dir, Slim::Utils::Unicode::encode_locale($clean) . '.m3u' )
-    );
+        catfile( $playlist_dir, Slim::Utils::Unicode::encode_locale($clean) . '.m3u' ) );
 
-    my $pl = Slim::Schema->updateOrCreate({
-        url        => $url,
-        playlist   => 1,
-        attributes => { TITLE => $name, CT => 'ssp' },
-    });
+    my $pl = Slim::Schema->updateOrCreate(
+        {
+            url        => $url,
+            playlist   => 1,
+            attributes => { TITLE => $name, CT => 'ssp' },
+        }
+    );
     return ( undef, 'Failed to create playlist' ) unless blessed($pl);
 
     $pl->set_column( 'titlesort', Slim::Utils::Text::ignoreCaseArticles($name) );
@@ -133,7 +134,7 @@ sub updatePlaylist {
     }
 
     my $to_add = $changes->{add_song_ids} || [];
-    if ( @$to_add ) {
+    if (@$to_add) {
         my @new_urls = $self->resolveTrackUrls($to_add);
         push @tracks, map { Slim::Schema->objectForUrl( { url => $_ } ) } @new_urls;
     }
@@ -165,7 +166,7 @@ sub deletePlaylist {
     }
 
     Slim::Player::Playlist::removePlaylistFromDisk($pl);
-    $pl->setTracks([]);
+    $pl->setTracks( [] );
     $pl->delete;
     Slim::Schema->forceCommit;
 
@@ -177,7 +178,7 @@ sub deletePlaylist {
 sub resolveTrackUrls {
     my ( $self, $sq_ids ) = @_;
     my @urls;
-    for my $sq_id ( @$sq_ids ) {
+    for my $sq_id (@$sq_ids) {
         my ( undef, $raw_id ) = Plugins::SlimPing::Core::LibraryMapper->decodeId($sq_id);
         if ( !defined $raw_id ) {
             $log->info("SlimPing: unresolvable songId=$sq_id - cannot decode, skipping");

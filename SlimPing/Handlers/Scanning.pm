@@ -39,20 +39,17 @@ my $log = Plugins::SlimPing::Core::Logging->getLogger();
 
 sub registerHandlers {
     my $class = shift;
-    Plugins::SlimPing::API::Router->registerHandler('getScanStatus', \&getScanStatus);
-    Plugins::SlimPing::API::Router->registerHandler('startScan',     \&startScan);
+    Plugins::SlimPing::API::Router->registerHandler( 'getScanStatus', \&getScanStatus );
+    Plugins::SlimPing::API::Router->registerHandler( 'startScan',     \&startScan );
 }
 
 sub getScanStatus {
     my ($args) = @_;
 
-    my $scanning = Slim::Music::Import->stillScanning() ? \1 : \0;
-    my $count    = Slim::Music::Import->can('totalCount')
-        ? (Slim::Music::Import->totalCount() // 0) : 0;
-    my $current  = Slim::Music::Import->can('currentCount')
-        ? (Slim::Music::Import->currentCount() // 0) : 0;
-    my $phase    = Slim::Music::Import->can('scanningPhase')
-        ? (Slim::Music::Import->scanningPhase() // '') : '';
+    my $scanning = Slim::Music::Import->stillScanning()      ? \1                                             : \0;
+    my $count    = Slim::Music::Import->can('totalCount')    ? ( Slim::Music::Import->totalCount() // 0 )     : 0;
+    my $current  = Slim::Music::Import->can('currentCount')  ? ( Slim::Music::Import->currentCount() // 0 )   : 0;
+    my $phase    = Slim::Music::Import->can('scanningPhase') ? ( Slim::Music::Import->scanningPhase() // '' ) : '';
 
     # OpenSubsonic spec only defines 'scanning' and 'count'.  'current'
     # and 'phase' originated in the reference Subsonic server and are
@@ -67,8 +64,8 @@ sub getScanStatus {
 
     # Py-opensonic and several other client libraries access 'scanstatus'
     # (lowercase) instead of the spec-correct 'scanStatus'.
-    
-    # Looking at other server code, many servers in the ecosystem return 
+
+    # Looking at other server code, many servers in the ecosystem return
     # one form or the other so both keys are permanent.
     return {
         scanStatus => $status_data,
@@ -78,7 +75,7 @@ sub getScanStatus {
 
 sub startScan {
     my ($args) = @_;
-    if (my $err = Plugins::SlimPing::Auth::Permissions->requireRole($args->{user}, 'adminRole')) {
+    if ( my $err = Plugins::SlimPing::Auth::Permissions->requireRole( $args->{user}, 'adminRole' ) ) {
         return $err;
     }
 
@@ -88,19 +85,16 @@ sub startScan {
     # the scan starts.  Runtime failures (e.g. missing music directory)
     # surface only in the LMS server log, not in this API response.
     my $request = Slim::Control::Request->new('rescan');
-    $request->addParam('_mode', $mode eq 'full' ? 'wipecache' : 'fast');
+    $request->addParam( '_mode', $mode eq 'full' ? 'wipecache' : 'fast' );
 
-    $request->callback(sub {
-        my $r = shift;
-        if ($r->isError()) {
-            $log->error(
-                sprintf(
-                    'SlimPing: rescan request failed: %s',
-                    $r->getResult() // 'unknown error'
-                )
-            );
+    $request->callback(
+        sub {
+            my $r = shift;
+            if ( $r->isError() ) {
+                $log->error( sprintf( 'SlimPing: rescan request failed: %s', $r->getResult() // 'unknown error' ) );
+            }
         }
-    });
+    );
 
     $request->execute();
 

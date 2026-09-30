@@ -82,5 +82,51 @@
         </div>
         [% END %]
 
+        [% WRAPPER setting title="Artist List Configuration"
+        desc="Control which contributors appear in getArtists responses" %]
+        <fieldset class="sp-exposure-mode">
+            <legend class="sp-exposure-legend">Artist List Mode</legend>
+
+            <label class="sp-radio-label">
+                <input type="radio" name="artist_list_mode" value="lms"
+                    class="sp-exposure-radio"
+                    [% 'checked' IF slimping_artist_list_mode == 'lms' %]>
+                <strong>Follow LMS (default)</strong>
+                <span class="sp-radio-desc">
+                    Mirror the server's artist-list configuration (LMS Behaviour
+                    page: unified artist list and the roles included with Artists).
+                    Note: with LMS defaults this includes every contributor role.
+                </span>
+            </label>
+
+            <label class="sp-radio-label">
+                <input type="radio" name="artist_list_mode" value="all"
+                    class="sp-exposure-radio"
+                    [% 'checked' IF slimping_artist_list_mode == 'all' %]>
+                <strong>All contributors</strong>
+                <span class="sp-radio-desc">
+                    Include every contributor role: artist, album artist, composer,
+                    conductor, band and track artist.
+                </span>
+            </label>
+
+            <label class="sp-radio-label">
+                <input type="radio" name="artist_list_mode" value="album_artist"
+                    class="sp-exposure-radio"
+                    [% 'checked' IF slimping_artist_list_mode == 'album_artist' %]>
+                <strong>Album artists only</strong>
+                <span class="sp-radio-desc">
+                    Only contributors that hold an album-artist role.
+                </span>
+            </label>
+        </fieldset>
+
+        <div class="mt-15">
+            <button type="button" class="stdclick btn-primary"
+                onclick="return saveArtistListMode();">Save Artist List Mode</button>
+            <span id="sp-artist-list-mode-result" class="sp-save-result"></span>
+        </div>
+        [% END %]
+
     </div>
 </div>

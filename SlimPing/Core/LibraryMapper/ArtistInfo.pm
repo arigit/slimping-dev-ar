@@ -39,46 +39,49 @@ require Plugins::SlimPing::API::ResponseFormatter;
 require Plugins::SlimPing::Core::TextCacheStore;
 require Plugins::SlimPing::Core::MaiThrottle;
 
-my $log = Plugins::SlimPing::Core::Logging->getLogger();
+my $log   = Plugins::SlimPing::Core::Logging->getLogger();
 my $prefs = Plugins::SlimPing::Core::Logging->getPrefs();
 
 # Returns a hashref with the base artist info fields (shared by legacy + v2).
 # Caller chooses how to shape the similarArtist entries.
 sub _getArtistInfoBase {
-    my ($self, $sq_artist_id, %args) = @_;
-    my (undef, $raw_id) = $self->decodeId($sq_artist_id);
+    my ( $self, $sq_artist_id, %args ) = @_;
+    my ( undef, $raw_id ) = $self->decodeId($sq_artist_id);
     return undef unless defined $raw_id;
 
-    my $artist = Slim::Schema->find('Contributor', $raw_id);
+    my $artist = Slim::Schema->find( 'Contributor', $raw_id );
     return undef unless $artist;
 
-    return ($artist, {
-        biography      => _artistBio($self, $artist),
-        musicBrainzId  => $artist->musicbrainz_id() // '',
-        lastFmUrl      => 'https://www.last.fm/music/' . _uriEscape($artist->name()),
-        smallImageUrl  => _artistImageUrl($self, $artist, 300),
-        mediumImageUrl => _artistImageUrl($self, $artist, 600),
-        largeImageUrl  => _artistImageUrl($self, $artist, 1200),
-    });
+    return (
+        $artist,
+        {
+            biography      => _artistBio( $self, $artist ),
+            musicBrainzId  => $artist->musicbrainz_id() // '',
+            lastFmUrl      => 'https://www.last.fm/music/' . _uriEscape( $artist->name() ),
+            smallImageUrl  => _artistImageUrl( $self, $artist, 300 ),
+            mediumImageUrl => _artistImageUrl( $self, $artist, 600 ),
+            largeImageUrl  => _artistImageUrl( $self, $artist, 1200 ),
+        }
+    );
 }
 
 # Legacy getArtistInfo: similar artists use the old Artist model shape.
 sub shapeArtistInfoLegacy {
-    my ($self, $sq_artist_id, %args) = @_;
-    my ($artist, $base) = _getArtistInfoBase($self, $sq_artist_id, %args);
+    my ( $self, $sq_artist_id, %args ) = @_;
+    my ( $artist, $base ) = _getArtistInfoBase( $self, $sq_artist_id, %args );
     return undef unless $base;
 
-    $base->{similarArtist} = _similarArtistsSimple($self, $artist, $args{count} // 5);
+    $base->{similarArtist} = _similarArtistsSimple( $self, $artist, $args{count} // 5 );
     return $base;
 }
 
 # V2 getArtistInfo2: similar artists use the full ArtistID3 model shape.
 sub shapeArtistInfo {
-    my ($self, $sq_artist_id, %args) = @_;
-    my ($artist, $base) = _getArtistInfoBase($self, $sq_artist_id, %args);
+    my ( $self, $sq_artist_id, %args ) = @_;
+    my ( $artist, $base ) = _getArtistInfoBase( $self, $sq_artist_id, %args );
     return undef unless $base;
 
-    $base->{similarArtist} = _similarArtistsShaped($self, $artist, $args{count} // 5);
+    $base->{similarArtist} = _similarArtistsShaped( $self, $artist, $args{count} // 5 );
     return $base;
 }
 
@@ -86,12 +89,12 @@ sub shapeArtistInfo {
 # No caching — prefs can change mid-session via the admin UI.
 sub _positiveTtlSeconds {
     my $raw = $prefs->get('mai_bio_positive_ttl');
-    return (defined $raw && $raw > 0) ? int($raw) : 7776000;
+    return ( defined $raw && $raw > 0 ) ? int($raw) : 7776000;
 }
 
 sub _negativeTtlSeconds {
     my $raw = $prefs->get('mai_bio_negative_ttl');
-    return (defined $raw && $raw > 0) ? int($raw) : 2592000;
+    return ( defined $raw && $raw > 0 ) ? int($raw) : 2592000;
 }
 
 # Minimum biography length (characters) for a positive cache entry.
@@ -112,7 +115,7 @@ use constant MIN_BIO_LENGTH => 200;
 #      positive bios and negative sentinels so the next request hits Step 1.
 #   3. Return empty string as the current-request fallback.
 sub _artistBio {
-    my ($self, $artist) = @_;
+    my ( $self, $artist ) = @_;
     my $artist_id   = $artist->id();
     my $artist_name = $artist->name();
 
@@ -133,37 +136,35 @@ sub _artistBio {
         my ($request) = @_;
         my $bio = $request->getResult('biography');
 
-        if (defined $bio && length $bio >= MIN_BIO_LENGTH) {
+        if ( defined $bio && length $bio >= MIN_BIO_LENGTH ) {
             my $ttl = _positiveTtlSeconds();
-            $cache->put("bio:$artist_id", $bio, $ttl);
+            $cache->put( "bio:$artist_id", $bio, $ttl );
             $log->debug("cached bio for artist $artist_id ($ttl s TTL)") if $log->is_debug;
-        } else {
+        }
+        else {
             my $ttl = _negativeTtlSeconds();
-            $cache->put("bio:$artist_id", '', $ttl);
+            $cache->put( "bio:$artist_id", '', $ttl );
             $log->debug(
                 sprintf(
                     'negative-cached bio for artist %s (%d s TTL, got %d chars)',
-                    $artist_id, $ttl, length($bio // '')
+                    $artist_id, $ttl, length( $bio // '' )
                 )
             ) if $log->is_debug;
         }
     };
 
-    my $result = Plugins::SlimPing::Core::MaiThrottle->asyncRequest(
-        ['musicartistinfo', 'biography', "artist_id:$artist_id"],
-        $coderef,
-        30,
-        "bio:$artist_id",
-    );
+    my $result =
+      Plugins::SlimPing::Core::MaiThrottle->asyncRequest( [ 'musicartistinfo', 'biography', "artist_id:$artist_id" ],
+        $coderef, 30, "bio:$artist_id", );
 
     # Step 3 — throttle rejected.  Store a short-lived negative sentinel.
-    if (!$result) {
-        $cache->put("bio:$artist_id", '', 300);
+    if ( !$result ) {
+        $cache->put( "bio:$artist_id", '', 300 );
         return '';
     }
 
     # Step 4 — sync completion.  Coderef already cached the result.
-    if ($result->{sync}) {
+    if ( $result->{sync} ) {
         return $result->{request}->getResult('biography') // '';
     }
 
@@ -183,84 +184,79 @@ sub _isMaiConfigured {
 sub _maiArtistImageUrl {
     my ($artist) = @_;
     my $url = eval {
-        Plugins::MusicArtistInfo::LocalArtwork->getArtistPhoto({
-            artist    => $artist->name(),
-            artist_id => $artist->id(),
-        });
+        Plugins::MusicArtistInfo::LocalArtwork->getArtistPhoto(
+            {
+                artist    => $artist->name(),
+                artist_id => $artist->id(),
+            }
+        );
     };
     my $err = $@;
     if ($err) {
         $log->debug(
             sprintf(
                 'MAI getArtistPhoto threw for artist id=%s name=%s: %s',
-                $artist->id() // '?', $artist->name() // '?', $err
+                $artist->id() // '?',
+                $artist->name() // '?', $err
             )
         );
         return undef;
     }
-    return undef unless $url;
+    return undef   unless $url;
     return "/$url" unless $url =~ m{^/};
     return $url;
 }
 
 sub _artistImageUrl {
-    my ($self, $artist, $size) = @_;
+    my ( $self, $artist, $size ) = @_;
 
-    if (_isMaiConfigured($self)) {
+    if ( _isMaiConfigured($self) ) {
         my $mai_url = _maiArtistImageUrl($artist);
         return $mai_url if $mai_url;
     }
 
-    my $id = $self->encodeId('artist', $artist->id());
-    return Plugins::SlimPing::API::ResponseFormatter->coverArtUrl($id, size => $size);
+    my $id = $self->encodeId( 'artist', $artist->id() );
+    return Plugins::SlimPing::API::ResponseFormatter->coverArtUrl( $id, size => $size );
 }
 
 # Legacy getArtistInfo: return simple {id, name} hashes for similar artists.
 sub _similarArtistsSimple {
-    my ($self, $artist, $count) = @_;
-    my @ids = $self->_genreArtistIds($artist, $count);
+    my ( $self, $artist, $count ) = @_;
+    my @ids = $self->_genreArtistIds( $artist, $count );
     return [] unless @ids;
-    my $rs = Slim::Schema->search('Contributor', { 'me.id' => { -in => \@ids } });
-    return [
-        map {
-            { id => $self->encodeId('artist', $_->id()), name => $_->name() }
-        } $rs->all()
-    ];
+    my $rs = Slim::Schema->search( 'Contributor', { 'me.id' => { -in => \@ids } } );
+    return [ map { { id => $self->encodeId( 'artist', $_->id() ), name => $_->name() } } $rs->all() ];
 }
 
 # V2 getArtistInfo2: return full ArtistID3 shapes for similar artists.
 sub _similarArtistsShaped {
-    my ($self, $artist, $count) = @_;
-    my @ids = $self->_genreArtistIds($artist, $count);
+    my ( $self, $artist, $count ) = @_;
+    my @ids = $self->_genreArtistIds( $artist, $count );
     return [] unless @ids;
 
-    my $dbh = Slim::Schema->dbh;
-    my $placeholders = join(',', ('?') x scalar @ids);
+    my $dbh          = Slim::Schema->dbh;
+    my $placeholders = join( ',', ('?') x scalar @ids );
+
     # Plain prepare() — not prepare_cached() — because the variable-length IN
     # clause produces a different SQL string per batch size.
-    my $c_sth = $dbh->prepare(
-        "SELECT contributor, COUNT(DISTINCT album) FROM contributor_album"
-      . " WHERE contributor IN ($placeholders)"
-      . " GROUP BY contributor"
-    );
+    my $c_sth =
+      $dbh->prepare( "SELECT contributor, COUNT(DISTINCT album) FROM contributor_album"
+          . " WHERE contributor IN ($placeholders)"
+          . " GROUP BY contributor" );
     $c_sth->execute(@ids);
     my %album_count_for;
-    while (my ($cid, $n) = $c_sth->fetchrow_array()) {
+    while ( my ( $cid, $n ) = $c_sth->fetchrow_array() ) {
         $album_count_for{$cid} = $n;
     }
     $c_sth->finish();
 
-    my $rs = Slim::Schema->search('Contributor', { 'me.id' => { -in => \@ids } });
-    return [
-        map {
-            $self->shapeArtist($_, { albumCount => $album_count_for{ $_->id() } // 0 })
-        } $rs->all()
-    ];
+    my $rs = Slim::Schema->search( 'Contributor', { 'me.id' => { -in => \@ids } } );
+    return [ map { $self->shapeArtist( $_, { albumCount => $album_count_for{ $_->id() } // 0 } ) } $rs->all() ];
 }
 
 sub _uriEscape {
     require URI::Escape;
-    return URI::Escape::uri_escape_utf8($_[0]);
+    return URI::Escape::uri_escape_utf8( $_[0] );
 }
 
 1;

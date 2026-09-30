@@ -35,7 +35,7 @@ my $log = Plugins::SlimPing::Core::Logging->getLogger();
 # Flatten a parameter value that may be a scalar or arrayref into a flat list.
 # Returns () for undef, @$val for arrayref, ($val) for scalar.
 sub multiParam {
-    my ($class, $val) = @_;
+    my ( $class, $val ) = @_;
     return () unless defined $val;
     return ref $val eq 'ARRAY' ? @$val : ($val);
 }
@@ -50,8 +50,8 @@ sub clamp {
     my $default = $args{default} // 0;
 
     $val = $default unless defined $args{val};
-    $val = $min     if $val < $min;
-    $val = $max     if $val > $max;
+    $val = $min if $val < $min;
+    $val = $max if $val > $max;
     return int($val);
 }
 
@@ -62,17 +62,19 @@ sub clamp {
 # reference, hence truthy).  We dereference when we see a SCALAR ref and
 # fall back to a string match for safety.
 sub coerceBool {
-    my ($class, $v) = @_;
+    my ( $class, $v ) = @_;
     return 0 unless defined $v;
     if ( ref $v ) {
+
         # JSON::PP::Boolean is bless \$value, 'JSON::PP::Boolean' where
         # $value is 0 or 1 — dereferencing recovers the raw number.
         if ( ref $v eq 'JSON::PP::Boolean' || ref $v eq 'JSON::XS::Boolean' ) {
             return $$v ? 1 : 0;
         }
+
         # Unknown ref type — log and default to 0.  All callers are
         # feature or security toggles where default-off is safer.
-        $log->warn("SlimPing: coerceBool received unexpected ref type " . ref($v) . ", defaulting to 0");
+        $log->warn( "SlimPing: coerceBool received unexpected ref type " . ref($v) . ", defaulting to 0" );
         return 0;
     }
     return ( $v && $v ne '0' && lc("$v") ne 'false' ) ? 1 : 0;

@@ -73,9 +73,8 @@ sub _removeClientPrefs {
     require Slim::Utils::Prefs;
     require Slim::Utils::Prefs::Client;
     foreach my $namespace ( @{ Slim::Utils::Prefs::namespaces() } ) {
-        Slim::Utils::Prefs::preferences($namespace)->remove(
-            $Slim::Utils::Prefs::Client::clientPreferenceTag . ':' . $client_id
-        );
+        Slim::Utils::Prefs::preferences($namespace)
+          ->remove( $Slim::Utils::Prefs::Client::clientPreferenceTag . ':' . $client_id );
     }
 }
 
@@ -118,7 +117,8 @@ sub _sweepOrphanedPlaylistFiles {
     for my $file (@files) {
         if ( unlink($file) ) {
             $count++;
-        } else {
+        }
+        else {
             $log->warn("SlimPing: failed to delete orphaned playlist file $file ($!)");
         }
     }
@@ -143,7 +143,7 @@ sub cleanupDisconnectedPlayers {
         # players.  Clean them up without the pipeline/pool handling
         # that only applies to real HTTP player instances.
         if ( !$player->isa('Slim::Player::HTTP') ) {
-            $log->debug("SlimPing: cleaning up pref-resurrected player " . $player->id);
+            $log->debug( "SlimPing: cleaning up pref-resurrected player " . $player->id );
             _removeClientPrefs( $player->id() );
             Slim::Player::Client::forgetClient($player);
             Plugins::SlimPing::Core::VirtualPlayer::RemoteGovernor::_releaseRemoteSlot( $player->id() );
@@ -153,7 +153,7 @@ sub cleanupDisconnectedPlayers {
 
         next if $player->connected();
 
-        $log->debug("SlimPing: cleaning up disconnected virtual player " . $player->id);
+        $log->debug( "SlimPing: cleaning up disconnected virtual player " . $player->id );
 
         # Clean up any orphaned prime buffer state from a client that
         # disconnected during priming.  Safe no-op for unprimed players.
@@ -164,20 +164,17 @@ sub cleanupDisconnectedPlayers {
         # starts the grace timer instead of immediately tearing down.
         # When listeners remain, the pool keeps the player alive via a
         # keep-alive timer -- do NOT forget the player.
-        my $kept = Plugins::SlimPing::Core::PipelinePool->notifyPlayerGone(
-            $player->id );
+        my $kept = Plugins::SlimPing::Core::PipelinePool->notifyPlayerGone( $player->id );
 
         unless ($kept) {
+
             # Finalise any in-flight cache entry for this player.
             # The socket has closed so the stream has genuinely ended.
             # The defined-EOS-sentinel path in nextChunk also calls
             # finaliseStream, but STREAMOUT (undef chunk with
             # streamingState==2) and client disconnects only reach
             # us here.  Safe to call on unregistered players (no-op).
-            eval {
-                Plugins::SlimPing::Core::TranscodeCache->getInstance
-                  ->finaliseStream( $player->id );
-            };
+            eval { Plugins::SlimPing::Core::TranscodeCache->getInstance->finaliseStream( $player->id ); };
             _removeClientPrefs( $player->id() );
             Slim::Player::Client::forgetClient($player);
         }
@@ -208,7 +205,7 @@ sub cleanupAllPlayers {
 
         # Pref-resurrected players (generic Client, not HTTP).
         if ( !$player->isa('Slim::Player::HTTP') ) {
-            $log->debug("SlimPing: shutdown cleanup for pref-resurrected player " . $player->id);
+            $log->debug( "SlimPing: shutdown cleanup for pref-resurrected player " . $player->id );
             _removeClientPrefs( $player->id() );
             Slim::Player::Client::forgetClient($player);
             Plugins::SlimPing::Core::VirtualPlayer::RemoteGovernor::_releaseRemoteSlot( $player->id() );
@@ -216,17 +213,14 @@ sub cleanupAllPlayers {
             next;
         }
 
-        $log->debug("SlimPing: shutdown cleanup for virtual player " . $player->id);
+        $log->debug( "SlimPing: shutdown cleanup for virtual player " . $player->id );
 
         Plugins::SlimPing::Core::VirtualPlayer::StreamingClient::_deletePrimeState( $player->id );
         Plugins::SlimPing::Core::VirtualPlayer::StreamEnricher::_deleteCueStopState( $player->id );
 
         Plugins::SlimPing::Core::PipelinePool->notifyPlayerGone( $player->id );
 
-        eval {
-            Plugins::SlimPing::Core::TranscodeCache->getInstance
-              ->finaliseStream( $player->id );
-        };
+        eval { Plugins::SlimPing::Core::TranscodeCache->getInstance->finaliseStream( $player->id ); };
         _removeClientPrefs( $player->id() );
         Slim::Player::Client::forgetClient($player);
         Plugins::SlimPing::Core::VirtualPlayer::RemoteGovernor::_releaseRemoteSlot( $player->id() );

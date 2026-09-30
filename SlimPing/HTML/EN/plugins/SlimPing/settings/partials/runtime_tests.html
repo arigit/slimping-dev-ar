@@ -1,0 +1,27 @@
+<div class="settings-accordion" data-accordion-id="runtime_tests">
+    <div class="settings-accordion-header" aria-expanded="false" role="button" tabindex="0"
+        aria-controls="accordion-content-runtime-tests">
+        <div class="settings-accordion-title">Runtime Tests</div>
+        <div class="settings-accordion-icon"></div>
+    </div>
+    <div id="accordion-content-runtime-tests" class="settings-accordion-content">
+
+        <p class="m-0 mb-10 fs-12 text-secondary">
+            SlimPing only has context once it is running inside Lyrion, so some of
+            its logic cannot be exercised by offline tests. These runtime tests run
+            in the server process and check the parts that are not reachable over
+            the OpenSubsonic API: CUE and DSD seek time formatting, the
+            reportPlayback scrobble threshold, the Alternative Play Count pass
+            tracker and the Ratings Light rating conversion. They need no client,
+            no configured library path and no network access.
+        </p>
+
+        <button type="button" id="sp-runtime-tests-run" class="stdclick btn-primary"
+            onclick="runRuntimeTests(); return false;">Run Runtime Tests</button>
+        <span id="sp-runtime-tests-summary" class="sp-save-result ml-10"></span>
+
+        <pre id="sp-runtime-tests-output" class="fs-11 mt-10"
+            style="max-height: 320px; overflow: auto; white-space: pre-wrap;"></pre>
+
+    </div>
+</div>

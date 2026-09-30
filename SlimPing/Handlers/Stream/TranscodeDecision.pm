@@ -63,26 +63,23 @@ sub _getTranscodeDecision {
     my $media_type = $p->{mediaType} || 'song';
 
     unless ( $media_type eq 'song' ) {
-        return Plugins::SlimPing::Utils::Errors->error(0, "Unsupported mediaType: $media_type");
+        return Plugins::SlimPing::Utils::Errors->error( 0, "Unsupported mediaType: $media_type" );
     }
 
     # Read JSON POST body (Router doesn't consume application/json bodies)
     my $request  = $args->{_response}->request();
     my $raw_body = $request->content() // '{}';
-    use constant MAX_TRANSCODE_DECISION_BYTES => 65536;  # 64 KB
+    use constant MAX_TRANSCODE_DECISION_BYTES => 65536;    # 64 KB
     if ( length($raw_body) > MAX_TRANSCODE_DECISION_BYTES ) {
-        $log->warn(sprintf(
-            'SlimPing: getTranscodeDecision body too large (%d bytes)',
-            length($raw_body)
-        ));
-        return Plugins::SlimPing::Utils::Errors->error(0, 'Request body too large');
+        $log->warn( sprintf( 'SlimPing: getTranscodeDecision body too large (%d bytes)', length($raw_body) ) );
+        return Plugins::SlimPing::Utils::Errors->error( 0, 'Request body too large' );
     }
     my $body = $raw_body;
     my $client_info;
     eval { $client_info = JSON::XS::decode_json($body); };
     if ($@) {
         $log->warn("SlimPing: getTranscodeDecision JSON parse error: $@");
-        return Plugins::SlimPing::Utils::Errors->error(0, 'Invalid JSON body');
+        return Plugins::SlimPing::Utils::Errors->error( 0, 'Invalid JSON body' );
     }
 
     my $direct_play_profiles = $client_info->{directPlayProfiles}         // [];
@@ -103,14 +100,16 @@ sub _getTranscodeDecision {
     # _rememberClientBitrateCap can distinguish "client set 0 = unlimited"
     # (clear the remembered cap) from "client omitted the field = no
     # preference stated" (leave the remembered cap untouched).
-    Plugins::SlimPing::Handlers::Stream::Endpoints::_rememberClientBitrateCap({
-        user               => $args->{user},
-        client_name        => $args->{client_name},
-        max_audio_br       => $max_audio_br,
-        max_transcode_br   => $max_transcode_br,
-        explicit_audio     => exists $client_info->{maxAudioBitrate},
-        explicit_transcode => exists $client_info->{maxTranscodingAudioBitrate},
-    });
+    Plugins::SlimPing::Handlers::Stream::Endpoints::_rememberClientBitrateCap(
+        {
+            user               => $args->{user},
+            client_name        => $args->{client_name},
+            max_audio_br       => $max_audio_br,
+            max_transcode_br   => $max_transcode_br,
+            explicit_audio     => exists $client_info->{maxAudioBitrate},
+            explicit_transcode => exists $client_info->{maxTranscodingAudioBitrate},
+        }
+    );
 
     $log->debug(
         sprintf(
@@ -159,9 +158,9 @@ sub _getTranscodeDecision {
         container       => $canonical,
         codec           => $canonical,
         audioBitrate    => $src_br_kbps ? 0 + int( $src_br_kbps * 1000 ) : undef,
-        audioChannels   => $channels    ? int($channels)             : undef,
-        audioSamplerate => $samplerate  ? int($samplerate)           : undef,
-        audioBitdepth   => $bitdepth    ? int($bitdepth)             : undef,
+        audioChannels   => $channels    ? int($channels)                 : undef,
+        audioSamplerate => $samplerate  ? int($samplerate)               : undef,
+        audioBitdepth   => $bitdepth    ? int($bitdepth)                 : undef,
     };
 
     # Strip undef keys -- JSON::XS encodes undef as null, but the spec says
@@ -188,7 +187,8 @@ sub _getTranscodeDecision {
             push @transcode_reasons,
               "Source bitrate $src_br_kbps kbps exceeds client maximum $max_audio_br kbps for direct play";
         }
-        elsif ( !$src_br_kbps && Plugins::SlimPing::Core::Container->get('library_mapper')->isLosslessFormat($suffix) ) {
+        elsif ( !$src_br_kbps && Plugins::SlimPing::Core::Container->get('library_mapper')->isLosslessFormat($suffix) )
+        {
 
             # Lossless format without a DB bitrate -- virtually always
             # exceeds any plausible client cap (e.g. FLAC at 900+ kbps).
@@ -210,8 +210,7 @@ sub _getTranscodeDecision {
     # who need native DSD should use LMS players with suitable DACs.
     if ( $$can_direct_play && Plugins::SlimPing::Core::Container->get('library_mapper')->isDsdFormat($suffix) ) {
         $can_direct_play = \0;
-        push @transcode_reasons,
-          'DSD format requires server-side decoding -- not available for direct play';
+        push @transcode_reasons, 'DSD format requires server-side decoding -- not available for direct play';
     }
 
     if ( $profile_reasons && @$profile_reasons ) {
@@ -222,9 +221,10 @@ sub _getTranscodeDecision {
     # When an exotic-format track (DSD) is requested and the operator has
     # configured exotic_target=flac, we offer FLAC output at the configured
     # sample rate.  Otherwise we offer MP3 CBR (existing behaviour).
-    my $is_exotic = Plugins::SlimPing::Core::Container->get('library_mapper')->isDsdFormat($suffix);
+    my $is_exotic     = Plugins::SlimPing::Core::Container->get('library_mapper')->isDsdFormat($suffix);
     my $exotic_target = Plugins::SlimPing::Core::Logging->getPrefs()->get('exotic_target') || 'flac';
-    my $offer_flac = $is_exotic
+    my $offer_flac =
+         $is_exotic
       && $exotic_target eq 'flac'
       && !( $max_transcode_br > 0 );
 
@@ -236,7 +236,7 @@ sub _getTranscodeDecision {
             container       => 'flac',
             codec           => 'flac',
             audioCodec      => 'flac',
-            audioBitrate    => undef,                          # VBR lossless
+            audioBitrate    => undef,             # VBR lossless
             audioSamplerate => int($rate_pref),
             audioBitdepth   => 24,
             audioChannels   => 2,
@@ -281,8 +281,8 @@ sub _getTranscodeDecision {
     # --- transcodingProfiles check ---
     # Check whether the client has a profile that accepts our transcode output.
     if ( $transcoding_profiles && ref $transcoding_profiles eq 'ARRAY' && @$transcoding_profiles ) {
-        my $fmt     = $transcode_stream->{container} || 'mp3';
-        my $fmt_ok  = 0;
+        my $fmt    = $transcode_stream->{container} || 'mp3';
+        my $fmt_ok = 0;
         for my $tp (@$transcoding_profiles) {
             next unless ref $tp eq 'HASH';
             my $cont  = lc( $tp->{container}  // '' );
@@ -331,9 +331,9 @@ sub _getTranscodeDecision {
     # Build an opaque transcodeParams token so the client can call
     # getTranscodeStream.view without re-sending format/bitrate params.
     # Encodes (sq_id, format, bitrate, offset, expiry) signed with HMAC.
-    my $token_fmt = $offer_flac ? 'flac' : 'mp3';
-    my $token_br  = $offer_flac ? 0 : ( $target_br_kbps || 320 );
-    my $ttl       = Plugins::SlimPing::Core::Logging->getPrefs()->get('transcode_token_ttl') || 300;
+    my $token_fmt        = $offer_flac ? 'flac' : 'mp3';
+    my $token_br         = $offer_flac ? 0      : ( $target_br_kbps || 320 );
+    my $ttl              = Plugins::SlimPing::Core::Logging->getPrefs()->get('transcode_token_ttl') || 300;
     my $transcode_params = _buildTranscodeToken( $sq_id, $token_fmt, $token_br, 0, $ttl );
 
     # errorReason (OpenSubsonic optional): populated when both
@@ -374,16 +374,20 @@ sub _getTranscodeStream {
     my $p = $args->{params};
 
     my $sq_id = $p->{mediaId}
-      or return Plugins::SlimPing::API::Router->sendError( $httpClient, $response, $p, 10, 'Required parameter mediaId is missing' );
+      or return Plugins::SlimPing::API::Router->sendError( $httpClient, $response, $p, 10,
+        'Required parameter mediaId is missing' );
     my $media_type = $p->{mediaType} || 'song';
-    return Plugins::SlimPing::API::Router->sendError( $httpClient, $response, $p, 0, "Unsupported mediaType: $media_type" )
+    return Plugins::SlimPing::API::Router->sendError( $httpClient, $response, $p, 0,
+        "Unsupported mediaType: $media_type" )
       unless $media_type eq 'song';
 
     my $token = $p->{transcodeParams}
-      or return Plugins::SlimPing::API::Router->sendError( $httpClient, $response, $p, 10, 'Required parameter transcodeParams is missing' );
+      or return Plugins::SlimPing::API::Router->sendError( $httpClient, $response, $p, 10,
+        'Required parameter transcodeParams is missing' );
 
     my $decoded = _validateTranscodeToken($token);
-    return Plugins::SlimPing::API::Router->sendError( $httpClient, $response, $p, 40, 'Invalid or expired transcode token' )
+    return Plugins::SlimPing::API::Router->sendError( $httpClient, $response, $p, 40,
+        'Invalid or expired transcode token' )
       unless $decoded;
 
     # Token must reference the same media the client is requesting
@@ -477,6 +481,7 @@ sub _matchDirectPlay {
     my @reasons = keys %seen_reasons;
     return ( \0, \@reasons );
 }
+
 # --- Transcode token helpers --------------------------------------------------
 
 # HMAC signing key for transcodeParams tokens.  Lazily initialised from the
@@ -541,7 +546,7 @@ sub _validateTranscodeToken {
     return {
         sq_id   => $decoded->{id},
         format  => $decoded->{fmt} || 'mp3',
-        bitrate => int( $decoded->{br} // 320 ),
+        bitrate => int( $decoded->{br}  // 320 ),
         offset  => int( $decoded->{off} // 0 ),
         expiry  => $decoded->{exp},
     };

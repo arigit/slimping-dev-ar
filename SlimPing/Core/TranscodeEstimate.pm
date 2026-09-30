@@ -55,8 +55,7 @@ sub resolveSourceBitrate {
     # accurate Content-Length for CBR output.
     my $plugin_br = eval {
         require Plugins::SlimPing::Core::StreamingServiceAudit;
-        Plugins::SlimPing::Core::StreamingServiceAudit
-          ->effectiveBitrateForScheme( lc($content_type) );
+        Plugins::SlimPing::Core::StreamingServiceAudit->effectiveBitrateForScheme( lc($content_type) );
     };
     return $plugin_br if $plugin_br && $plugin_br > 0;
 
@@ -79,7 +78,7 @@ sub resolveSourceBitrate {
 sub estimate {
     my ( undef, $args ) = @_;
     my $cue_duration = $args->{cue_duration} // 0;
-    my $duration = $cue_duration > 0 ? $cue_duration : ( $args->{duration_s} // 0 );
+    my $duration     = $cue_duration > 0 ? $cue_duration : ( $args->{duration_s} // 0 );
     return undef unless $duration > 0;
 
     my $source_br = __PACKAGE__->resolveSourceBitrate( $args->{source_br_kbps} // 0, $args->{is_remote} // 0,

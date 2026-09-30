@@ -369,6 +369,30 @@ var SlimPingSettings = (function() {
             }).catch(function(e) { alert('Network error: ' + e.message); });
         },
 
+        saveArtistListMode: function() {
+            var radio = document.querySelector('input[name="artist_list_mode"]:checked');
+            var mode = radio ? radio.value : 'lms';
+            var resultEl = document.getElementById('sp-artist-list-mode-result');
+            spFetch('/plugins/SlimPing/settings/server', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'save_artist_list_mode',
+                    artist_list_mode: mode
+                })
+            }).then(function(r) { return r.json(); }).then(function(d) {
+                if (d.ok) {
+                    if (resultEl) {
+                        resultEl.textContent = 'Saved.';
+                        resultEl.className = 'sp-save-result sp-save-ok';
+                        setTimeout(function() { resultEl.textContent = ''; }, 3000);
+                    }
+                } else {
+                    alert('Error: ' + (d.error || 'unknown'));
+                }
+            }).catch(function(e) { alert('Network error: ' + e.message); });
+        },
+
         saveAdminAccess: function() {
             var radio = document.querySelector('input[name="admin_access"]:checked');
             var mode = radio ? radio.value : 'lan_open';
@@ -698,6 +722,25 @@ var SlimPingSettings = (function() {
                     action: 'set_radio_folder',
                     username: username,
                     radio_folder: folder || null
+                })
+            }).then(function(r) { return r.json(); }).then(function(d) {
+                if (!d.ok) { alert('Error: ' + (d.error || 'unknown')); }
+            }).catch(function(e) { alert('Network error: ' + e.message); });
+        }
+    };
+
+    // ===== DEFAULT FOLDER MODULE =====
+    modules.DefaultFolder = {
+        set: function(select) {
+            var username = select.getAttribute('data-username');
+            var folder = select.value;
+            spFetch('/plugins/SlimPing/settings/users', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'set_default_music_folder',
+                    username: username,
+                    default_music_folder: folder || null
                 })
             }).then(function(r) { return r.json(); }).then(function(d) {
                 if (!d.ok) { alert('Error: ' + (d.error || 'unknown')); }
@@ -1357,6 +1400,51 @@ var SlimPingSettings = (function() {
         }
     };
 
+    // ===== RUNTIME TESTS MODULE =====
+    // In-server self-tests. The endpoint is synchronous, so there is no test
+    // id to poll: one request runs every suite and returns the whole result.
+    modules.RuntimeTests = {
+        run: function() {
+            var btn = document.getElementById('sp-runtime-tests-run');
+            var summaryEl = document.getElementById('sp-runtime-tests-summary');
+            var outputEl = document.getElementById('sp-runtime-tests-output');
+
+            if (btn) { btn.disabled = true; }
+            if (summaryEl) { summaryEl.textContent = 'Running...'; summaryEl.className = 'sp-save-result ml-10'; }
+            if (outputEl) { outputEl.textContent = ''; }
+
+            spFetch('/plugins/SlimPing/settings/runtime_tests')
+                .then(function(r) { return r.json(); })
+                .then(function(d) {
+                    if (btn) { btn.disabled = false; }
+                    var s = d.summary || {};
+                    if (summaryEl) {
+                        summaryEl.textContent = (s.checks || 0) + ' checks: '
+                            + (s.passed || 0) + ' passed, ' + (s.failed || 0) + ' failed';
+                        summaryEl.className = 'sp-save-result ml-10 ' + (s.failed ? 'sp-save-error' : 'sp-save-ok');
+                    }
+                    if (outputEl) {
+                        var lines = [];
+                        (d.results || []).forEach(function(suite) {
+                            lines.push((suite.passed ? 'PASS  ' : 'FAIL  ') + suite.label);
+                            (suite.checks || []).forEach(function(c) {
+                                lines.push('  ' + (c.ok ? 'ok    ' : 'FAIL  ') + c.label
+                                    + (c.ok ? '' : ' - ' + (c.detail || '')));
+                            });
+                        });
+                        outputEl.textContent = lines.length ? lines.join('\n') : 'No runtime test suites registered.';
+                    }
+                })
+                .catch(function(e) {
+                    if (btn) { btn.disabled = false; }
+                    if (summaryEl) {
+                        summaryEl.textContent = 'Error: ' + e.message;
+                        summaryEl.className = 'sp-save-result ml-10 sp-save-error';
+                    }
+                });
+        }
+    };
+
     return {
         init:               function()    { modules.init(); },
         createUser:         function()    { modules.Users.createUser(); },
@@ -1385,6 +1473,7 @@ var SlimPingSettings = (function() {
         populateRadioFolders: function()   { modules.RadioFolder.populate(); },
         saveRadioFolder:    function()     { modules.RadioFolder.save(); return false; },
         setUserRadioFolder: function(sel)  { modules.RadioFolder.setUserFolder(sel); },
+        setDefaultMusicFolder: function(sel) { modules.DefaultFolder.set(sel); },
         refreshNowPlaying:  function()    { modules.NowPlaying.refresh(); },
         refreshDbStats:     function()    { modules.DataManagement.refreshStats(); },
         refreshCacheStats:  function()    { modules.DataManagement.refreshCacheStats(); },
@@ -1400,7 +1489,8 @@ var SlimPingSettings = (function() {
         saveSharingSettings: function()   { modules.Sharing.saveSettings(); },
         refreshDplRegistry:   function()    { modules.DynamicPlaylists.refreshRegistry(); },
         resetDplCaches:       function()    { modules.DynamicPlaylists.resetCaches(); },
-        setDplAccess:         function(u, e) { modules.DynamicPlaylists.setUserAccess(u, e); }
+        setDplAccess:         function(u, e) { modules.DynamicPlaylists.setUserAccess(u, e); },
+        runRuntimeTests:      function()    { modules.RuntimeTests.run(); }
     };
 
 })();
@@ -1472,6 +1562,10 @@ window.setUserRadioFolder = function(select) {
     SlimPingSettings.setUserRadioFolder(select);
 };
 
+window.setDefaultMusicFolder = function(select) {
+    SlimPingSettings.setDefaultMusicFolder(select);
+};
+
 window.saveScrobbleGateway = function(playerId) {
     SlimPingSettings.saveScrobbleGateway(playerId);
 };
@@ -1511,6 +1605,11 @@ window.saveExposure = function() {
     return false;
 };
 
+window.saveArtistListMode = function() {
+    SlimPingSettings.saveArtistListMode();
+    return false;
+};
+
 window.saveFeatures = function() {
     SlimPingSettings.saveFeatures();
     return false;
@@ -1538,6 +1637,11 @@ window.cleanupVirtualPlayers = function() {
 
 window.resetDatabase = function() {
     SlimPingSettings.resetDatabase();
+    return false;
+};
+
+window.runRuntimeTests = function() {
+    SlimPingSettings.runRuntimeTests();
     return false;
 };
 

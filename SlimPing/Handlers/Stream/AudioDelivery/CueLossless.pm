@@ -39,14 +39,16 @@ my $log = Plugins::SlimPing::Core::Logging->getLogger();
 # --- Time and format helpers ---------------------------------------------------
 
 # Format a number of seconds for flac --skip / --until as MM:SS.SS.
-# flac only accepts minutes:seconds (or a bare sample count) -- past an
-# hour the minutes simply keep counting (62:53.61), since H:MM:SS.SS is
-# rejected as "invalid value for --skip". Rounds to hundredths first so
-# 59.996s becomes 1:00.00, not 0:60.00.
+# flac accepts only minutes:seconds (or a bare sample count); past an hour the
+# minutes simply keep counting (62:53.60), because H:MM:SS.SS is rejected as
+# "invalid value for --skip" and "--until".  Rounds to hundredths before
+# splitting so a value that rounds up to a whole minute carries the minute
+# (59.996 becomes 1:00.00).  Verified against flac 1.4.2; LMS's own
+# Slim::Utils::DateTime::fracSecToMinSec uses the same minutes-past-59 form.
 sub formatFlacTime {
     my ($secs) = @_;
-    my $cs = sprintf( '%.0f', ( $secs // 0 ) * 100 );
-    my $m  = int( $cs / 6000 );
+    my $cs     = sprintf( '%.0f', ( $secs // 0 ) * 100 );
+    my $m      = int( $cs / 6000 );
     return sprintf( '%d:%05.2f', $m, ( $cs - $m * 6000 ) / 100 );
 }
 

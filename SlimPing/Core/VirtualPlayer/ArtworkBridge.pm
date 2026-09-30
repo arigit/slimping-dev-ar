@@ -154,9 +154,10 @@ sub readDefaultArtwork {
 
     require Slim::Music::Artwork;
 
-    my $filename = $kind eq 'radio'  ? 'radio_default.png'
-                 : $kind eq 'dpl'    ? 'search_svg.png'
-                 :                     'music_default.png';
+    my $filename =
+        $kind eq 'radio' ? 'radio_default.png'
+      : $kind eq 'dpl'   ? 'search_svg.png'
+      :                    'music_default.png';
 
     # Primary: resolve from this module's own filesystem location via %INC.
     # VirtualPlayer.pm lives at .../SlimPing/Core/VirtualPlayer.pm and the

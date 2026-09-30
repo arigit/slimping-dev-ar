@@ -34,11 +34,11 @@ use Plugins::SlimPing::Core::Logging;
 # OpenSubsonic extension fields to strip for legacy clients.
 # Navidrome's LegacyClients list strips these; we follow that precedent.
 my %_legacy_strip = map { $_ => 1 } qw(
-    musicBrainzId genres replayGain isrc contributors moods
-    explicitStatus mediaType sortName displayArtist displayAlbumArtist
-    displayComposer albumArtists artists contributors channelCount
-    samplingRate bitDepth played bpm comment replayGain
-    groupings works
+  musicBrainzId genres replayGain isrc contributors moods
+  explicitStatus mediaType sortName displayArtist displayAlbumArtist
+  displayComposer albumArtists artists contributors channelCount
+  samplingRate bitDepth played bpm comment replayGain
+  groupings works
 );
 
 # trim($class, $data, $client_name) -> $data (modified in-place)
@@ -46,26 +46,26 @@ my %_legacy_strip = map { $_ => 1 } qw(
 # Applies minimalClients and legacyClients rules to the response.
 # Returns the same reference for chaining convenience.
 sub trim {
-    my ($class, $data, $client_name) = @_;
+    my ( $class, $data, $client_name ) = @_;
 
-    return $data unless $data && ref $data eq 'HASH';
+    return $data unless $data                && ref $data eq 'HASH';
     return $data unless defined $client_name && length $client_name;
 
-    my $prefs = Plugins::SlimPing::Core::Logging->getPrefs();
+    my $prefs       = Plugins::SlimPing::Core::Logging->getPrefs();
     my $minimal_csv = $prefs->get('minimalClients') || '';
     my $legacy_csv  = $prefs->get('legacyClients')  || '';
 
     my %minimal_clients = map { $_ => 1 } grep { length $_ } split /\s*,\s*/, $minimal_csv;
     my %legacy_clients  = map { $_ => 1 } grep { length $_ } split /\s*,\s*/, $legacy_csv;
 
-    return $data unless %minimal_clients || %legacy_clients;
+    return $data unless %minimal_clients               || %legacy_clients;
     return $data unless $minimal_clients{$client_name} || $legacy_clients{$client_name};
 
-    if ($minimal_clients{$client_name}) {
+    if ( $minimal_clients{$client_name} ) {
         _trimMinimal($data);
     }
 
-    if ($legacy_clients{$client_name}) {
+    if ( $legacy_clients{$client_name} ) {
         _trimLegacy($data);
     }
 
@@ -77,14 +77,15 @@ sub trim {
 sub _trimMinimal {
     my ($data) = @_;
 
-    for my $key (keys %$data) {
+    for my $key ( keys %$data ) {
         my $val = $data->{$key};
         next unless ref $val eq 'HASH';
 
         # Direct entity: { song => { id => ..., title => ... } }
-        if (my $entity = _entityType($key)) {
-            _stripToMinimal($val, $entity);
-        } else {
+        if ( my $entity = _entityType($key) ) {
+            _stripToMinimal( $val, $entity );
+        }
+        else {
             # Container: { searchResult3 => { artist => [...], album => [...], song => [...] } }
             # or: { artists => { index => [ { artist => [...] } ] } }
             # or: { indexes => { index => [ ... ] } }
@@ -92,10 +93,10 @@ sub _trimMinimal {
         }
 
         # Arrays of children: { randomSongs => { song => [...] } }
-        if (my $entity = _entityType($key)) {
+        if ( my $entity = _entityType($key) ) {
             my $list = $val->{$entity};
-            if (ref $list eq 'ARRAY') {
-                _stripToMinimal($_, $entity) for @$list;
+            if ( ref $list eq 'ARRAY' ) {
+                _stripToMinimal( $_, $entity ) for @$list;
             }
         }
     }
@@ -104,17 +105,17 @@ sub _trimMinimal {
 # Determine the entity type from a response key name.
 sub _entityType {
     my ($key) = @_;
-    return 'artist' if $key =~ /artist/i;
-    return 'album'  if $key =~ /album/i;
-    return 'song'   if $key =~ /^(song|track|child|entry)$/i;
-    return 'genre'  if $key =~ /genre/i;
+    return 'artist'   if $key =~ /artist/i;
+    return 'album'    if $key =~ /album/i;
+    return 'song'     if $key =~ /^(song|track|child|entry)$/i;
+    return 'genre'    if $key =~ /genre/i;
     return 'playlist' if $key =~ /playlist/i;
     return undef;
 }
 
 # Strip a single entity hashref to its minimal schema-required fields.
 sub _stripToMinimal {
-    my ($hash, $type) = @_;
+    my ( $hash, $type ) = @_;
     return unless ref $hash eq 'HASH';
 
     my %keep = (
@@ -133,30 +134,34 @@ sub _stripToMinimal {
 sub _trimLegacy {
     my ($data) = @_;
 
-    for my $key (keys %$data) {
+    for my $key ( keys %$data ) {
         my $val = $data->{$key};
         next unless defined $val;
 
-        if (ref $val eq 'HASH') {
+        if ( ref $val eq 'HASH' ) {
+
             # Strip extension fields from the hash itself
             _stripLegacyFields($val);
+
             # Recurse into nested containers
             _trimLegacy($val);
+
             # Handle arrays inside: { song => [...] }
-            for my $inner_key (keys %$val) {
+            for my $inner_key ( keys %$val ) {
                 my $inner_val = $val->{$inner_key};
-                if (ref $inner_val eq 'ARRAY') {
+                if ( ref $inner_val eq 'ARRAY' ) {
                     for my $item (@$inner_val) {
-                        if (ref $item eq 'HASH') {
+                        if ( ref $item eq 'HASH' ) {
                             _stripLegacyFields($item);
                             _trimLegacy($item);
                         }
                     }
                 }
             }
-        } elsif (ref $val eq 'ARRAY') {
+        }
+        elsif ( ref $val eq 'ARRAY' ) {
             for my $item (@$val) {
-                if (ref $item eq 'HASH') {
+                if ( ref $item eq 'HASH' ) {
                     _stripLegacyFields($item);
                     _trimLegacy($item);
                 }
