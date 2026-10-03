@@ -110,6 +110,34 @@ sub runChecks {
         : 'no cue lines'
     );
 
+    # --- MAI cache read ---------------------------------------------------
+
+    my $clean = sub { Plugins::SlimPing::Handlers::Lyrics::_maiCleanTitle(shift) // 'undef' };
+    $check->( 'MAI cache title drops remaster suffixes', $clean->('Joyriders (Remastered 2012)') eq 'Joyriders',
+        "got '" . $clean->('Joyriders (Remastered 2012)') . "'" );
+    $check->( 'MAI cache title drops the [E] flag', $clean->('Song [E]') eq 'Song', "got '" . $clean->('Song [E]') . "'" );
+    $check->( 'MAI cache title keeps a plain title', $clean->('C.E.O.') eq 'C.E.O.', "got '" . $clean->('C.E.O.') . "'" );
+
+    {
+        package Plugins::SlimPing::Tests::LyricsTest::FakeTrack;
+        sub artistName { 'Pulp' }
+        sub title      { 'Joyriders (Remastered 2012)' }
+        sub url        { 'file:///nowhere/Joyriders.flac' }
+    }
+    my $fake = bless {}, 'Plugins::SlimPing::Tests::LyricsTest::FakeTrack';
+    my %asked;
+    no warnings 'redefine';
+    local *Plugins::MusicArtistInfo::TrackInfo::_getCachedLyrics = sub { $asked{ $_[0]{title} }++; "[ti:Joyriders]\n$SYNCED" };
+    local *Plugins::MusicArtistInfo::TrackInfo::_getLocalLyrics = sub { undef };
+    use warnings 'redefine';
+
+    $got = Plugins::SlimPing::Handlers::Lyrics::_maiCachedLyrics( $fake, 1 );
+    $check->( 'MAI cached lyrics are read by cleaned title', $asked{Joyriders}, 'asked for ' . join( ',', keys %asked ) );
+    $check->( 'MAI cached lyrics keep timestamps when asked', ( $got // '' ) =~ /^\[00:01\.00\]First line/m,
+        'got ' . $show->($got) );
+    $got = Plugins::SlimPing::Handlers::Lyrics::_maiCachedLyrics( $fake, 0 );
+    $check->( 'MAI cached lyrics lose timestamps otherwise', ( $got // '' ) eq $UNSYNCED, 'got ' . $show->($got) );
+
     return \@checks;
 }
 

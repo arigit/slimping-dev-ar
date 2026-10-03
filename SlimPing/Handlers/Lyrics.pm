@@ -19,11 +19,12 @@
 #
 # Handlers/Lyrics.pm - Lyrics retrieval handlers with MAI integration
 #
-# getLyricsBySongId and getLyrics both try the Music & Artist Info plugin
-# synchronously first (embedded tags, MAI disk cache, local .lrc/.txt).
-# When MAI needs to go online (LRCLib, Genius) the handler returns the
-# best available fallback while MAI's callback caches the result so the
-# NEXT request for that track completes synchronously.
+# getLyricsBySongId and getLyrics read local sources first (embedded tags,
+# sidecar files, MAI's lyrics cache folder) without touching the MAI
+# throttle.  Only when none has lyrics do they ask MAI through MaiThrottle,
+# which may go online (LRCLib, Genius).  The handler then returns the best
+# available fallback while MAI's callback caches the result so the NEXT
+# request for that track is answered from MAI's cache.
 #
 
 package Plugins::SlimPing::Handlers::Lyrics;
@@ -81,6 +82,7 @@ sub getLyrics {
             # Found a matching track -- check embedded lyrics first, then
             # try MAI with throttle gating.
             my $value = $track->lyrics();
+            $value = _maiCachedLyrics( $track, 0 ) unless _hasText($value);
 
             unless ( defined $value && length $value ) {
                 my $mai = _withMaiSlot( [ 'musicartistinfo', 'lyrics', 'track_id:' . $track->id() ],
@@ -137,10 +139,16 @@ sub getLyricsBySongId {
     # need no throttle slot, and keep ELRC word timing that MAI strips.
     my $lyrics_text = _chooseLocalLyrics( $track->lyrics(), sub { _readSidecarLyrics($track) } );
 
-    # Only probe MAI when no local lyrics exist AND a throttle slot is
-    # available.  When MAI completes inline (its disk cache) the result is
-    # used immediately.  When MAI goes async the external fetch runs in the
-    # background and populates the cache for the next request.
+    # MAI's cache folder holds lyrics it fetched earlier.  Reading it here
+    # needs no throttle slot: going through MaiThrottle for a cache hit got
+    # an empty answer whenever another MAI request (an artist biography,
+    # say) had taken the slot in the last few seconds.
+    $lyrics_text = _maiCachedLyrics( $track, 1 ) unless _hasText($lyrics_text);
+
+    # Only ask MAI when no local lyrics exist AND a throttle slot is
+    # available.  When MAI completes inline the result is used immediately.
+    # When MAI goes async the external fetch runs in the background and
+    # populates the cache for the next request.
     #
     # timestamps:1 is required for synced lyrics: without it MAI strips every
     # [mm:ss.xx] stamp before returning, even from a cached .lrc file.
@@ -226,6 +234,59 @@ sub _withMaiSlot {
         return { sync => 1, result => $result->{request}->getResult('lyrics') };
     }
     return { sync => 0 };
+}
+
+# Read lyrics MAI cached for $track without issuing a MAI request.  Mirrors
+# the title cleanup MAI's lyrics command applies before it builds the cache
+# path, then calls MAI's own cache readers so the folder layout and
+# file-name variants stay MAI's business.  Returns undef when MAI is not
+# installed, its internals have changed, or nothing is cached.
+# $keep_timestamps matches MAI's timestamps:1 parameter.
+sub _maiCachedLyrics {
+    my ( $track, $keep_timestamps ) = @_;
+
+    my $info = 'Plugins::MusicArtistInfo::TrackInfo';
+    return undef unless $info->can('_getCachedLyrics') && $info->can('_getLocalLyrics');
+
+    my $artist = eval { $track->artistName() };
+    my $title  = _maiCleanTitle( eval { $track->title() } );
+    return undef unless _hasText($artist) && _hasText($title);
+
+    my $args = { artist => $artist, title => $title, track => $track };
+    my $lyrics = eval {
+        Plugins::MusicArtistInfo::TrackInfo::_getCachedLyrics($args)
+          || Plugins::MusicArtistInfo::TrackInfo::_getLocalLyrics($args);
+    };
+    return undef unless _hasText($lyrics);
+
+    # Same normalisation MAI applies before returning lyrics.
+    $lyrics =~ s/\\n/\n/g;
+    $lyrics =~ s/\r\n?|\n\r/\n/g;
+    if ( Plugins::MusicArtistInfo::Parser::LRC->can('strip') ) {
+        $lyrics = Plugins::MusicArtistInfo::Parser::LRC->strip( $lyrics, $keep_timestamps );
+    }
+
+    return _hasText($lyrics) ? $lyrics : undef;
+}
+
+# The title clean-up from MAI's getSongLyricsCLI, which names the cache file
+# after the cleaned title.  Returns undef for a title MAI would not look up.
+sub _maiCleanTitle {
+    my ($title) = @_;
+    return undef unless defined $title;
+
+    $title =~ s/[([][^)\]]*?(deluxe|edition|remaster|live|anniversary)[^)\]]*?[)\]]//ig;
+    $title =~ s/ -[^-]*(deluxe|edition|remaster|live|anniversary).*//ig;
+    $title =~ s/\[E\]//g;
+    $title =~ s/[\s\W]{2,}$//;
+    $title =~ s/\s*$//;
+
+    if ( Plugins::MusicArtistInfo::Common->can('getKillWords') ) {
+        my $kill = Plugins::MusicArtistInfo::Common::getKillWords() || {};
+        return undef if $kill->{ lc $title };
+    }
+
+    return $title;
 }
 
 sub _hasText {
